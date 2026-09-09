@@ -1,0 +1,21 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# 变更后执行的编译命令
+cmd = "go build -o ./tmp/server.exe ./main.go"
+bin = "tmp/server.exe"
+full_bin = "tmp/server.exe"
+# 监控这些扩展名（改 config.yaml 也会自动重启）
+include_ext = ["go", "yaml", "yml", "toml", "env"]
+exclude_dir = ["bin", "tmp", "data", "docs"]
+delay = 1000
+stop_on_error = true
+send_interrupt = true
+kill_delay = 2000
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
