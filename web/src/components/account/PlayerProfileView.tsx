@@ -1,9 +1,16 @@
 import { AlertTriangle } from 'lucide-react'
-import CharacterCard from './CharacterCard'
+import { useState } from 'react'
+import clsx from 'clsx'
+import RelicDetailCard from './RelicDetailCard'
 import { t } from '@/i18n'
 import type { PlayerProfile } from '@/types/genshin'
 
 export default function PlayerProfileView({ profile }: { profile: PlayerProfile }) {
+  // 选中角色：重新查询后回落到第一个
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const selected =
+    profile.characters.find((c) => c.id === selectedId) ?? profile.characters[0]
+
   const stats = [
     { label: t('profile.statsAchievements'), value: profile.achievements },
     { label: t('profile.statsWorldLevel'), value: profile.worldLevel },
@@ -61,17 +68,107 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
         </div>
       </div>
 
-      {/* 角色列表 */}
+      {/* 角色选择条 + 选中角色详情（主从布局） */}
       {profile.characters.length > 0 ? (
-        <div>
-          <h3 className="mb-3 text-sm font-medium text-white">
-            {t('profile.charactersCount', { count: profile.characters.length })}
-          </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {profile.characters.map((c) => (
-              <CharacterCard key={c.id} c={c} />
-            ))}
+        <div className="space-y-5">
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-white">
+              {t('profile.charactersCount', { count: profile.characters.length })}
+            </h3>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {profile.characters.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id)}
+                  className={clsx(
+                    'w-20 shrink-0 rounded-xl border p-2 text-center transition',
+                    selected?.id === c.id
+                      ? 'border-teyvat-gold bg-teyvat-gold/10'
+                      : 'border-white/10 bg-teyvat-panel/60 hover:border-white/30',
+                  )}
+                >
+                  {c.iconUrl ? (
+                    <img
+                      src={c.iconUrl}
+                      alt={c.name}
+                      loading="lazy"
+                      className="mx-auto h-12 w-12 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-white/10 text-lg font-semibold text-white/40">
+                      {c.name[0]}
+                    </div>
+                  )}
+                  <p className="mt-1 truncate text-xs text-white/70">{c.name}</p>
+                  <p className="text-xs text-white/40">Lv.{c.level}</p>
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* 选中角色详情 */}
+          {selected && (
+            <div className="space-y-5">
+              {/* 角色概要 */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-teyvat-gold/20 bg-teyvat-gold/5 px-5 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-white">{selected.name}</p>
+                  <p className="text-xs text-white/45">{selected.element}</p>
+                </div>
+                <p className="text-xs text-white/60">
+                  Lv.{selected.level} ·{' '}
+                  {t('character.constellation', { n: selected.constellation })}
+                </p>
+                <p className="text-xs text-white/60">
+                  {t('character.fetter', { n: selected.fetter })}
+                </p>
+                {selected.weapon && (
+                  <p className="text-xs text-white/60">
+                    {t('character.weaponLabel')}: {selected.weapon.name} · Lv.
+                    {selected.weapon.level}
+                    {selected.weapon.affix > 0 &&
+                      ` · ${t('character.refine', { n: selected.weapon.affix })}`}
+                  </p>
+                )}
+              </div>
+
+              {/* 面板属性 */}
+              {selected.stats && selected.stats.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-white">
+                    {t('profile.statsTitle')}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {selected.stats.map((s) => (
+                      <div
+                        key={s.name}
+                        className="flex items-center justify-between rounded-xl border border-white/10 bg-teyvat-panel/60 px-3 py-2"
+                      >
+                        <span className="text-xs text-white/55">{s.name}</span>
+                        <span className="text-sm font-semibold text-teyvat-gold">
+                          {s.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 圣遗物详情 */}
+              {selected.relics && selected.relics.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-white">
+                    {t('character.relicsCount', { n: selected.relics.length })}
+                  </h4>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {selected.relics.map((r) => (
+                      <RelicDetailCard key={r.pos} relic={r} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-white/10 bg-teyvat-panel/60 p-8 text-center text-sm text-white/40">

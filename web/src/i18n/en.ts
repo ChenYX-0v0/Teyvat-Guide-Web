@@ -77,6 +77,8 @@ const en: Partial<Dict> = {
   'profile.charactersCount': 'Showcase Characters ({count})',
   'profile.noSignature': 'This traveler left nothing here',
   'profile.partialFailed': 'Some name mappings are missing and queued for update',
+  'profile.statsTitle': 'Character Stats',
+  'character.weaponLabel': 'Weapon',
 
   // Character card
   'character.constellation': 'C{n}',

@@ -75,6 +75,8 @@ const zhCN = {
   'profile.charactersCount': '展柜角色（{count}）',
   'profile.noSignature': '这个人很懒，什么都没写',
   'profile.partialFailed': '部分名称映射缺失，已记录待补录',
+  'profile.statsTitle': '角色面板',
+  'character.weaponLabel': '武器',
 
   // 角色卡片
   'character.constellation': '{n}命',
