@@ -23,6 +23,7 @@ const en: Partial<Dict> = {
   'sidebar.chat': 'AI Chat',
   'sidebar.account': 'Account',
   'sidebar.wiki': 'Wiki',
+  'sidebar.admin': 'Admin',
 
   // Login
   'login.welcome': 'Welcome back, Traveler',

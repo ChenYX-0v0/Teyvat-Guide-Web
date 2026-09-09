@@ -47,23 +47,28 @@ func (s *AuthService) seedIfEmpty() {
 		logger.L().Warnw("user count failed, skip seed", "err", err)
 		return
 	}
-	if n > 0 {
+	if n == 0 {
+		hash, err := bcrypt.GenerateFromPassword([]byte(s.cfg.SeedPass), bcrypt.DefaultCost)
+		if err != nil {
+			logger.L().Warnw("seed password hash failed", "err", err)
+			return
+		}
+		if err := s.repo.Create(&model.User{
+			Username:     s.cfg.SeedUser,
+			PasswordHash: string(hash),
+			DisplayName:  "管理员",
+			Role:         "admin",
+		}); err != nil {
+			logger.L().Warnw("seed user create failed", "err", err)
+			return
+		}
+		logger.L().Infow("seed user created", "username", s.cfg.SeedUser)
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(s.cfg.SeedPass), bcrypt.DefaultCost)
-	if err != nil {
-		logger.L().Warnw("seed password hash failed", "err", err)
-		return
+	// 已有用户：确保种子账号具备管理员角色（role 字段加入前的存量数据修复）
+	if err := s.repo.EnsureAdmin(s.cfg.SeedUser); err != nil {
+		logger.L().Warnw("ensure seed admin failed", "username", s.cfg.SeedUser, "err", err)
 	}
-	if err := s.repo.Create(&model.User{
-		Username:     s.cfg.SeedUser,
-		PasswordHash: string(hash),
-		DisplayName:  "管理员",
-	}); err != nil {
-		logger.L().Warnw("seed user create failed", "err", err)
-		return
-	}
-	logger.L().Infow("seed user created", "username", s.cfg.SeedUser)
 }
 
 // Register 注册新用户
@@ -95,29 +100,30 @@ func (s *AuthService) Register(username, password, displayName string) (*model.U
 }
 
 // Login 校验账密并签发 JWT
-func (s *AuthService) Login(username, password string) (token, displayName string, err error) {
+func (s *AuthService) Login(username, password string) (token, displayName, role string, err error) {
 	u, err := s.repo.FindByUsername(username)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if u == nil {
-		return "", "", ErrBadCredentials
+		return "", "", "", ErrBadCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
-		return "", "", ErrBadCredentials
+		return "", "", "", ErrBadCredentials
 	}
 
 	claims := jwt.MapClaims{
 		"uid":      u.ID,
 		"username": u.Username,
+		"role":     u.Role,
 		"exp":      time.Now().Add(s.ttl).Unix(),
 		"iat":      time.Now().Unix(),
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return signed, u.DisplayName, nil
+	return signed, u.DisplayName, u.Role, nil
 }
 
 // ParseUserID 从 JWT 中解析用户 ID（JWTAuth 中间件已校验签名）

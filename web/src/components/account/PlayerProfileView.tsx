@@ -1,4 +1,3 @@
-import { AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 import RelicDetailCard from './RelicDetailCard'
@@ -19,20 +18,6 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
 
   return (
     <div className="space-y-6">
-      {profile.warnings && profile.warnings.length > 0 && (
-        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-200">
-          <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {t('profile.partialFailed')}
-          </p>
-          <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-amber-200/80">
-            {profile.warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* 玩家头部 */}
       <div className="flex flex-wrap items-center gap-5 rounded-2xl border border-white/10 bg-teyvat-panel/60 p-5">
         {profile.avatarUrl ? (

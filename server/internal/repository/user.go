@@ -66,3 +66,13 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 	}
 	return &u, nil
 }
+
+// EnsureAdmin 将指定用户名提升为管理员（幂等；种子账号迁移后补挂 role 用）
+func (r *UserRepository) EnsureAdmin(username string) error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Model(&model.User{}).
+		Where("username = ? AND role <> ?", username, "admin").
+		Update("role", "admin").Error
+}

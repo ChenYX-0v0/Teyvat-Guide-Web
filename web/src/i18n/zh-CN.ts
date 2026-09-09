@@ -22,6 +22,9 @@ const zhCN = {
   'sidebar.chat': '智能问答',
   'sidebar.account': '账号信息',
   'sidebar.wiki': '图鉴',
+  'sidebar.admin': '管理员',
+  'admin.title': '管理员控制台',
+  'admin.welcome': '欢迎，{name}。管理功能建设中。',
 
   // 登录
   'login.welcome': '欢迎回来，旅行者',

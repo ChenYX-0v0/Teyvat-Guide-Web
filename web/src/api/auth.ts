@@ -1,8 +1,11 @@
 import { http, unwrap } from './client'
 
+export type UserRole = 'admin' | 'user'
+
 export interface LoginResult {
   token: string
   displayName: string
+  role: UserRole
 }
 
 export const authApi = {

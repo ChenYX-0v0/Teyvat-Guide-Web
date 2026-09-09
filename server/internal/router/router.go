@@ -82,6 +82,7 @@ func autoMigrate() {
 		&asset.RelicSet{},
 		&asset.TextMapEntry{},
 		&asset.PropMap{},
+		&asset.FightProp{},
 		&asset.Affix{},
 		&asset.CharacterStatWeights{},
 		&asset.Missing{},

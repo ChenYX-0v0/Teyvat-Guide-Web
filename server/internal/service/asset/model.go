@@ -48,6 +48,12 @@ type PropMap struct {
 	Percent bool   `gorm:"not null" json:"percent"`
 }
 
+// FightProp 数字枚举 → PropID 映射（Enka fightPropMap 的数字键 → FIGHT_PROP_XXX）
+type FightProp struct {
+	NumID  string `gorm:"primaryKey;size:16" json:"numId"` // 如 "2000"
+	PropID string `gorm:"size:48;not null" json:"propId"`  // 如 FIGHT_PROP_HP
+}
+
 // Affix 圣遗物词缀表（ReliquaryAffixExcelConfigData）
 // 用于解码 Enka appendPropIdList：数字 id → 词条类型（该 id 同时编码了强化档位）
 type Affix struct {

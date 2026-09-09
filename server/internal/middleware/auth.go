@@ -37,6 +37,9 @@ func JWTAuth(cfg config.AuthConfig) gin.HandlerFunc {
 			if username, ok := claims["username"].(string); ok {
 				c.Set("username", username)
 			}
+			if role, ok := claims["role"].(string); ok {
+				c.Set("role", role)
+			}
 		}
 		c.Next()
 	}

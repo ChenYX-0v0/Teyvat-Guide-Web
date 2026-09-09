@@ -1,0 +1,19 @@
+{
+  "fightProps": [
+    { "numId": "2000", "propId": "FIGHT_PROP_HP" },
+    { "numId": "2001", "propId": "FIGHT_PROP_ATTACK" },
+    { "numId": "2002", "propId": "FIGHT_PROP_DEFENSE" },
+    { "numId": "28", "propId": "FIGHT_PROP_ELEMENT_MASTERY" },
+    { "numId": "20", "propId": "FIGHT_PROP_CRITICAL" },
+    { "numId": "22", "propId": "FIGHT_PROP_CRITICAL_HURT" },
+    { "numId": "23", "propId": "FIGHT_PROP_CHARGE_EFFICIENCY" },
+    { "numId": "30", "propId": "FIGHT_PROP_PHYSICAL_ADD" },
+    { "numId": "41", "propId": "FIGHT_PROP_WIND_ADD" },
+    { "numId": "42", "propId": "FIGHT_PROP_ROCK_ADD" },
+    { "numId": "43", "propId": "FIGHT_PROP_ELEC_ADD" },
+    { "numId": "44", "propId": "FIGHT_PROP_GRASS_ADD" },
+    { "numId": "45", "propId": "FIGHT_PROP_WATER_ADD" },
+    { "numId": "46", "propId": "FIGHT_PROP_FIRE_ADD" },
+    { "numId": "47", "propId": "FIGHT_PROP_ICE_ADD" }
+  ]
+}

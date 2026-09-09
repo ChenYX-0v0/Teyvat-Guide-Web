@@ -91,7 +91,7 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 			card.StatWeights = &dto.StatRecommendation{SubStats: entries, MainStats: rec.MainStats}
 		}
 
-		card.Stats = panelStats(a.FightPropMap, card.Element, tierByName)
+		card.Stats = tr.panelStats(a.FightPropMap, card.Element, tierByName)
 
 		for _, eq := range a.EquipList {
 			switch eq.Flat.ItemType {
@@ -204,35 +204,49 @@ func (tr *Translator) statDetail(propID string, value float64) (string, string) 
 	return propID, fmt.Sprintf("%g", value)
 }
 
-// panelStats 从 fightPropMap 构造面板属性
-// FIGHT_PROP 数字枚举：2000=生命 2001=攻击 2002=防御 28=精通 20=暴击率 22=暴击伤害 23=充能
-// 元素伤害加成：41=风 42=岩 43=雷 44=草 45=水 46=火 47=冰
-// tierByName：词条中文名 → 分级，命中则随行下发供前端着色
-func panelStats(props map[string]float64, element string, tierByName map[string]string) []dto.StatInfo {
+// panelStatIDs 面板展示的属性行（数字枚举，顺序即展示顺序）
+// 仅保留 UI 展示逻辑；词条名、格式（flat/percent）与分级一律查 asset 映射表
+var panelStatIDs = []string{"2000", "2001", "2002", "28", "20", "22", "23"}
+
+// panelStats 从 fightPropMap 构造面板属性，全部通过映射表翻译：
+// 数字枚举 → fight_props → FIGHT_PROP_XXX → prop_maps（词条名 + percent 格式）
+func (tr *Translator) panelStats(props map[string]float64, element string, tierByName map[string]string) []dto.StatInfo {
 	get := func(key string) float64 { return props[key] }
-	percent := func(key string) string { return fmt.Sprintf("%.1f%%", get(key)*100) }
-	flat := func(key string) string { return fmt.Sprintf("%.0f", get(key)) }
-
-	stats := []dto.StatInfo{
-		{Name: "生命值", Value: flat("2000"), Tier: tierByName["生命值"]},
-		{Name: "攻击力", Value: flat("2001"), Tier: tierByName["攻击力"]},
-		{Name: "防御力", Value: flat("2002"), Tier: tierByName["防御力"]},
-		{Name: "元素精通", Value: flat("28"), Tier: tierByName["元素精通"]},
-		{Name: "暴击率", Value: percent("20"), Tier: tierByName["暴击率"]},
-		{Name: "暴击伤害", Value: percent("22"), Tier: tierByName["暴击伤害"]},
-		{Name: "元素充能效率", Value: percent("23"), Tier: tierByName["元素充能效率"]},
+	format := func(v float64, percent bool) string {
+		if percent {
+			return fmt.Sprintf("%.1f%%", v*100)
+		}
+		return fmt.Sprintf("%.0f", v)
 	}
 
-	// 按角色元素取对应的元素伤害加成
-	dmgProp := map[string]string{
-		"火": "46", "水": "45", "风": "41", "雷": "43", "草": "44", "岩": "42", "冰": "47",
-	}
-	if key, ok := dmgProp[element]; ok {
+	stats := make([]dto.StatInfo, 0, len(panelStatIDs)+1)
+	for _, numID := range panelStatIDs {
+		propID, ok := tr.assets.PropIDByNum(numID)
+		if !ok {
+			continue
+		}
+		p, ok := tr.assets.Prop(propID)
+		if !ok {
+			continue
+		}
 		stats = append(stats, dto.StatInfo{
-			Name:  element + "元素伤害加成",
-			Value: percent(key),
-			Tier:  tierByName[element+"元素伤害加成"],
+			Name:  p.Name,
+			Value: format(get(numID), p.Percent),
+			Tier:  tierByName[p.Name],
 		})
+	}
+
+	// 元素伤害加成行：元素名来自 characters.element（DB 数据），枚举与名称同样查表
+	if propID, ok := tr.assets.PropIDByName(element + "元素伤害加成"); ok {
+		if numID, ok := tr.assets.NumIDByPropID(propID); ok {
+			if p, ok := tr.assets.Prop(propID); ok {
+				stats = append(stats, dto.StatInfo{
+					Name:  p.Name,
+					Value: format(get(numID), p.Percent),
+					Tier:  tierByName[p.Name],
+				})
+			}
+		}
 	}
 	return stats
 }

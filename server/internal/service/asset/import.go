@@ -22,6 +22,7 @@ type ImportPayload struct {
 	RelicSets   []RelicSet         `json:"relicSets"`
 	TextMap     []TextMapEntry     `json:"textMap"`
 	PropMap     []PropMap          `json:"propMap"`
+	FightProps  []FightProp        `json:"fightProps"`
 	Affixes     []Affix            `json:"affixes"`
 	StatWeights []StatWeightImport `json:"statWeights"`
 }
@@ -47,6 +48,9 @@ func (s *Service) Import(p ImportPayload) error {
 			return err
 		}
 		if err := upsertBatch(tx, p.PropMap, upsertBatchSize); err != nil {
+			return err
+		}
+		if err := upsertBatch(tx, p.FightProps, upsertBatchSize); err != nil {
 			return err
 		}
 		if err := upsertBatch(tx, p.Affixes, upsertBatchSize); err != nil {

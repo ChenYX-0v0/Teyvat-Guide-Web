@@ -79,6 +79,7 @@ func main() {
 	textmapFile := flag.String("textmap-file", "", "仅导入全量文本映射 JSON（{\"<hash>\": \"文本\"}）")
 	affixesFile := flag.String("affixes-file", "", "仅导入词缀表（ReliquaryAffixExcelConfigData.json）")
 	statWeightsFile := flag.String("stat-weights-file", "", "仅导入角色推荐词条（{\"statWeights\":[...]}）")
+	fightPropsFile := flag.String("fight-props-file", "", "仅导入数字枚举映射（{\"fightProps\":[{\"numId\",\"propId\"}]}）")
 	flag.Parse()
 
 	cfg := config.Load()
@@ -96,7 +97,7 @@ func main() {
 	// CLI 独立运行，先确保映射表存在（后端启动时也会 autoMigrate）
 	if err := db.AutoMigrate(
 		&asset.Character{}, &asset.Weapon{}, &asset.RelicSet{},
-		&asset.TextMapEntry{}, &asset.PropMap{}, &asset.Affix{}, &asset.Missing{},
+		&asset.TextMapEntry{}, &asset.PropMap{}, &asset.FightProp{}, &asset.Affix{}, &asset.Missing{},
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "建表失败: %v\n", err)
 		os.Exit(1)
@@ -148,6 +149,19 @@ func main() {
 		var payload asset.ImportPayload
 		readJSON(*statWeightsFile, &payload)
 		fmt.Printf("statWeights: %d 个角色\n", len(payload.StatWeights))
+		if err := svc.Import(payload); err != nil {
+			fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("导入完成，内存映射已刷新")
+		return
+	}
+
+	// 模式五：仅导入数字枚举映射（fightPropMap 数字键 → FIGHT_PROP_XXX）
+	if *fightPropsFile != "" {
+		var payload asset.ImportPayload
+		readJSON(*fightPropsFile, &payload)
+		fmt.Printf("fightProps: %d 条\n", len(payload.FightProps))
 		if err := svc.Import(payload); err != nil {
 			fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
 			os.Exit(1)

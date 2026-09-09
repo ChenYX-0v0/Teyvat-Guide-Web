@@ -36,8 +36,11 @@ type Service struct {
 	weapons    map[int64]Weapon
 	relicSets  map[int]RelicSet
 	texts      map[int64]string
-	props      map[string]PropMap
-	affixes    map[int64]Affix
+	props        map[string]PropMap
+	propIDByName map[string]string // 词条名 → PropID
+	fightProps   map[string]string // 数字枚举 → PropID（正向）
+	numByFight   map[string]string // PropID → 数字枚举（反向）
+	affixes      map[int64]Affix
 	statRecs   map[int64]StatRecommendation
 }
 
@@ -76,6 +79,10 @@ func (s *Service) Load() error {
 	if err := s.db.Find(&affixes).Error; err != nil {
 		return err
 	}
+	var fightProps []FightProp
+	if err := s.db.Find(&fightProps).Error; err != nil {
+		return err
+	}
 	var statRecRows []CharacterStatWeights
 	if err := s.db.Find(&statRecRows).Error; err != nil {
 		return err
@@ -98,8 +105,16 @@ func (s *Service) Load() error {
 		textMap[tx.Hash] = tx.Text
 	}
 	propMap := make(map[string]PropMap, len(props))
+	propIDByName := make(map[string]string, len(props))
 	for _, p := range props {
 		propMap[p.PropID] = p
+		propIDByName[p.Name] = p.PropID
+	}
+	fightByNum := make(map[string]string, len(fightProps))
+	numByFight := make(map[string]string, len(fightProps))
+	for _, f := range fightProps {
+		fightByNum[f.NumID] = f.PropID
+		numByFight[f.PropID] = f.NumID
 	}
 	affixMap := make(map[int64]Affix, len(affixes))
 	for _, a := range affixes {
@@ -119,6 +134,9 @@ func (s *Service) Load() error {
 	s.relicSets = setMap
 	s.texts = textMap
 	s.props = propMap
+	s.propIDByName = propIDByName
+	s.fightProps = fightByNum
+	s.numByFight = numByFight
 	s.affixes = affixMap
 	s.statRecs = recMap
 	s.mu.Unlock()
@@ -126,7 +144,7 @@ func (s *Service) Load() error {
 	logger.L().Infow("asset maps loaded",
 		"characters", len(chars), "weapons", len(weapons),
 		"relicSets", len(sets), "texts", len(texts), "props", len(props),
-		"affixes", len(affixes), "statRecs", len(recMap))
+		"fightProps", len(fightProps), "affixes", len(affixes), "statRecs", len(recMap))
 	return nil
 }
 
@@ -168,6 +186,30 @@ func (s *Service) Prop(propID string) (PropMap, bool) {
 	defer s.mu.RUnlock()
 	p, ok := s.props[propID]
 	return p, ok
+}
+
+// PropIDByNum 数字枚举 → PropID（如 "2000" → FIGHT_PROP_HP）
+func (s *Service) PropIDByNum(numID string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	id, ok := s.fightProps[numID]
+	return id, ok
+}
+
+// NumIDByPropID PropID → 数字枚举（如 FIGHT_PROP_WATER_ADD → "45"）
+func (s *Service) NumIDByPropID(propID string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	id, ok := s.numByFight[propID]
+	return id, ok
+}
+
+// PropIDByName 词条名 → PropID（元素伤害加成行按元素名动态查表用）
+func (s *Service) PropIDByName(name string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	id, ok := s.propIDByName[name]
+	return id, ok
 }
 
 // Affix 按词缀 id 查词条类型
