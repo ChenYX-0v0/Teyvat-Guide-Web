@@ -139,17 +139,38 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
                     {t('profile.statsTitle')}
                   </h4>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {selected.stats.map((s) => (
-                      <div
-                        key={s.name}
-                        className="flex items-center justify-between rounded-xl border border-white/10 bg-teyvat-panel/60 px-3 py-2"
-                      >
-                        <span className="text-xs text-white/55">{s.name}</span>
-                        <span className="text-sm font-semibold text-teyvat-gold">
-                          {s.value}
-                        </span>
-                      </div>
-                    ))}
+                    {selected.stats.map((s) => {
+                      // 主/次属性金色，未分级灰色
+                      const highlighted = s.tier === 'primary' || s.tier === 'secondary'
+                      return (
+                        <div
+                          key={s.name}
+                          className={clsx(
+                            'flex items-center justify-between rounded-xl border px-3 py-2',
+                            highlighted
+                              ? 'border-teyvat-gold/25 bg-teyvat-gold/5'
+                              : 'border-white/10 bg-teyvat-panel/60',
+                          )}
+                        >
+                          <span
+                            className={clsx(
+                              'text-xs',
+                              highlighted ? 'text-teyvat-gold/80' : 'text-white/40',
+                            )}
+                          >
+                            {s.name}
+                          </span>
+                          <span
+                            className={clsx(
+                              'text-sm font-semibold',
+                              highlighted ? 'text-teyvat-gold' : 'text-white/40',
+                            )}
+                          >
+                            {s.value}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

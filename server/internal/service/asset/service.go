@@ -6,6 +6,7 @@ package asset
 // - Import 后自动 reload，立即生效无需重启
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type Service struct {
 	texts      map[int64]string
 	props      map[string]PropMap
 	affixes    map[int64]Affix
+	statRecs   map[int64]StatRecommendation
 }
 
 // New 创建服务；db 为 nil 时降级为空映射（翻译全部走 fallback）
@@ -74,6 +76,10 @@ func (s *Service) Load() error {
 	if err := s.db.Find(&affixes).Error; err != nil {
 		return err
 	}
+	var statRecRows []CharacterStatWeights
+	if err := s.db.Find(&statRecRows).Error; err != nil {
+		return err
+	}
 
 	charMap := make(map[int64]Character, len(chars))
 	for _, c := range chars {
@@ -99,6 +105,13 @@ func (s *Service) Load() error {
 	for _, a := range affixes {
 		affixMap[a.ID] = a
 	}
+	recMap := make(map[int64]StatRecommendation, len(statRecRows))
+	for _, row := range statRecRows {
+		var rec StatRecommendation
+		if err := json.Unmarshal([]byte(row.Payload), &rec); err == nil {
+			recMap[row.CharacterID] = rec
+		}
+	}
 
 	s.mu.Lock()
 	s.characters = charMap
@@ -107,12 +120,13 @@ func (s *Service) Load() error {
 	s.texts = textMap
 	s.props = propMap
 	s.affixes = affixMap
+	s.statRecs = recMap
 	s.mu.Unlock()
 
 	logger.L().Infow("asset maps loaded",
 		"characters", len(chars), "weapons", len(weapons),
 		"relicSets", len(sets), "texts", len(texts), "props", len(props),
-		"affixes", len(affixes))
+		"affixes", len(affixes), "statRecs", len(recMap))
 	return nil
 }
 
@@ -162,6 +176,14 @@ func (s *Service) Affix(id int64) (Affix, bool) {
 	defer s.mu.RUnlock()
 	a, ok := s.affixes[id]
 	return a, ok
+}
+
+// StatRecommendation 按角色查推荐强化词条
+func (s *Service) StatRecommendation(characterID int64) (StatRecommendation, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rec, ok := s.statRecs[characterID]
+	return rec, ok
 }
 
 // ReportMissing 异步记录未命中的 ID（补录依据）

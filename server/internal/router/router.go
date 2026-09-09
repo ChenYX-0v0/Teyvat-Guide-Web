@@ -83,6 +83,7 @@ func autoMigrate() {
 		&asset.TextMapEntry{},
 		&asset.PropMap{},
 		&asset.Affix{},
+		&asset.CharacterStatWeights{},
 		&asset.Missing{},
 	); err != nil {
 		logger.L().Errorw("auto migrate failed", "err", err)

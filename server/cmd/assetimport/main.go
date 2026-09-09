@@ -78,6 +78,7 @@ func main() {
 	dir := flag.String("dir", "", "EnkaGameAssets store/gi 目录路径")
 	textmapFile := flag.String("textmap-file", "", "仅导入全量文本映射 JSON（{\"<hash>\": \"文本\"}）")
 	affixesFile := flag.String("affixes-file", "", "仅导入词缀表（ReliquaryAffixExcelConfigData.json）")
+	statWeightsFile := flag.String("stat-weights-file", "", "仅导入角色推荐词条（{\"statWeights\":[...]}）")
 	flag.Parse()
 
 	cfg := config.Load()
@@ -135,6 +136,19 @@ func main() {
 			return
 		}
 		if err := svc.Import(asset.ImportPayload{TextMap: texts}); err != nil {
+			fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("导入完成，内存映射已刷新")
+		return
+	}
+
+	// 模式四：仅导入角色推荐词条
+	if *statWeightsFile != "" {
+		var payload asset.ImportPayload
+		readJSON(*statWeightsFile, &payload)
+		fmt.Printf("statWeights: %d 个角色\n", len(payload.StatWeights))
+		if err := svc.Import(payload); err != nil {
 			fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
 			os.Exit(1)
 		}

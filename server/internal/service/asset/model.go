@@ -56,6 +56,27 @@ type Affix struct {
 	PropValue float64 `json:"propValue"`                        // 该档位数值
 }
 
+// StatWeightItem 推荐词条项（weight 越大越优先）
+// Tier 属性分级：primary=主要属性 secondary=次要属性 空=未分级
+type StatWeightItem struct {
+	StatKey string `json:"statKey"` // FIGHT_PROP_XXX
+	Weight  int    `json:"weight"`
+	Tier    string `json:"tier,omitempty"` // primary | secondary | ""
+}
+
+// StatRecommendation 角色推荐强化词条（副词条权重 + 主词条推荐）
+type StatRecommendation struct {
+	SubStats  []StatWeightItem  `json:"subStats"`
+	MainStats map[string]string `json:"mainStats,omitempty"` // sand/goblet/circlet → 推荐主属性
+}
+
+// CharacterStatWeights 角色推荐词条（按角色存储，JSON payload）
+type CharacterStatWeights struct {
+	CharacterID int64     `gorm:"primaryKey;autoIncrement:false" json:"characterId"`
+	Payload     string    `gorm:"type:json" json:"payload"` // StatRecommendation 序列化
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
 // Missing 翻译缺漏收集（补录依据，不阻塞查询）
 type Missing struct {
 	Kind      string    `gorm:"primaryKey;size:16" json:"kind"` // character|weapon|relic_set|text|prop|affix

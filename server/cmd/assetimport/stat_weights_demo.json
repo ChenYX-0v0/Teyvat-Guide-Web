@@ -1,0 +1,30 @@
+{"statWeights":[
+{"characterId":10000089,"recommendation":{
+  "subStats":[
+    {"statKey":"FIGHT_PROP_HP_PERCENT","weight":10},
+    {"statKey":"FIGHT_PROP_CRITICAL","weight":8},
+    {"statKey":"FIGHT_PROP_CRITICAL_HURT","weight":8},
+    {"statKey":"FIGHT_PROP_CHARGE_EFFICIENCY","weight":6},
+    {"statKey":"FIGHT_PROP_HP","weight":2}
+  ],
+  "mainStats":{"sand":"元素充能效率","goblet":"水元素伤害加成","circlet":"暴击率"}
+}},
+{"characterId":10000120,"recommendation":{
+  "subStats":[
+    {"statKey":"FIGHT_PROP_CRITICAL","weight":10},
+    {"statKey":"FIGHT_PROP_CRITICAL_HURT","weight":10},
+    {"statKey":"FIGHT_PROP_ATTACK_PERCENT","weight":8},
+    {"statKey":"FIGHT_PROP_CHARGE_EFFICIENCY","weight":5}
+  ],
+  "mainStats":{"sand":"攻击力","goblet":"雷元素伤害加成","circlet":"暴击伤害"}
+}},
+{"characterId":10000058,"recommendation":{
+  "subStats":[
+    {"statKey":"FIGHT_PROP_ATTACK_PERCENT","weight":10},
+    {"statKey":"FIGHT_PROP_CRITICAL","weight":9},
+    {"statKey":"FIGHT_PROP_CRITICAL_HURT","weight":9},
+    {"statKey":"FIGHT_PROP_ELEMENT_MASTERY","weight":4}
+  ],
+  "mainStats":{"sand":"攻击力","goblet":"雷元素伤害加成","circlet":"暴击伤害"}
+}}
+]}

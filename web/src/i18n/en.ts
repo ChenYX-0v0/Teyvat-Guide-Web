@@ -86,6 +86,8 @@ const en: Partial<Dict> = {
   'character.fetter': 'Fetter Lv.{n}',
   'character.relicsCount': '{n} Artifacts',
   'character.enhanceTimes': 'Enhanced {n}x',
+  'character.recommendTitle': 'Recommended Substats',
+  'character.mainStatsLabel': 'Recommended main stats',
 
   // Wiki
   'wiki.title': 'Wiki',

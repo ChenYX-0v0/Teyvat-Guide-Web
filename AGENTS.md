@@ -95,6 +95,7 @@ logger.L().Errorw("chat failed", "err", err)
 
 ### 4.4 数据库
 
+- **所有业务数据一律存数据库，禁止在代码中硬编码记录数据**（如映射表、枚举文案、词条分级、配置常量等）；代码只定义结构与逻辑，数据通过表或导入接口维护。
 - 默认 **MySQL**：`127.0.0.1:3306`，`root/root`，库名 `teyvat_guide`；启动时自动 `CREATE DATABASE IF NOT EXISTS`（utf8mb4）并执行 `AutoMigrate`。
 - 切库只改 `config.yaml` 的 `database.*`（`driver` 支持 `mysql` / `sqlite`），业务代码不得感知具体数据库。
 - 表结构变更：在 `router.go` 的 `autoMigrate()` 注册新模型。
@@ -168,6 +169,7 @@ logger.L().Errorw("chat failed", "err", err)
 10. ❌ 触碰 `.codebuddy/` 目录；它不是临时缓存。
 11. ❌ 提交含真实 API Key 的文件；密钥只通过环境变量注入。
 12. ❌ 未经确认执行 `git commit` / `git push` / 删除文件等破坏性操作。
+13. ❌ 把业务数据写死在代码里（map/常量/switch 枚举）——数据一律入数据库，代码只留结构与逻辑。
 
 ## 8. 变更后的自检清单
 

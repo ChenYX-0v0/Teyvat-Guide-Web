@@ -6,6 +6,7 @@ package enka
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 
 	"teyvat-guide/server/internal/dto"
@@ -71,7 +72,26 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 			card.Name = fmt.Sprintf("未知角色 #%d", a.AvatarID)
 			report(asset.KindCharacter, fmt.Sprint(a.AvatarID))
 		}
-		card.Stats = panelStats(a.FightPropMap, card.Element)
+		// 推荐强化词条（有录入才输出，statKey 翻译为中文词条名并按权重降序）
+		// tierByName：中文词条名 → 属性分级（primary/secondary），供面板属性与圣遗物词条着色
+		tierByName := map[string]string{}
+		if rec, ok := tr.assets.StatRecommendation(int64(a.AvatarID)); ok && len(rec.SubStats) > 0 {
+			entries := make([]dto.StatWeightEntry, 0, len(rec.SubStats))
+			for _, it := range rec.SubStats {
+				name := it.StatKey
+				if p, ok2 := tr.assets.Prop(it.StatKey); ok2 {
+					name = p.Name
+				}
+				entries = append(entries, dto.StatWeightEntry{Name: name, Weight: it.Weight, Tier: it.Tier})
+				if it.Tier != "" {
+					tierByName[name] = it.Tier
+				}
+			}
+			sort.Slice(entries, func(i, j int) bool { return entries[i].Weight > entries[j].Weight })
+			card.StatWeights = &dto.StatRecommendation{SubStats: entries, MainStats: rec.MainStats}
+		}
+
+		card.Stats = panelStats(a.FightPropMap, card.Element, tierByName)
 
 		for _, eq := range a.EquipList {
 			switch eq.Flat.ItemType {
@@ -131,13 +151,14 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 					Pos:    eq.Flat.EquipType,
 				}
 
-				// 主词条 + 副词条（附强化次数）
+				// 主词条 + 副词条（附强化次数与属性分级）
 				if eq.Flat.ReliquaryMainstat.MainPropID != "" {
 					name, value := tr.statDetail(
 						eq.Flat.ReliquaryMainstat.MainPropID,
 						eq.Flat.ReliquaryMainstat.StatValue,
 					)
 					relic.MainStat = fmt.Sprintf("%s +%s", name, value)
+					relic.MainStatTier = tierByName[name]
 				}
 				for _, sub := range eq.Flat.ReliquarySubstats {
 					name, value := tr.statDetail(sub.AppendPropID, sub.StatValue)
@@ -145,6 +166,7 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 						Name:  name,
 						Value: value,
 						Count: enhanceCount[sub.AppendPropID],
+						Tier:  tierByName[name],
 					})
 				}
 
@@ -185,19 +207,20 @@ func (tr *Translator) statDetail(propID string, value float64) (string, string) 
 // panelStats 从 fightPropMap 构造面板属性
 // FIGHT_PROP 数字枚举：2000=生命 2001=攻击 2002=防御 28=精通 20=暴击率 22=暴击伤害 23=充能
 // 元素伤害加成：41=风 42=岩 43=雷 44=草 45=水 46=火 47=冰
-func panelStats(props map[string]float64, element string) []dto.StatInfo {
+// tierByName：词条中文名 → 分级，命中则随行下发供前端着色
+func panelStats(props map[string]float64, element string, tierByName map[string]string) []dto.StatInfo {
 	get := func(key string) float64 { return props[key] }
 	percent := func(key string) string { return fmt.Sprintf("%.1f%%", get(key)*100) }
 	flat := func(key string) string { return fmt.Sprintf("%.0f", get(key)) }
 
 	stats := []dto.StatInfo{
-		{Name: "生命值", Value: flat("2000")},
-		{Name: "攻击力", Value: flat("2001")},
-		{Name: "防御力", Value: flat("2002")},
-		{Name: "元素精通", Value: flat("28")},
-		{Name: "暴击率", Value: percent("20")},
-		{Name: "暴击伤害", Value: percent("22")},
-		{Name: "元素充能效率", Value: percent("23")},
+		{Name: "生命值", Value: flat("2000"), Tier: tierByName["生命值"]},
+		{Name: "攻击力", Value: flat("2001"), Tier: tierByName["攻击力"]},
+		{Name: "防御力", Value: flat("2002"), Tier: tierByName["防御力"]},
+		{Name: "元素精通", Value: flat("28"), Tier: tierByName["元素精通"]},
+		{Name: "暴击率", Value: percent("20"), Tier: tierByName["暴击率"]},
+		{Name: "暴击伤害", Value: percent("22"), Tier: tierByName["暴击伤害"]},
+		{Name: "元素充能效率", Value: percent("23"), Tier: tierByName["元素充能效率"]},
 	}
 
 	// 按角色元素取对应的元素伤害加成
@@ -208,6 +231,7 @@ func panelStats(props map[string]float64, element string) []dto.StatInfo {
 		stats = append(stats, dto.StatInfo{
 			Name:  element + "元素伤害加成",
 			Value: percent(key),
+			Tier:  tierByName[element+"元素伤害加成"],
 		})
 	}
 	return stats
