@@ -18,10 +18,24 @@ const en: Partial<Dict> = {
   // Layout
   'header.title': 'Teyvat Guide',
   'header.subtitle': 'Teyvat Guide · Genshin AI Assistant',
+  'header.logout': 'Log out',
   'sidebar.home': 'Home',
   'sidebar.chat': 'AI Chat',
   'sidebar.account': 'Account',
   'sidebar.wiki': 'Wiki',
+
+  // Login
+  'login.welcome': 'Welcome back, Traveler',
+  'login.registerWelcome': 'Create your traveler account',
+  'login.username': 'Username',
+  'login.password': 'Password',
+  'login.displayName': 'Display name (optional)',
+  'login.submit': 'Sign in',
+  'login.registerSubmit': 'Register & Sign in',
+  'login.noAccount': "Don't have an account?",
+  'login.switchToRegister': 'Register',
+  'login.hasAccount': 'Already have an account?',
+  'login.switchToLogin': 'Sign in',
 
   // Home
   'home.welcome': 'Welcome to Teyvat, Traveler',

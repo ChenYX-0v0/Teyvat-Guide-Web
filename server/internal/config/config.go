@@ -47,7 +47,10 @@ type AIConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret string `mapstructure:"jwt_secret"`
+	JWTSecret   string `mapstructure:"jwt_secret"`
+	JWTTTLHours int    `mapstructure:"jwt_ttl_hours"` // token 有效期（小时）
+	SeedUser    string `mapstructure:"seed_user"`     // 首次启动种子账号（用户表为空时自动创建）
+	SeedPass    string `mapstructure:"seed_pass"`
 }
 
 // Load 读取配置文件 + 环境变量（环境变量优先级更高）
@@ -99,4 +102,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.model", "gpt-4o-mini")
 	v.SetDefault("ai.system", "你是「AI 提瓦特向导」，一位熟悉《原神》的资深玩家助手，回答简洁、准确、友好。")
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
+	v.SetDefault("auth.jwt_ttl_hours", 72)
+	v.SetDefault("auth.seed_user", "admin")
+	v.SetDefault("auth.seed_pass", "admin123")
 }

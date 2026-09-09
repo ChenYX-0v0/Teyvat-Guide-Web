@@ -17,10 +17,24 @@ const zhCN = {
   // 布局
   'header.title': 'AI 提瓦特向导',
   'header.subtitle': 'Teyvat Guide · 原神智能助手机',
+  'header.logout': '退出登录',
   'sidebar.home': '首页',
   'sidebar.chat': '智能问答',
   'sidebar.account': '账号信息',
   'sidebar.wiki': '图鉴',
+
+  // 登录
+  'login.welcome': '欢迎回来，旅行者',
+  'login.registerWelcome': '创建你的旅行者账号',
+  'login.username': '用户名',
+  'login.password': '密码',
+  'login.displayName': '昵称（可选）',
+  'login.submit': '登录',
+  'login.registerSubmit': '注册并登录',
+  'login.noAccount': '还没有账号？',
+  'login.switchToRegister': '注册',
+  'login.hasAccount': '已有账号？',
+  'login.switchToLogin': '登录',
 
   // 首页
   'home.welcome': '欢迎来到提瓦特，旅行者',

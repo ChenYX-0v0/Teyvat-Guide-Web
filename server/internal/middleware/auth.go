@@ -31,8 +31,11 @@ func JWTAuth(cfg config.AuthConfig) gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if uid, ok := claims["uid"]; ok {
-				c.Set("uid", uid)
+			if uidF, ok := claims["uid"].(float64); ok {
+				c.Set("uid", uint(uidF))
+			}
+			if username, ok := claims["username"].(string); ok {
+				c.Set("username", username)
 			}
 		}
 		c.Next()

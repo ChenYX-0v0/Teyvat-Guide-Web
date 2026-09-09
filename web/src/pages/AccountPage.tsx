@@ -6,7 +6,7 @@ import { t } from '@/i18n'
 import type { PlayerProfile } from '@/types/genshin'
 
 export default function AccountPage() {
-  const [uid, setUid] = useState('')
+  const [uid, setUid] = useState('197794747')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [profile, setProfile] = useState<PlayerProfile | null>(null)

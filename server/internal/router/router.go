@@ -31,8 +31,15 @@ func New(cfg *config.Config) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// 建表需先于业务服务初始化（种子账号依赖 users 表）
+	if database.DB() != nil {
+		autoMigrate()
+	}
+
 	health := handler.NewHealthHandler()
 	chat := handler.NewChatHandler(service.NewChatService(cfg.AI))
+	authSvc := service.NewAuthService(cfg.Auth, database.DB())
+	auth := handler.NewAuthHandler(authSvc)
 	assets := asset.New(database.DB())
 	player := handler.NewPlayerHandler(service.NewPlayerService(database.DB()))
 	assetHandler := handler.NewAssetHandler(assets)
@@ -44,6 +51,13 @@ func New(cfg *config.Config) *gin.Engine {
 		api.GET("/genshin/player", player.Player)
 		api.GET("/genshin/player-snapshot", player.Snapshot)
 
+		authGroup := api.Group("/auth")
+		{
+			authGroup.POST("/register", auth.Register)
+			authGroup.POST("/login", auth.Login)
+			authGroup.GET("/me", middleware.JWTAuth(cfg.Auth), auth.Me)
+		}
+
 		// 管理接口（X-Admin-Key 保护）：资产映射导入 / 缺漏 / 重载
 		admin := api.Group("/admin", middleware.AdminKey(cfg.Auth))
 		{
@@ -51,10 +65,6 @@ func New(cfg *config.Config) *gin.Engine {
 			admin.GET("/assets/missing", assetHandler.Missing)
 			admin.POST("/assets/reload", assetHandler.Reload)
 		}
-	}
-
-	if database.DB() != nil {
-		autoMigrate()
 	}
 
 	return r
@@ -66,6 +76,7 @@ func autoMigrate() {
 		&model.ChatSession{},
 		&model.ChatMessage{},
 		&model.PlayerProfileSnapshot{},
+		&model.User{},
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},
