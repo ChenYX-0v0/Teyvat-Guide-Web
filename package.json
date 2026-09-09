@@ -1,0 +1,16 @@
+{
+  "name": "teyvat-guide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 提瓦特向导 - 根工作区：一键启动/构建前后端",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c yellow,magenta \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "go run -C server .",
+    "dev:frontend": "npm run dev --prefix web",
+    "build": "npm run build --prefix web && go build -C server ./...",
+    "lint": "npm run lint --prefix web && go vet -C server ./..."
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

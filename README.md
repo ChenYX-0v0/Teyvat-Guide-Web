@@ -10,17 +10,23 @@ React 19 + Go(Gin) 的前后端分离骨架，用于搭建《原神》主题的�
 ## 快速开始
 
 ```powershell
-# 1. 前端（已完成依赖安装）
-cd web
-npm run dev            # http://localhost:5173
+# 0. 根目录安装启动编排依赖（仅首次）
+npm install
 
-# 2. 后端（需先安装 Go 1.22+）
-cd server
-go mod tidy            # 首次执行，拉取依赖
-go run ./main.go       # http://localhost:8080
+# 1. 一键启动前后端（需要 Node.js ≥ 18 与 Go 1.22+）
+npm run dev
+#    → 前端 http://localhost:5173
+#    → 后端 http://localhost:8080
+#    Ctrl+C 同时停止两者
+
+# 分开启动 / 构建 / 检查
+npm run dev:backend     # 仅后端 (go run -C server .)
+npm run dev:frontend    # 仅前端 (vite)
+npm run build           # 前端构建 + 后端编译检查
+npm run lint            # 前端 eslint + 后端 go vet
 ```
 
-前端通过 Vite 代理把 `/api` 转发到 `http://127.0.0.1:8080`，无需额外配置 CORS。
+后端首次运行前需 `go mod tidy` 拉取依赖；前端通过 Vite 代理把 `/api` 转发到 `http://127.0.0.1:8080`。
 
 ## 目录结构
 
