@@ -22,9 +22,6 @@ const zhCN = {
   'sidebar.chat': '智能问答',
   'sidebar.account': '账号信息',
   'sidebar.wiki': '图鉴',
-  'sidebar.admin': '管理员',
-  'admin.title': '管理员控制台',
-  'admin.welcome': '欢迎，{name}。管理功能建设中。',
 
   // 登录
   'login.welcome': '欢迎回来，旅行者',
@@ -63,10 +60,14 @@ const zhCN = {
 
   // 账号信息
   'account.title': '账号信息',
-  'account.intro': '输入任意 9 位游戏 UID，即可查看玩家展柜角色与养成详情（数据来自 Enka.Network，免登录免风控）。',
   'account.queryTitle': '查询玩家档案',
   'account.queryPlaceholder': '输入 9 位游戏 UID，如 197794747',
   'account.forceRefresh': '强制刷新（绕过本地缓存，直接查询上游）',
+  'account.bind': '绑定 {uid} 到我的账号',
+  'account.bindSuccess': '绑定成功，UID {uid} 已与账号一对一关联，下次进入自动加载。',
+  'account.unbind': '解绑',
+  'account.unbindSuccess': '已解除绑定。',
+  'account.boundLabel': '已绑定 UID',
   'account.emptyShowcase': '该玩家未摆放角色展柜，或未公开详细信息',
 
   // 玩家档案

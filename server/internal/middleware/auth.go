@@ -37,8 +37,31 @@ func JWTAuth(cfg config.AuthConfig) gin.HandlerFunc {
 			if username, ok := claims["username"].(string); ok {
 				c.Set("username", username)
 			}
-			if role, ok := claims["role"].(string); ok {
-				c.Set("role", role)
+		}
+		c.Next()
+	}
+}
+
+// JWTAuthOptional 可选鉴权：带合法 Token 时注入身份，未带 Token 时放行（匿名访问）
+func JWTAuthOptional(cfg config.AuthConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" || !strings.HasPrefix(header, "Bearer ") {
+			c.Next()
+			return
+		}
+		tokenStr := strings.TrimPrefix(header, "Bearer ")
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+			return []byte(cfg.JWTSecret), nil
+		})
+		if err == nil && token.Valid {
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				if uidF, ok := claims["uid"].(float64); ok {
+					c.Set("uid", uint(uidF))
+				}
+				if username, ok := claims["username"].(string); ok {
+					c.Set("username", username)
+				}
 			}
 		}
 		c.Next()

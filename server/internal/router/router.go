@@ -48,8 +48,16 @@ func New(cfg *config.Config) *gin.Engine {
 	{
 		api.GET("/health", health.Health)
 		api.POST("/chat", chat.Chat)
-		api.GET("/genshin/player", player.Player)
-		api.GET("/genshin/player-snapshot", player.Snapshot)
+
+		// 玩家查询：可选鉴权（带 Token 时 uid 可省略，自动用绑定 UID）
+		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth))
+		{
+			genshin.GET("/player", player.Player)
+			genshin.GET("/player-snapshot", player.Snapshot)
+			genshin.POST("/binding", player.Bind)
+			genshin.GET("/binding", player.GetBinding)
+			genshin.DELETE("/binding", player.Unbind)
+		}
 
 		authGroup := api.Group("/auth")
 		{

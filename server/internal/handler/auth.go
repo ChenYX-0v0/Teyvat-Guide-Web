@@ -54,7 +54,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.BadRequest(c, "请求参数有误："+err.Error())
 		return
 	}
-	token, displayName, role, err := h.svc.Login(req.Username, req.Password)
+	token, displayName, err := h.svc.Login(req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, service.ErrBadCredentials) {
 			response.Fail(c, http.StatusUnauthorized, 401, err.Error())
@@ -64,18 +64,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.Internal(c, "登录失败")
 		return
 	}
-	response.OK(c, gin.H{"token": token, "displayName": displayName, "role": role})
+	response.OK(c, gin.H{"token": token, "displayName": displayName})
 }
 
 // Me GET /api/auth/me —— 当前登录用户（需 Bearer Token）
 func (h *AuthHandler) Me(c *gin.Context) {
 	uid := c.GetUint("uid")
 	username := c.GetString("username")
-	role := c.GetString("role")
 	if uid == 0 {
 		response.Fail(c, http.StatusUnauthorized, 401, "未登录")
 		return
 	}
-	logger.L().Debugw("me", "uid", uid, "username", username, "role", role)
-	response.OK(c, gin.H{"id": uid, "username": username, "role": role})
+	logger.L().Debugw("me", "uid", uid, "username", username)
+	response.OK(c, gin.H{"id": uid, "username": username})
 }

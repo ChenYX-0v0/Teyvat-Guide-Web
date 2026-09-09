@@ -67,12 +67,11 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 	return &u, nil
 }
 
-// EnsureAdmin 将指定用户名提升为管理员（幂等；种子账号迁移后补挂 role 用）
-func (r *UserRepository) EnsureAdmin(username string) error {
+// UpdateBinding 更新用户绑定的游戏 UID（uid 传空即解绑）
+func (r *UserRepository) UpdateBinding(userID uint, uid, server string) error {
 	if r.db() == nil {
 		return nil
 	}
-	return r.db().Model(&model.User{}).
-		Where("username = ? AND role <> ?", username, "admin").
-		Update("role", "admin").Error
+	return r.db().Model(&model.User{}).Where("id = ?", userID).
+		Updates(map[string]any{"genshin_uid": uid, "genshin_server": server}).Error
 }

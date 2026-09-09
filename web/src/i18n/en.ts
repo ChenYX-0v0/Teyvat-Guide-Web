@@ -23,7 +23,6 @@ const en: Partial<Dict> = {
   'sidebar.chat': 'AI Chat',
   'sidebar.account': 'Account',
   'sidebar.wiki': 'Wiki',
-  'sidebar.admin': 'Admin',
 
   // Login
   'login.welcome': 'Welcome back, Traveler',
@@ -62,11 +61,14 @@ const en: Partial<Dict> = {
 
   // Account
   'account.title': 'Account',
-  'account.intro':
-    'Enter any 9-digit game UID to view the player showcase and character builds (data from Enka.Network — no login, no risk control).',
   'account.queryTitle': 'Look Up Player Profile',
   'account.queryPlaceholder': 'Enter a 9-digit game UID, e.g. 197794747',
   'account.forceRefresh': 'Force refresh (bypass local cache, query upstream)',
+  'account.bind': 'Bind {uid} to my account',
+  'account.bindSuccess': 'Bound! UID {uid} is now linked to your account and loads automatically.',
+  'account.unbind': 'Unbind',
+  'account.unbindSuccess': 'Unbound.',
+  'account.boundLabel': 'Bound UID',
   'account.emptyShowcase': 'This player has no characters on display, or their info is private',
 
   // Player profile

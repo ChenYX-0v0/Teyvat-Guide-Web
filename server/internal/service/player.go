@@ -22,6 +22,7 @@ type PlayerService struct {
 	enka       *enka.Client
 	translator *enka.Translator
 	repo       *repository.PlayerRepository
+	userRepo   *repository.UserRepository
 }
 
 // NewPlayerService db 用于映射数据持久层与快照存储（nil 时翻译走 fallback、快照不落库）
@@ -35,6 +36,7 @@ func NewPlayerService(db *gorm.DB) *PlayerService {
 		enka:       enka.NewClient(),
 		translator: enka.NewTranslator(assets),
 		repo:       repository.NewPlayerRepository(),
+		userRepo:   repository.NewUserRepository(),
 	}
 }
 
@@ -94,6 +96,30 @@ func (s *PlayerService) Snapshot(uid string) (*model.PlayerProfileSnapshot, erro
 // ImportAssets 批量导入映射数据
 func (s *PlayerService) ImportAssets(p asset.ImportPayload) error {
 	return s.assets.Import(p)
+}
+
+// ---------- 账号 ↔ 游戏 UID 绑定（一对一） ----------
+
+// BindUID 将 UID 绑定到用户：绑定前先通过 Enka 实查验证 UID 存在且档案公开
+func (s *PlayerService) BindUID(ctx context.Context, userID uint, uid, server string) error {
+	if _, err := s.enka.FetchProfile(ctx, uid); err != nil {
+		return err // UID 不存在 / 未公开 / 上游异常，均拒绝绑定
+	}
+	return s.userRepo.UpdateBinding(userID, uid, server)
+}
+
+// Binding 查询用户绑定的 UID（未绑定时返回空串）
+func (s *PlayerService) Binding(userID uint) (uid, server string, err error) {
+	u, err := s.userRepo.FindByID(userID)
+	if err != nil || u == nil {
+		return "", "", err
+	}
+	return u.GenshinUID, u.GenshinServer, nil
+}
+
+// Unbind 解除绑定
+func (s *PlayerService) Unbind(userID uint) error {
+	return s.userRepo.UpdateBinding(userID, "", "")
 }
 
 // MissingAssets 缺漏清单

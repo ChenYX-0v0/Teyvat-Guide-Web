@@ -25,11 +25,15 @@ func NewPlayerHandler(svc *service.PlayerService) *PlayerHandler {
 }
 
 // Player GET /api/genshin/player?uid=197794747[&refresh=true]
+// uid 省略时取当前登录用户绑定的 UID（未登录且未绑定则报参数错误）
 // 默认优先返回本地快照；refresh=true 强制调 Enka 上游并更新快照
 func (h *PlayerHandler) Player(c *gin.Context) {
 	uid := c.Query("uid")
+	if uid == "" {
+		uid, _, _ = h.svc.Binding(c.GetUint("uid"))
+	}
 	if !uidPattern.MatchString(uid) {
-		response.BadRequest(c, "UID 格式有误，应为 9 位数字")
+		response.BadRequest(c, "UID 格式有误，应为 9 位数字（或先在账号信息页绑定 UID）")
 		return
 	}
 	forceRefresh := c.Query("refresh") == "true"
@@ -44,6 +48,78 @@ func (h *PlayerHandler) Player(c *gin.Context) {
 		return
 	}
 	response.OK(c, profile)
+}
+
+// ---------- 账号 ↔ UID 绑定（需登录） ----------
+
+type bindRequest struct {
+	UID    string `json:"uid" binding:"required"`
+	Server string `json:"server,omitempty"` // 空时默认 cn_gf01
+}
+
+// Bind POST /api/genshin/binding —— 绑定 UID（绑定前实查验证）
+func (h *PlayerHandler) Bind(c *gin.Context) {
+	userID := c.GetUint("uid")
+	if userID == 0 {
+		response.Fail(c, http.StatusUnauthorized, 401, "请先登录")
+		return
+	}
+	var req bindRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误")
+		return
+	}
+	if !uidPattern.MatchString(req.UID) {
+		response.BadRequest(c, "UID 格式有误，应为 9 位数字")
+		return
+	}
+	server := req.Server
+	if server == "" {
+		server = "cn_gf01"
+	}
+	if err := h.svc.BindUID(c.Request.Context(), userID, req.UID, server); err != nil {
+		logger.L().Warnw("bind uid failed", "user", userID, "uid", req.UID, "err", err)
+		status, message := mapQueryError(err)
+		response.Fail(c, status, status, "绑定失败："+message)
+		return
+	}
+	logger.L().Infow("uid bound", "user", userID, "uid", req.UID, "server", server)
+	response.OK(c, gin.H{"uid": req.UID, "server": server})
+}
+
+// GetBinding GET /api/genshin/binding —— 查询当前用户的绑定
+func (h *PlayerHandler) GetBinding(c *gin.Context) {
+	userID := c.GetUint("uid")
+	if userID == 0 {
+		response.OK(c, gin.H{"bound": false})
+		return
+	}
+	uid, server, err := h.svc.Binding(userID)
+	if err != nil {
+		logger.L().Warnw("read binding failed", "user", userID, "err", err)
+		response.Internal(c, "读取绑定信息失败")
+		return
+	}
+	if uid == "" {
+		response.OK(c, gin.H{"bound": false})
+		return
+	}
+	response.OK(c, gin.H{"bound": true, "uid": uid, "server": server})
+}
+
+// Unbind DELETE /api/genshin/binding —— 解除绑定
+func (h *PlayerHandler) Unbind(c *gin.Context) {
+	userID := c.GetUint("uid")
+	if userID == 0 {
+		response.Fail(c, http.StatusUnauthorized, 401, "请先登录")
+		return
+	}
+	if err := h.svc.Unbind(userID); err != nil {
+		logger.L().Warnw("unbind failed", "user", userID, "err", err)
+		response.Internal(c, "解绑失败")
+		return
+	}
+	response.OK(c, gin.H{"bound": false})
 }
 
 // mapQueryError 将上游错误映射为 HTTP 状态码与友好文案
