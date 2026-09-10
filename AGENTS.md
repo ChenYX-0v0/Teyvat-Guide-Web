@@ -116,7 +116,8 @@ logger.L().Errorw("chat failed", "err", err)
 - **禁止在代码中硬编码**角色/武器/圣遗物名称等游戏资产映射——一律入 `asset_*` 映射表，通过管理接口导入，未命中走 fallback 并记入 `missings` 表。
 - Enka 响应的数值字段大量是**字符串形式的数字**，模型统一用 `json.Number` 接收；新增字段时先 curl 真实返回值确认类型。
 - 翻译层 `enka/translate.go` 依赖 `asset.Service`（内存 map），映射数据更新后调用 `Import`（自动 reload）或 `POST /api/admin/assets/reload`。
-- 管理接口使用 `X-Admin-Key` 头鉴权（值为 `auth.jwt_secret`），禁止回传密钥、禁止无鉴权暴露。
+- 管理接口使用 `X-Admin-Key` 头鉴权（值为 `auth.admin_key`，未配置时回落 `auth.jwt_secret`）；**禁止把 admin_key 与 jwt_secret 混用**——后者泄露即可伪造任意用户 Token。外部系统/后台管理系统只下发 admin_key，且必须走内网或 HTTPS。禁止回传密钥、禁止无鉴权暴露。
+- 直连数据库改映射的外部系统，改完必须调 `POST /api/admin/assets/reload?purgeSnapshots=true` 或 `/assets/purge-snapshots`，否则运行中的服务仍用旧内存映射、旧翻译快照仍会命中。
 - Enka 无 SLA：查询有 60s 缓存 + 5min 负缓存，新增批量功能必须考虑限速。
 
 ## 5. 前端规范（React + TS）

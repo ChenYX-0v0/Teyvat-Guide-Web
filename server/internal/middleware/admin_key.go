@@ -1,7 +1,7 @@
 package middleware
 
-// AdminKey 管理接口鉴权：请求头 X-Admin-Key 必须与配置的密钥一致
-// 密钥复用 auth.jwt_secret（也可拆分为独立的 admin_key 配置）
+// AdminKey 管理接口鉴权：请求头 X-Admin-Key 必须与 auth.admin_key 一致
+// 未配置 auth.admin_key 时回落到 auth.jwt_secret（兼容旧行为，不推荐）
 
 import (
 	"crypto/subtle"
@@ -13,9 +13,10 @@ import (
 )
 
 func AdminKey(cfg config.AuthConfig) gin.HandlerFunc {
+	expect := cfg.AdminAPIKey()
 	return func(c *gin.Context) {
 		key := c.GetHeader("X-Admin-Key")
-		if key == "" || subtle.ConstantTimeCompare([]byte(key), []byte(cfg.JWTSecret)) != 1 {
+		if key == "" || subtle.ConstantTimeCompare([]byte(key), []byte(expect)) != 1 {
 			response.Fail(c, 401, 401, "缺少或错误的 X-Admin-Key")
 			c.Abort()
 			return

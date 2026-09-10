@@ -127,7 +127,24 @@ func (s *PlayerService) MissingAssets(limit int) ([]asset.Missing, error) {
 	return s.assets.MissingList(limit)
 }
 
-// ReloadAssets 手动触发映射重载
-func (s *PlayerService) ReloadAssets() error {
-	return s.assets.Reload()
+// ReloadAssets 手动触发映射重载；purgeSnapshots 为真时同时清空档案快照
+// （快照里存的是旧翻译结果，映射变更后不清会成为脏数据）
+func (s *PlayerService) ReloadAssets(purgeSnapshots bool) error {
+	if err := s.assets.Reload(); err != nil {
+		return err
+	}
+	if purgeSnapshots {
+		return s.PurgeSnapshots()
+	}
+	return nil
+}
+
+// PurgeSnapshots 清空全部档案快照
+func (s *PlayerService) PurgeSnapshots() error {
+	if err := s.repo.ClearSnapshots(); err != nil {
+		logger.L().Warnw("clear player snapshots failed", "err", err)
+		return err
+	}
+	logger.L().Infow("player snapshots cleared")
+	return nil
 }

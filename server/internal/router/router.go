@@ -41,8 +41,13 @@ func New(cfg *config.Config) *gin.Engine {
 	authSvc := service.NewAuthService(cfg.Auth, database.DB())
 	auth := handler.NewAuthHandler(authSvc)
 	assets := asset.New(database.DB())
-	player := handler.NewPlayerHandler(service.NewPlayerService(database.DB()))
-	assetHandler := handler.NewAssetHandler(assets)
+	playerSvc := service.NewPlayerService(database.DB())
+	player := handler.NewPlayerHandler(playerSvc)
+	assetHandler := handler.NewAssetHandler(assets, playerSvc)
+	if cfg.Auth.AdminKey == "" {
+		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
+			"建议为外部系统单独下发管理密钥（TEYVAT_AUTH_ADMIN_KEY）")
+	}
 
 	api := r.Group("/api")
 	{
@@ -72,6 +77,7 @@ func New(cfg *config.Config) *gin.Engine {
 			admin.POST("/assets/import", assetHandler.Import)
 			admin.GET("/assets/missing", assetHandler.Missing)
 			admin.POST("/assets/reload", assetHandler.Reload)
+			admin.POST("/assets/purge-snapshots", assetHandler.PurgeSnapshots)
 		}
 	}
 

@@ -51,6 +51,15 @@ type AuthConfig struct {
 	JWTTTLHours int    `mapstructure:"jwt_ttl_hours"` // token 有效期（小时）
 	SeedUser    string `mapstructure:"seed_user"`     // 首次启动种子账号（用户表为空时自动创建）
 	SeedPass    string `mapstructure:"seed_pass"`
+	AdminKey    string `mapstructure:"admin_key"` // 管理接口密钥（X-Admin-Key）；为空时回落 jwt_secret
+}
+
+// AdminAPIKey 返回管理接口实际使用的密钥：优先 admin_key，未配置则复用 jwt_secret（不推荐）
+func (c AuthConfig) AdminAPIKey() string {
+	if c.AdminKey != "" {
+		return c.AdminKey
+	}
+	return c.JWTSecret
 }
 
 // Load 读取配置文件 + 环境变量（环境变量优先级更高）

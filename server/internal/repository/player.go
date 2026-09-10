@@ -30,6 +30,14 @@ func (r *PlayerRepository) SaveSnapshot(uid, profileJSON string) error {
 	}).Error
 }
 
+// ClearSnapshots 清空全部档案快照（映射数据变更后旧翻译失效，需重新生成）
+func (r *PlayerRepository) ClearSnapshots() error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Where("1 = 1").Delete(&model.PlayerProfileSnapshot{}).Error
+}
+
 // GetSnapshot 读取快照（不存在返回 nil, nil）
 func (r *PlayerRepository) GetSnapshot(uid string) (*model.PlayerProfileSnapshot, error) {
 	if r.db() == nil {

@@ -119,13 +119,29 @@ $H = @{ Authorization = "Bearer " + $r.data.token }
 
 ### 6.1 接口（X-Admin-Key 鉴权）
 
-请求头：`X-Admin-Key: <config.yaml 的 auth.jwt_secret 值>`
+请求头：`X-Admin-Key: <config.yaml 的 auth.admin_key 值>`（未配置时回落 `auth.jwt_secret`，不推荐）。
+外部系统（后台管理系统）若直连数据库写入映射，**必须再调用 reload 通知服务刷新内存**，否则运行中的进程仍用旧映射。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/admin/assets/import` | 批量 upsert 映射，成功后自动刷新内存 |
+| POST | `/api/admin/assets/import` | 批量 upsert 映射，成功后自动刷新内存（走接口导入无需再调 reload） |
 | GET | `/api/admin/assets/missing?limit=100` | 翻译缺漏清单 `{items, total}`（按 hit_count 倒序），补录依据 |
-| POST | `/api/admin/assets/reload` | 手动刷新内存映射 |
+| POST | `/api/admin/assets/reload[?purgeSnapshots=true]` | 刷新内存映射；`purgeSnapshots=true` 时同时清空档案快照（**改了词条名/分级等翻译数据后必须带上**，否则旧翻译快照仍会命中） |
+| POST | `/api/admin/assets/purge-snapshots` | 仅清空档案快照（配合外部直写 DB 的场景） |
+
+**外部系统调用示例**
+
+```powershell
+$H = @{ "X-Admin-Key" = "<管理密钥>" }
+# 直写 DB 改了词条映射后：
+Invoke-RestMethod -Method Post "http://<服务地址>:8080/api/admin/assets/reload?purgeSnapshots=true" -Headers $H
+```
+
+**安全要求**：
+
+- `auth.admin_key` 独立于 `auth.jwt_secret`（后者是 JWT 签名密钥，泄露即可伪造任意用户身份）；
+- 生产环境必须走内网或 HTTPS 调用，禁止把管理密钥下发到浏览器端；
+- 密钥通过环境变量 `TEYVAT_AUTH_ADMIN_KEY` 注入，不写入代码仓库。
 
 > CLI 批量导入：`go run ./cmd/assetimport -dir <EnkaGameAssets store/gi 目录>`，或分表导入
 > `-textmap-file` / `-affixes-file` / `-fight-props-file` / `-stat-weights-file`（种子文件见 `cmd/assetimport/*.json`）。
