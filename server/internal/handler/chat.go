@@ -25,7 +25,10 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
-	sessionID, reply, tokens, elapsed, err := h.svc.Ask(c.Request.Context(), req.SessionID, req.Message)
+	// 已登录用户（可选鉴权注入）会额外获得基于其绑定账号的个性化上下文
+	sessionID, reply, tokens, elapsed, err := h.svc.Ask(
+		c.Request.Context(), c.GetUint("uid"), req.SessionID, req.Message,
+	)
 	if err != nil {
 		logger.L().Errorw("chat failed", "err", err)
 		response.Internal(c, "服务开小差了："+err.Error())

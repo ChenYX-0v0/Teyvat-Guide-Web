@@ -8,6 +8,7 @@ import (
 type ChatSession struct {
 	ID        string    `gorm:"primaryKey;size:36" json:"id"`
 	Title     string    `gorm:"size:128" json:"title"`
+	UserID    uint      `gorm:"index" json:"user_id"` // 0 = 匿名会话
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

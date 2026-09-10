@@ -37,12 +37,13 @@ func New(cfg *config.Config) *gin.Engine {
 	}
 
 	health := handler.NewHealthHandler()
-	chat := handler.NewChatHandler(service.NewChatService(cfg.AI))
 	authSvc := service.NewAuthService(cfg.Auth, database.DB())
 	auth := handler.NewAuthHandler(authSvc)
 	assets := asset.New(database.DB())
 	playerSvc := service.NewPlayerService(database.DB())
 	player := handler.NewPlayerHandler(playerSvc)
+	// 对话服务依赖玩家服务：登录且绑定 UID 时注入玩家档案上下文（§6）
+	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc))
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
 	if cfg.Auth.AdminKey == "" {
 		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
@@ -52,7 +53,8 @@ func New(cfg *config.Config) *gin.Engine {
 	api := r.Group("/api")
 	{
 		api.GET("/health", health.Health)
-		api.POST("/chat", chat.Chat)
+		// 对话：可选鉴权（带 Token 时注入用户身份 → 追加玩家上下文；匿名照常可用）
+		api.POST("/chat", middleware.JWTAuthOptional(cfg.Auth), chat.Chat)
 
 		// 玩家查询：可选鉴权（带 Token 时 uid 可省略，自动用绑定 UID）
 		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth))

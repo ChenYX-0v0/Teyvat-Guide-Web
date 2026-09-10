@@ -44,6 +44,11 @@
 
 **响应 data**：`{ sessionId, reply, tokens, elapsedMs }`
 
+**AI 后端**：`ai.provider` 决定，`mock`（兜底）/`openai`（直连）/ **`remote`（默认，对接独立 AI 派蒙服务）**。
+remote 模式下主服务调用 AI 服务 `POST /v1/complete`（`X-AI-Key` 鉴权），AI 服务不可用或超时时**降级**：仍返回 200，`reply` 为兜底文案、`tokens=0`，错误明细只进服务端日志（不向前端暴露）。上下文取本会话最近 20 条消息；系统提示词留空则由 AI 服务提供人格。详见 `docs/08-AI服务接入规格.md`。
+
+**个性化上下文（可选鉴权）**：携带 `Authorization: Bearer <token>` 且该账号已绑定游戏 UID 时，主服务会在调用 AI 前注入玩家档案摘要（`context.player.characters`，≤1500 tokens），使「养成/配队」类问题基于真实面板作答；匿名请求不带上下文，功能完全不受影响。会话归属记录在 `chat_sessions.user_id`（0 = 匿名）。
+
 ---
 
 ## 3. 鉴权（已实现）

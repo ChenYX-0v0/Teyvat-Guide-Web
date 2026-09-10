@@ -39,11 +39,12 @@ type DatabaseConfig struct {
 }
 
 type AIConfig struct {
-	Provider string `mapstructure:"provider"` // openai | mock
-	APIKey   string `mapstructure:"api_key"`
-	BaseURL  string `mapstructure:"base_url"`
-	Model    string `mapstructure:"model"`
-	System   string `mapstructure:"system"`
+	Provider       string `mapstructure:"provider"` // mock | openai | remote
+	APIKey         string `mapstructure:"api_key"`  // remote 模式下为 AI 服务密钥（X-AI-Key）
+	BaseURL        string `mapstructure:"base_url"` // remote 模式下指向 AI 服务，如 http://127.0.0.1:8090
+	Model          string `mapstructure:"model"`    // 留空则由 AI 服务按其默认路由选择
+	System         string `mapstructure:"system"`   // 留空则使用 AI 服务的人格提示词
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
 type AuthConfig struct {
@@ -110,6 +111,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.base_url", "https://api.openai.com/v1")
 	v.SetDefault("ai.model", "gpt-4o-mini")
 	v.SetDefault("ai.system", "你是「AI 提瓦特向导」，一位熟悉《原神》的资深玩家助手，回答简洁、准确、友好。")
+	v.SetDefault("ai.timeout_seconds", 65) // 必须大于 AI 服务自身超时（55s）
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_ttl_hours", 72)
 	v.SetDefault("auth.seed_user", "admin")

@@ -107,7 +107,15 @@ logger.L().Errorw("chat failed", "err", err)
 
 ### 4.6 AI 能力
 
-统一走 `service/ai.go` 的 `AIClient` 接口（`Complete(ctx, system, history, prompt)`）。新增供应商实现该接口并在 `NewAIClient` 注册；禁止在其他地方直接引用 `openai` SDK。
+统一走 `service/ai.go` 的 `AIClient` 接口（`Complete(ctx, system, history, prompt)`）。现有实现：`mock`（无密钥兜底）、`openai`（直连兼容协议）、`remote`（**默认，对接独立 AI 派蒙服务**，见 `docs/08`）。新增供应商实现该接口并在 `NewAIClient` 注册；禁止在其他地方直接引用模型 SDK。
+
+- remote 模式配置：`ai.base_url` 指向 AI 服务（默认 `http://127.0.0.1:8090`），`ai.api_key` 为 AI 服务密钥（`X-AI-Key`，仅走环境变量 `TEYVAT_AI_API_KEY`），`ai.timeout_seconds` 必须大于 AI 服务自身超时。
+- **AI 调用失败必须降级**：`ChatService.Ask` 捕获错误后记 `Errorw` 并返回兜底文案 + 落库，禁止把上游错误透传给前端（见 `chat.go` 的 `aiDegradeReply`）。
+- **玩家上下文注入**（`service/ai_context.go`）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
+  - 只推送与提问相关角色的摘要（命中提问的详细 + 其余精简），**禁止推送整份档案或全图鉴**；总量 ≤ 1500 tokens（`ctxTokenBudget`）
+  - 字段名与结构受 AI 服务 schema 校验，改动前先对照 `docs/08` §6（已知：`weapon` 必须是对象，不能是字符串）
+  - 上下文构建失败只记 `Warnw` 并照常对话，绝不让对话失败
+  - 用户私有数据只在本次请求内存在，AI 服务不落库
 
 ## 4.7 玩家查询（Enka 数据源）
 
