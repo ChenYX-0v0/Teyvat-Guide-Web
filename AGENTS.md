@@ -127,7 +127,7 @@ logger.L().Errorw("chat failed", "err", err)
 
 - remote 模式配置：`ai.base_url` 指向 AI 服务（默认 `http://127.0.0.1:8090`），`ai.api_key` 为 AI 服务密钥（`X-AI-Key`，仅走环境变量 `TEYVAT_AI_API_KEY`），`ai.timeout_seconds` 必须大于 AI 服务自身超时。
 - **AI 调用失败必须降级**：`ChatService.Ask` 捕获错误后记 `Errorw` 并返回兜底文案 + 落库，禁止把上游错误透传给前端（见 `chat.go` 的 `aiDegradeReply`）。
-- **玩家上下文注入**（`service/ai_context.go`，契约见根目录 `03-主服务对接说明.md` §6）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
+- **玩家上下文注入**（`service/ai_context.go`，契约见 `shared-docs/03-主服务对接说明.md` §6）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
   - **分级注入**：所有展柜角色给「概览」（name/level/constellation/talents/weapon）；只有**提问点名**或**养成/配队意图**才展开 `artifacts` 明细（含 mainStats）；超出 `ctxTokenBudget`(1500) 时**整条丢弃末尾角色**并在 `summary` 注明省略数量
   - 字段受 AI 服务 schema 强校验，改动前对照上述文档（已踩坑：`weapon` 必须是对象；`refine` 字段名；`artifacts[].mainStats` 的 key 为中文部位名）
   - 上下文构建失败只记 `Warnw` 并照常对话，绝不让对话失败
