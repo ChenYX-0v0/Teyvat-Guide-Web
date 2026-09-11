@@ -5,19 +5,45 @@
 
 ## 0. 文档入口（共享文档仓）
 
-本文档与 API 规范等**不在本仓**，而在三项目共享文档仓 `teyvat-docs`，通过 Junction 挂载：
+本文档与 API 规范等**不在本仓**，而在三项目共享文档仓 `teyvat-docs`（远程 `git@github.com:ChenYX-0v0/Teyvat-Guide-Docs.git`），通过 **Junction 目录链接**挂载。三个项目访问到的 `docs/` 是**同一份文件**（哈希一致），改一处三处同步。
 
-| 项目内路径 | 实际位置 | 内容 |
-| --- | --- | --- |
-| `docs/` | `teyvat-docs\web` | 本项目文档（架构 / 前后端规范 / API 文档 / Enka 方案 / AI 规格 / 待办） |
-| `shared-docs/` | `teyvat-docs\shared` | **跨项目契约**（接口契约 / 主服务对接说明 / 用户体系与鉴权边界设计） |
+### 0.1 布局与挂载关系
 
-**规矩（必须遵守）**：
+| 项目 | 项目内路径 | 实际位置 | 内容 |
+| --- | --- | --- | --- |
+| 主服务（本仓） | `docs/` | `teyvat-docs\web` | 本项目文档（架构 / 前后端规范 / API 文档 / Enka 方案 / AI 规格 / 待办） |
+| 主服务（本仓） | `shared-docs/` | `teyvat-docs\shared` | **跨项目契约**（接口契约 / 主服务对接说明 / 用户体系与鉴权边界设计） |
+| 后台 demo-app | `docs/` | `teyvat-docs\admin` | 后台运维系统文档 |
+| 后台 demo-app | `aidoc/` | `teyvat-docs\ai` | AI 服务文档 |
+| AI 派蒙服务 | `doc/` | `teyvat-docs\ai` | AI 服务文档 |
+| 三个项目 | `shared-docs/` | `teyvat-docs\shared` | 共用契约（同源） |
+
+编号只在各自目录内唯一（`web/01` 与 `admin/01` 互不冲突），**交叉引用必须写明路径**（如 `shared-docs/03-主服务对接说明.md`）。
+
+### 0.2 读 / 改 / 提交（标准操作）
+
+```powershell
+# 读：任一项目的链接路径都能打开，内容同源，无需特殊操作
+# 改：建议在共享仓内编辑（从项目 docs/ 路径编辑也完全等效——同一份文件）
+
+cd C:\Users\HONOR\Desktop\teyvat-docs
+git add -A
+git commit -m "docs: 说明本次改动"
+git push
+```
+
+- 提交**只在 `teyvat-docs` 发生**，三个项目仓不产生文档改动。
+
+### 0.3 规矩（必须遵守）
 
 1. 文档**只在共享仓 `C:\Users\HONOR\Desktop\teyvat-docs` 修改并提交**；项目内的 `docs/`、`shared-docs/` 是链接，禁止在本仓提交文档内容（已在 `.gitignore` 忽略）。
 2. 禁止在项目内另建文档副本 / 快照（历史上 `admin/docs/teyvatGuide/` 就是副本，已清理）。
 3. 涉及跨项目契约（`shared-docs/`）的改动，必须在提交信息中说明影响面，并同步检查另外两个项目（admin / ai-service）。
-4. Junction 不进 git：新机器 / 新克隆后运行 `teyvat-docs\setup-docs.ps1` 重建链接。
+4. Junction 不进 git：新机器 / 新克隆后运行 `teyvat-docs\setup-docs.ps1` 重建链接（7 个链接）。
+5. **项目仓 `git status` 必须看不到任何 `docs/` 项**——出现即为 `.gitignore` 忽略规则被破坏（见第 7 条），这是最快的一致性自检信号。
+6. 禁止在项目仓执行 `git clean -fd`，禁止直接删除项目内的 `docs/`、`shared-docs/`、`doc/`、`aidoc/` 目录——Junction 删除会**连带清空真源内容**，等于删掉共享文档。
+7. 禁止删除三个项目 `.gitignore` 中的 `/docs/` `/shared-docs/` `/doc/` `/aidoc/` 忽略规则，否则 git 会顺着链接把共享文档当项目文件收录。
+8. `setup-docs.ps1` 必须存为 **UTF-8 with BOM**（PowerShell 5.1 否则按 GBK 读，中文路径报 `Unexpected token`）；**`.yaml` 反之绝对不能带 BOM**（见 §7.14）。
 
 ## 1. 项目概览
 
@@ -207,3 +233,4 @@ logger.L().Errorw("chat failed", "err", err)
 - [ ] 新接口已在 `docs/04-API接口文档.md` 登记
 - [ ] 新配置项已同步 `config.yaml` / `.env.example` / `config.go`
 - [ ] 破坏性变更已同步更新 `docs/` 与本文件
+- [ ] 文档改动只在 `teyvat-docs` 提交，本仓 `git status` 无 `docs/` / `shared-docs/` 项
