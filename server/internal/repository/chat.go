@@ -50,6 +50,31 @@ func (r *ChatRepository) ListMessages(sessionID string, limit int) ([]model.Chat
 	return list, err
 }
 
+// SumTokensByUsers 按用户聚合 token 消耗（chat_messages.tokens 经 chat_sessions.user_id 归属）
+func (r *ChatRepository) SumTokensByUsers(userIDs []uint) (map[uint]int64, error) {
+	out := make(map[uint]int64, len(userIDs))
+	if r.db() == nil || len(userIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		UserID uint
+		Total  int64
+	}
+	err := r.db().Table("chat_messages AS m").
+		Select("s.user_id AS user_id, COALESCE(SUM(m.tokens), 0) AS total").
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id IN ?", userIDs).
+		Group("s.user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.UserID] = row.Total
+	}
+	return out, nil
+}
+
 // Touch 更新会话活跃时间
 func (r *ChatRepository) Touch(sessionID string) error {
 	if r.db() == nil {

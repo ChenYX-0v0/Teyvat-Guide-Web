@@ -20,6 +20,7 @@ import (
 var (
 	ErrUsernameTaken  = errors.New("用户名已存在")
 	ErrBadCredentials = errors.New("用户名或密码错误")
+	ErrUserBanned     = errors.New("账号已被封禁")
 )
 
 type AuthService struct {
@@ -105,6 +106,13 @@ func (s *AuthService) Login(username, password string) (token, displayName strin
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
 		return "", "", ErrBadCredentials
+	}
+	if u.IsBanned() {
+		return "", "", ErrUserBanned
+	}
+
+	if err := s.repo.TouchLogin(u.ID); err != nil {
+		logger.L().Warnw("update last login failed", "user", u.ID, "err", err)
 	}
 
 	claims := jwt.MapClaims{

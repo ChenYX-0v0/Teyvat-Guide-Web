@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net/http"
 	"strings"
 
 	"teyvat-guide/server/internal/config"
@@ -10,8 +11,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// UserStatusChecker 用户封禁检查（由 service.UserAdminService 注入，避免中间件直接依赖业务实现）
+// 返回 true 表示该用户已被封禁
+type UserStatusChecker func(userID uint) bool
+
 // JWTAuth 校验 Bearer Token（未配置密钥或测试环境可按需跳过）
-func JWTAuth(cfg config.AuthConfig) gin.HandlerFunc {
+// statusChecker 非空时同时校验封禁状态：封禁用户的既有 Token 立即失效
+func JWTAuth(cfg config.AuthConfig, statusChecker UserStatusChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" || !strings.HasPrefix(header, "Bearer ") {
@@ -38,12 +44,17 @@ func JWTAuth(cfg config.AuthConfig) gin.HandlerFunc {
 				c.Set("username", username)
 			}
 		}
+
+		if rejectBanned(c, statusChecker) {
+			return
+		}
 		c.Next()
 	}
 }
 
 // JWTAuthOptional 可选鉴权：带合法 Token 时注入身份，未带 Token 时放行（匿名访问）
-func JWTAuthOptional(cfg config.AuthConfig) gin.HandlerFunc {
+// 封禁用户即使携带合法 Token 也会被拒绝（无法借匿名路径绕过封禁）
+func JWTAuthOptional(cfg config.AuthConfig, statusChecker UserStatusChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" || !strings.HasPrefix(header, "Bearer ") {
@@ -64,6 +75,28 @@ func JWTAuthOptional(cfg config.AuthConfig) gin.HandlerFunc {
 				}
 			}
 		}
+
+		if rejectBanned(c, statusChecker) {
+			return
+		}
 		c.Next()
 	}
+}
+
+// rejectBanned 已封禁用户直接拒绝（403），返回是否已中断请求
+// 仅在 Token 校验通过并注入身份后调用，避免把无效 Token 误判为封禁
+func rejectBanned(c *gin.Context, statusChecker UserStatusChecker) bool {
+	if statusChecker == nil {
+		return false
+	}
+	uid := c.GetUint("uid")
+	if uid == 0 {
+		return false
+	}
+	if statusChecker(uid) {
+		response.Fail(c, http.StatusForbidden, 403, "账号已被封禁，请联系管理员")
+		c.Abort()
+		return true
+	}
+	return false
 }

@@ -54,6 +54,12 @@ type FightProp struct {
 	PropID string `gorm:"size:48;not null" json:"propId"`  // 如 FIGHT_PROP_HP
 }
 
+// RelicSlot 圣遗物部位映射（EQUIP_BRACER → 生之花）
+type RelicSlot struct {
+	Pos  string `gorm:"primaryKey;size:32" json:"pos"` // EQUIP_BRACER 等
+	Name string `gorm:"size:16;not null" json:"name"`  // 中文部位名
+}
+
 // Affix 圣遗物词缀表（ReliquaryAffixExcelConfigData）
 // 用于解码 Enka appendPropIdList：数字 id → 词条类型（该 id 同时编码了强化档位）
 type Affix struct {

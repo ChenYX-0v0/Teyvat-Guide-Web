@@ -30,7 +30,9 @@ type AvatarInfo struct {
 	AvatarID     int                `json:"avatarId"`
 	PropMap      map[string]PropVal `json:"propMap"`
 	FightPropMap map[string]float64 `json:"fightPropMap"` // 面板属性（key 为 FIGHT_PROP 数字枚举）
-	TalentIDList []int              `json:"talentIdList"`
+	TalentIDList []int              `json:"talentIdList"` // 命座解锁列表（长度即命座数）
+	// 天赋等级：key 为技能 id（升序依次对应 普攻 / 元素战技 / 元素爆发）
+	SkillLevelMap map[string]json.Number `json:"skillLevelMap"`
 	EquipList    []Equip            `json:"equipList"`
 	FetterInfo   struct {
 		ExpLevel int `json:"expLevel"`

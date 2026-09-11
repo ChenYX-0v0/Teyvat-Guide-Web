@@ -31,17 +31,18 @@ var ErrDBNotInitialized = errors.New("数据库未初始化，无法管理映射
 type Service struct {
 	db *gorm.DB
 
-	mu         sync.RWMutex
-	characters map[int64]Character
-	weapons    map[int64]Weapon
-	relicSets  map[int]RelicSet
-	texts      map[int64]string
+	mu           sync.RWMutex
+	characters   map[int64]Character
+	weapons      map[int64]Weapon
+	relicSets    map[int]RelicSet
+	texts        map[int64]string
 	props        map[string]PropMap
 	propIDByName map[string]string // 词条名 → PropID
 	fightProps   map[string]string // 数字枚举 → PropID（正向）
 	numByFight   map[string]string // PropID → 数字枚举（反向）
+	relicSlots   map[string]string // 部位枚举 → 中文部位名
 	affixes      map[int64]Affix
-	statRecs   map[int64]StatRecommendation
+	statRecs     map[int64]StatRecommendation
 }
 
 // New 创建服务；db 为 nil 时降级为空映射（翻译全部走 fallback）
@@ -83,6 +84,10 @@ func (s *Service) Load() error {
 	if err := s.db.Find(&fightProps).Error; err != nil {
 		return err
 	}
+	var relicSlots []RelicSlot
+	if err := s.db.Find(&relicSlots).Error; err != nil {
+		return err
+	}
 	var statRecRows []CharacterStatWeights
 	if err := s.db.Find(&statRecRows).Error; err != nil {
 		return err
@@ -116,6 +121,10 @@ func (s *Service) Load() error {
 		fightByNum[f.NumID] = f.PropID
 		numByFight[f.PropID] = f.NumID
 	}
+	slotMap := make(map[string]string, len(relicSlots))
+	for _, sl := range relicSlots {
+		slotMap[sl.Pos] = sl.Name
+	}
 	affixMap := make(map[int64]Affix, len(affixes))
 	for _, a := range affixes {
 		affixMap[a.ID] = a
@@ -137,6 +146,7 @@ func (s *Service) Load() error {
 	s.propIDByName = propIDByName
 	s.fightProps = fightByNum
 	s.numByFight = numByFight
+	s.relicSlots = slotMap
 	s.affixes = affixMap
 	s.statRecs = recMap
 	s.mu.Unlock()
@@ -202,6 +212,16 @@ func (s *Service) NumIDByPropID(propID string) (string, bool) {
 	defer s.mu.RUnlock()
 	id, ok := s.numByFight[propID]
 	return id, ok
+}
+
+// RelicSlotName 部位枚举 → 中文部位名（未映射返回原枚举）
+func (s *Service) RelicSlotName(pos string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if name, ok := s.relicSlots[pos]; ok {
+		return name
+	}
+	return pos
 }
 
 // PropIDByName 词条名 → PropID（元素伤害加成行按元素名动态查表用）

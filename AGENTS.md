@@ -111,10 +111,11 @@ logger.L().Errorw("chat failed", "err", err)
 
 - remote 模式配置：`ai.base_url` 指向 AI 服务（默认 `http://127.0.0.1:8090`），`ai.api_key` 为 AI 服务密钥（`X-AI-Key`，仅走环境变量 `TEYVAT_AI_API_KEY`），`ai.timeout_seconds` 必须大于 AI 服务自身超时。
 - **AI 调用失败必须降级**：`ChatService.Ask` 捕获错误后记 `Errorw` 并返回兜底文案 + 落库，禁止把上游错误透传给前端（见 `chat.go` 的 `aiDegradeReply`）。
-- **玩家上下文注入**（`service/ai_context.go`）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
-  - 只推送与提问相关角色的摘要（命中提问的详细 + 其余精简），**禁止推送整份档案或全图鉴**；总量 ≤ 1500 tokens（`ctxTokenBudget`）
-  - 字段名与结构受 AI 服务 schema 校验，改动前先对照 `docs/08` §6（已知：`weapon` 必须是对象，不能是字符串）
+- **玩家上下文注入**（`service/ai_context.go`，契约见根目录 `03-主服务对接说明.md` §6）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
+  - **分级注入**：所有展柜角色给「概览」（name/level/constellation/talents/weapon）；只有**提问点名**或**养成/配队意图**才展开 `artifacts` 明细（含 mainStats）；超出 `ctxTokenBudget`(1500) 时**整条丢弃末尾角色**并在 `summary` 注明省略数量
+  - 字段受 AI 服务 schema 强校验，改动前对照上述文档（已踩坑：`weapon` 必须是对象；`refine` 字段名；`artifacts[].mainStats` 的 key 为中文部位名）
   - 上下文构建失败只记 `Warnw` 并照常对话，绝不让对话失败
+  - 拉档案必须走缓存：快照 TTL `snapshotTTL`(10min) + Enka 客户端 TTL(60s) + 同 UID 单飞，禁止每次对话直查上游
   - 用户私有数据只在本次请求内存在，AI 服务不落库
 
 ## 4.7 玩家查询（Enka 数据源）
@@ -179,6 +180,9 @@ logger.L().Errorw("chat failed", "err", err)
 11. ❌ 提交含真实 API Key 的文件；密钥只通过环境变量注入。
 12. ❌ 未经确认执行 `git commit` / `git push` / 删除文件等破坏性操作。
 13. ❌ 把业务数据写死在代码里（map/常量/switch 枚举）——数据一律入数据库，代码只留结构与逻辑。
+14. ❌ **用 PowerShell 的 `Set-Content` / `Out-File` 改 `.yaml` 配置文件**——会写入 UTF-8 BOM，Viper 解析失败后静默回落默认值（表现为"配置改了但完全没生效"，已踩坑）。改配置请用编辑器工具直接写，或写完用 `.NET ReadAllBytes` 检查首字节不是 `EF BB BF`。
+15. ❌ 在鉴权中间件里直接依赖 `repository` 查库——封禁检查等业务判断通过注入的函数（如 `middleware.UserStatusChecker`）实现，保持中间件只依赖 `config` / `pkg`。
+16. ❌ 复用密钥：用户 JWT 签名（`jwt_secret`）／资产管理（`admin_key`）／内网管理（`internal_key`）／AI 服务（`X-AI-Key`）必须各自独立生成，泄露任何一个不得影响其他信任域。
 
 ## 8. 变更后的自检清单
 

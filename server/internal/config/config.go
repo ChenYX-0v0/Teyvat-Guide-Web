@@ -52,7 +52,8 @@ type AuthConfig struct {
 	JWTTTLHours int    `mapstructure:"jwt_ttl_hours"` // token 有效期（小时）
 	SeedUser    string `mapstructure:"seed_user"`     // 首次启动种子账号（用户表为空时自动创建）
 	SeedPass    string `mapstructure:"seed_pass"`
-	AdminKey    string `mapstructure:"admin_key"` // 管理接口密钥（X-Admin-Key）；为空时回落 jwt_secret
+	AdminKey    string `mapstructure:"admin_key"`    // 管理接口密钥（X-Admin-Key）；为空时回落 jwt_secret
+	InternalKey string `mapstructure:"internal_key"` // 内网管理接口密钥（X-Internal-Key）；为空则内网接口不注册（安全默认）
 }
 
 // AdminAPIKey 返回管理接口实际使用的密钥：优先 admin_key，未配置则复用 jwt_secret（不推荐）
@@ -116,4 +117,5 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.jwt_ttl_hours", 72)
 	v.SetDefault("auth.seed_user", "admin")
 	v.SetDefault("auth.seed_pass", "admin123")
+	v.SetDefault("auth.internal_key", "") // 为空则内网管理接口不注册
 }

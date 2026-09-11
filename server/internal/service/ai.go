@@ -28,8 +28,9 @@ type Message struct {
 // RequestContext 传给 AI 服务的可选业务上下文（如玩家档案摘要）
 // 约定：仅在该次请求内存中存在，AI 服务不得落库；总量 ≤ 1500 tokens
 type RequestContext struct {
-	Goal   string         `json:"goal,omitempty"`   // 意图：general | character_build | team_build | exploration
-	Player map[string]any `json:"player,omitempty"` // 玩家档案摘要（仅摘要与过滤后的角色）
+	Goal    string         `json:"goal,omitempty"`    // 意图：general | character_build | team_build | exploration
+	Player  map[string]any `json:"player,omitempty"`  // 玩家档案（展柜角色：概览 + 相关角色明细）
+	Summary string         `json:"summary,omitempty"` // 自由文本补充，AI 渲染时置于档案之前
 }
 
 // NewAIClient 依据配置创建实现：mock / openai / remote

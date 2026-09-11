@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"teyvat-guide/server/internal/dto"
 	"teyvat-guide/server/internal/model"
@@ -16,6 +17,10 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// snapshotTTL 档案快照有效期：超过则重新拉取上游
+// （Enka 慢且有限流，故不每次直查；但面板过旧会误导养成建议，故设 10 分钟上限）
+const snapshotTTL = 10 * time.Minute
 
 type PlayerService struct {
 	assets     *asset.Service
@@ -61,10 +66,16 @@ func (s *PlayerService) Query(ctx context.Context, uid string, forceRefresh bool
 }
 
 // cachedProfile 从快照表恢复档案（表未启用 / 无记录 / 解析失败均返回 nil）
+// 超过 snapshotTTL 视为过期，返回 nil 触发向上游重新拉取（对 AI 上下文而言，旧面板会误导回答）
 func (s *PlayerService) cachedProfile(uid string) (*dto.PlayerProfile, error) {
 	snapshot, err := s.repo.GetSnapshot(uid)
 	if err != nil || snapshot == nil {
 		return nil, err
+	}
+	if age := time.Since(snapshot.UpdatedAt); age > snapshotTTL {
+		logger.L().Infow("player snapshot expired, refetch upstream",
+			"uid", uid, "age", age.Truncate(time.Second).String())
+		return nil, nil
 	}
 	var profile dto.PlayerProfile
 	if err := json.Unmarshal([]byte(snapshot.Profile), &profile); err != nil {

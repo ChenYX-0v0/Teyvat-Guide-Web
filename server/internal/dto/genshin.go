@@ -25,6 +25,7 @@ type CharacterCard struct {
 	Level         int         `json:"level"`
 	Constellation int         `json:"constellation"`
 	Fetter        int         `json:"fetter"`
+	Talents       *TalentInfo `json:"talents,omitempty"` // 天赋等级（普攻 / 战技 / 爆发）
 	IconURL       string      `json:"iconUrl,omitempty"`
 	Stats         []StatInfo  `json:"stats,omitempty"`            // 面板属性
 	StatWeights   *StatRecommendation `json:"statWeights,omitempty"` // 推荐强化词条
@@ -46,6 +47,13 @@ type StatRecommendation struct {
 	MainStats map[string]string `json:"mainStats,omitempty"` // sand/goblet/circlet → 推荐主属性
 }
 
+// TalentInfo 天赋等级（普通攻击 / 元素战技 / 元素爆发）
+type TalentInfo struct {
+	Normal int `json:"normal"`
+	Skill  int `json:"skill"`
+	Burst  int `json:"burst"`
+}
+
 // StatInfo 面板属性行（名称 + 格式化后的值）
 // Tier 属性分级：primary/secondary/空（未分级），来自角色推荐词条的 tierByName
 type StatInfo struct {
@@ -63,7 +71,8 @@ type WeaponInfo struct {
 
 type RelicInfo struct {
 	Name         string         `json:"name"`
-	Set          string         `json:"set,omitempty"` // 套装名
+	Set          string         `json:"set,omitempty"`  // 套装名
+	Slot         string         `json:"slot,omitempty"` // 部位中文名（生之花 / 时之沙 …）
 	Rarity       int            `json:"rarity"`
 	Level        int            `json:"level"`
 	Pos          string         `json:"pos"` // 部位（EQUIP_BRACER 等，前端映射文案）

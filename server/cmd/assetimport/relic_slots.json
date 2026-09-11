@@ -1,0 +1,9 @@
+{
+  "relicSlots": [
+    { "pos": "EQUIP_BRACER", "name": "生之花" },
+    { "pos": "EQUIP_NECKLACE", "name": "死之羽" },
+    { "pos": "EQUIP_SHOES", "name": "时之沙" },
+    { "pos": "EQUIP_RING", "name": "空之杯" },
+    { "pos": "EQUIP_DRESS", "name": "理之冠" }
+  ]
+}

@@ -45,6 +45,10 @@ func New(cfg *config.Config) *gin.Engine {
 	// 对话服务依赖玩家服务：登录且绑定 UID 时注入玩家档案上下文（§6）
 	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc))
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
+	// 用户管理（内网）：封禁状态同时用于鉴权中间件（既有 Token 立即失效）
+	userAdminSvc := service.NewUserAdminService()
+	internalUser := handler.NewInternalUserHandler(userAdminSvc)
+	checkBanned := middleware.UserStatusChecker(userAdminSvc.IsBanned)
 	if cfg.Auth.AdminKey == "" {
 		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
 			"建议为外部系统单独下发管理密钥（TEYVAT_AUTH_ADMIN_KEY）")
@@ -54,10 +58,10 @@ func New(cfg *config.Config) *gin.Engine {
 	{
 		api.GET("/health", health.Health)
 		// 对话：可选鉴权（带 Token 时注入用户身份 → 追加玩家上下文；匿名照常可用）
-		api.POST("/chat", middleware.JWTAuthOptional(cfg.Auth), chat.Chat)
+		api.POST("/chat", middleware.JWTAuthOptional(cfg.Auth, checkBanned), chat.Chat)
 
 		// 玩家查询：可选鉴权（带 Token 时 uid 可省略，自动用绑定 UID）
-		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth))
+		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth, checkBanned))
 		{
 			genshin.GET("/player", player.Player)
 			genshin.GET("/player-snapshot", player.Snapshot)
@@ -70,7 +74,7 @@ func New(cfg *config.Config) *gin.Engine {
 		{
 			authGroup.POST("/register", auth.Register)
 			authGroup.POST("/login", auth.Login)
-			authGroup.GET("/me", middleware.JWTAuth(cfg.Auth), auth.Me)
+			authGroup.GET("/me", middleware.JWTAuth(cfg.Auth, checkBanned), auth.Me)
 		}
 
 		// 管理接口（X-Admin-Key 保护）：资产映射导入 / 缺漏 / 重载
@@ -80,6 +84,19 @@ func New(cfg *config.Config) *gin.Engine {
 			admin.GET("/assets/missing", assetHandler.Missing)
 			admin.POST("/assets/reload", assetHandler.Reload)
 			admin.POST("/assets/purge-snapshots", assetHandler.PurgeSnapshots)
+		}
+	}
+
+	// 内网管理接口（X-Internal-Key 保护，契约路径不带 /api 前缀）：供后台运维系统调用
+	// internal_key 未配置时不注册（安全默认：不暴露无鉴权接口）
+	if cfg.Auth.InternalKey == "" {
+		logger.L().Warnw("auth.internal_key 未配置，内网管理接口未注册",
+			"hint", "配置 TEYVAT_AUTH_INTERNAL_KEY 后重启启用 /internal/v1/admin/*")
+	} else {
+		internal := r.Group("/internal/v1/admin", middleware.InternalKeyAuth(cfg.Auth))
+		{
+			internal.GET("/users", internalUser.ListUsers)
+			internal.POST("/users/status", internalUser.SetUserStatus)
 		}
 	}
 
@@ -99,6 +116,7 @@ func autoMigrate() {
 		&asset.TextMapEntry{},
 		&asset.PropMap{},
 		&asset.FightProp{},
+		&asset.RelicSlot{},
 		&asset.Affix{},
 		&asset.CharacterStatWeights{},
 		&asset.Missing{},

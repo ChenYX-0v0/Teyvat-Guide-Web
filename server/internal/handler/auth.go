@@ -60,6 +60,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			response.Fail(c, http.StatusUnauthorized, 401, err.Error())
 			return
 		}
+		if errors.Is(err, service.ErrUserBanned) {
+			response.Fail(c, http.StatusForbidden, 403, err.Error())
+			return
+		}
 		logger.L().Warnw("login failed", "username", req.Username, "err", err)
 		response.Internal(c, "登录失败")
 		return

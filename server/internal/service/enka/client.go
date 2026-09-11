@@ -18,7 +18,7 @@ const baseURL = "https://enka.network"
 
 // 上游错误分类（service 层映射为 HTTP 状态码与友好文案）
 var (
-	ErrPlayerNotFound = errors.New("玩家不存在，或未在游戏内公开详细信息")
+	ErrPlayerNotFound  = errors.New("玩家不存在，或未在游戏内公开详细信息")
 	ErrGameMaintenance = errors.New("游戏维护中，请稍后再试")
 	ErrUpstreamLimited = errors.New("上游查询过于频繁，请稍后再试")
 )
@@ -28,12 +28,20 @@ type cacheEntry struct {
 	expires time.Time
 }
 
+// flight 同一 UID 的并发请求合并（singleflight），避免缓存击穿打爆上游
+type flight struct {
+	done    chan struct{}
+	profile *Profile
+	err     error
+}
+
 type Client struct {
 	http *http.Client
 
 	mu       sync.RWMutex
 	cache    map[string]cacheEntry
 	negative map[string]time.Time
+	flights  map[string]*flight
 
 	ttl         time.Duration
 	negativeTTL time.Duration
@@ -44,8 +52,9 @@ func NewClient() *Client {
 		http:        &http.Client{Timeout: 15 * time.Second},
 		cache:       make(map[string]cacheEntry),
 		negative:    make(map[string]time.Time),
-		ttl:         60 * time.Second,   // 与上游 ttl 对齐
-		negativeTTL: 5 * time.Minute,    // 负缓存防扫号穿透
+		flights:     make(map[string]*flight),
+		ttl:         60 * time.Second, // 与上游 ttl 对齐
+		negativeTTL: 5 * time.Minute,  // 负缓存防扫号穿透
 	}
 }
 
@@ -64,22 +73,38 @@ func (c *Client) FetchProfile(ctx context.Context, uid string) (*Profile, error)
 	}
 	c.mu.RUnlock()
 
+	// 同一 UID 已有请求在飞行中：等待其结果（singleflight）
+	c.mu.Lock()
+	if f, ok := c.flights[uid]; ok {
+		c.mu.Unlock()
+		<-f.done
+		return f.profile, f.err
+	}
+	f := &flight{done: make(chan struct{})}
+	c.flights[uid] = f
+	c.mu.Unlock()
+
 	profile, err := c.fetch(ctx, uid)
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	delete(c.flights, uid)
 	if err != nil {
 		if errors.Is(err, ErrPlayerNotFound) {
 			c.negative[uid] = time.Now().Add(c.negativeTTL)
 		}
-		return nil, err
+		f.err = err
+	} else {
+		ttl := c.ttl
+		if profile.TTL > 0 && profile.TTL < 60 {
+			ttl = time.Duration(profile.TTL) * time.Second
+		}
+		c.cache[uid] = cacheEntry{profile: profile, expires: time.Now().Add(ttl)}
+		f.profile = profile
 	}
-	ttl := c.ttl
-	if profile.TTL > 0 && profile.TTL < 60 {
-		ttl = time.Duration(profile.TTL) * time.Second
-	}
-	c.cache[uid] = cacheEntry{profile: profile, expires: time.Now().Add(ttl)}
-	return profile, nil
+	close(f.done)
+	c.mu.Unlock()
+
+	return profile, err
 }
 
 func (c *Client) fetch(ctx context.Context, uid string) (*Profile, error) {

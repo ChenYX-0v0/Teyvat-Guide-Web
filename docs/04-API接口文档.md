@@ -149,22 +149,24 @@ Invoke-RestMethod -Method Post "http://<服务地址>:8080/api/admin/assets/relo
 - 密钥通过环境变量 `TEYVAT_AUTH_ADMIN_KEY` 注入，不写入代码仓库。
 
 > CLI 批量导入：`go run ./cmd/assetimport -dir <EnkaGameAssets store/gi 目录>`，或分表导入
-> `-textmap-file` / `-affixes-file` / `-fight-props-file` / `-stat-weights-file`（种子文件见 `cmd/assetimport/*.json`）。
+> `-textmap-file` / `-affixes-file` / `-fight-props-file` / `-stat-weights-file` / `-import-file`
+> （`-import-file` 为通用模式，可导入任意 ImportPayload 子集，如 `cmd/assetimport/relic_slots.json`）。
 
 ### 6.2 ImportPayload 与数据表（字段全部可选，按表分组 upsert）
 
 | 载荷字段 | 数据表 | 结构 |
 | --- | --- | --- |
-| characters[] | asset_characters | `{id(avatarId), name, enName, element, rarity, icon}` |
-| weapons[] | asset_weapons | `{id, name, enName, rarity, type, icon}` |
-| relicSets[] | asset_relic_sets | `{setId, name, icon}` |
-| textMap[] | asset_text_map_entries | `{hash, text}`（TextMapCHS：hash → 中文） |
-| propMap[] | asset_prop_maps | `{propId, name, percent}` 词条 ID → 中文名；percent 决定数值格式 |
-| fightProps[] | asset_fight_props | `{numId, propId}` Enka fightPropMap 数字枚举 → FIGHT_PROP_XXX |
-| affixes[] | asset_affixes | `{id, propType, propValue}` 圣遗物词缀表（解码强化次数） |
-| statWeights[] | asset_character_stat_weights | `{characterId, recommendation}`，JSON payload：`{subStats:[{statKey,weight,tier?}], mainStats:{sand,goblet,circlet}}`；tier=`primary`/`secondary` |
+| characters[] | characters | `{id(avatarId), name, enName, element, rarity, icon}` |
+| weapons[] | weapons | `{id, name, enName, rarity, type, icon}` |
+| relicSets[] | relic_sets | `{setId, name, icon}` |
+| textMap[] | text_map_entries | `{hash, text}`（TextMapCHS：hash → 中文） |
+| propMap[] | prop_maps | `{propId, name, percent}` 词条 ID → 中文名；percent 决定数值格式 |
+| fightProps[] | fight_props | `{numId, propId}` Enka fightPropMap 数字枚举 → FIGHT_PROP_XXX |
+| relicSlots[] | relic_slots | `{pos, name}` 圣遗物部位枚举 → 中文（生之花 / 时之沙 …） |
+| affixes[] | affixes | `{id, propType, propValue}` 圣遗物词缀表（解码强化次数） |
+| statWeights[] | character_stat_weights | `{characterId, recommendation}`，JSON payload：`{subStats:[{statKey,weight,tier?}], mainStats:{sand,goblet,circlet}}`；tier=`primary`/`secondary` |
 
-**tier（属性分级）说明**：`primary`/`secondary` 会透传到面板属性（stats[].tier）与圣遗物词条（relics[].mainStatTier / subStats[].tier），前端据此着色；未分级为空。修改 payload 后需 reload 或重启生效，并清空 `asset_player_profile_snapshots`（旧快照不含新翻译）。
+**tier（属性分级）说明**：`primary`/`secondary` 会透传到面板属性（stats[].tier）与圣遗物词条（relics[].mainStatTier / subStats[].tier），前端据此着色；未分级为空。修改 payload 后需 reload 或重启生效，并清空 `player_profile_snapshots`（旧快照不含新翻译）。
 
 **请求示例**
 
@@ -189,15 +191,41 @@ Invoke-RestMethod -Method Post "http://<服务地址>:8080/api/admin/assets/relo
 
 ---
 
-## 7. 业务数据表总览（teyvat_guide 库）
+## 7. 内网管理接口（X-Internal-Key，供后台运维系统调用）
+
+**路径不带 `/api` 前缀**（契约见根目录 `04-用户体系与鉴权边界设计.md` §4）。请求头：`X-Internal-Key: <auth.internal_key>`；
+**未配置 `auth.internal_key` 时该组路由不注册**（安全默认），请求头缺失/错误一律 401。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/internal/v1/admin/users?keyword=&page=1&pageSize=20` | 用户列表；keyword 匹配 用户名 / 昵称 / 游戏 UID；`pageSize` 上限 100 |
+| POST | `/internal/v1/admin/users/status` | 封禁 / 解封 `{id, banned}`，幂等 |
+
+**列表项字段**：`id / username / displayName / genshinUid(可空) / status(active|banned) / createdAt / lastLoginAt(可空) / totalTokens`
+（`totalTokens` = 该用户经 `chat_sessions.user_id` 归属的 `chat_messages.tokens` 聚合）
+
+**封禁语义（联动会话失效）**：
+
+- 鉴权中间件（`JWTAuth` / `JWTAuthOptional`）每次都校验封禁状态 → **封禁后既有 JWT 立即失效**（403 `账号已被封禁，请联系管理员`）；
+- 封禁用户无法重新登录（403 `账号已被封禁`）；解封后恢复；
+- `GET /internal/v1/admin/users/status` 不存在用户 → 404 `用户不存在`。
+
+**错误码**：401 缺少/错误 X-Internal-Key；404 用户不存在；400 参数错误。
+
+**外部（后台）配置**：后台侧环境变量 `PROJECT_TEYVAT_GUIDE_INTERNAL_KEY` = 本服务的 `auth.internal_key`。
+三类密钥必须各自独立：用户 JWT（`jwt_secret`）／资产管理（`admin_key`）／内网管理（`internal_key`）／AI 服务（`X-AI-Key`）。
+
+---
+
+## 8. 业务数据表总览（teyvat_guide 库）
 
 | 表 | 用途 |
 | --- | --- |
-| users | 用户（username / password_hash / display_name / genshin_uid / genshin_server） |
-| chat_sessions / chat_messages | 对话会话与消息 |
-| asset_player_profile_snapshots | 玩家档案快照缓存（uid 主键，JSON） |
-| asset_characters / asset_weapons / asset_relic_sets | 角色 / 武器 / 套装映射 |
-| asset_text_map_entries | 文本 hash → 中文 |
-| asset_prop_maps / asset_fight_props / asset_affixes | 词条名 / 数字枚举 / 词缀映射 |
-| asset_character_stat_weights | 角色推荐词条（JSON payload，含 tier 分级） |
-| asset_missings | 翻译缺漏收集（补录依据） |
+| users | 用户（username / password_hash / display_name / genshin_uid / genshin_server / status / last_login_at） |
+| chat_sessions / chat_messages | 对话会话（含 user_id，0=匿名）与消息 |
+| player_profile_snapshots | 玩家档案快照缓存（uid 主键，JSON，TTL 10 分钟） |
+| characters / weapons / relic_sets | 角色 / 武器 / 套装映射 |
+| text_map_entries | 文本 hash → 中文 |
+| prop_maps / fight_props / relic_slots / affixes | 词条名 / 数字枚举 / 圣遗物部位 / 词缀映射 |
+| character_stat_weights | 角色推荐词条（JSON payload，含 tier 分级） |
+| missings | 翻译缺漏收集（补录依据） |

@@ -1,15 +1,16 @@
 package service
 
-// 玩家上下文组装（P1 §6）：
-// 主服务在调用 AI 前，把玩家档案压缩成 context 随请求下发，
-// 让「养成分析」类问题能基于用户真实角色池作答。
+// 玩家上下文组装（对接契约见 03-主服务对接说明 §6）
 //
-// 约定（与 AI 服务）：
-//   - 总量 ≤ 1500 tokens（AI 服务还会二次裁剪）
-//   - 只推送「与提问相关」的角色的摘要，禁止整份档案/全图鉴
-//   - 用户私有数据只在本次请求内存中存在，AI 服务不落库
+// 分级注入策略：
+//   - 所有展柜角色都给「概览」：名字 / 等级 / 命座 / 天赋 / 武器
+//   - 只有「提问中点名的角色」或「养成类意图」才展开圣遗物明细（含主词条）
+//   - 超出预算时整条丢弃末尾角色，并在 summary 注明省略数量（不给半个角色条目）
+//
+// 约定：数据只在本次请求内存中存在，AI 服务不落库。
 
 import (
+	"strconv"
 	"strings"
 
 	"teyvat-guide/server/internal/dto"
@@ -17,8 +18,6 @@ import (
 
 const (
 	ctxTokenBudget = 1500 // 上下文 token 预算（中文按 1 字符 ≈ 1 token 粗估）
-	maxDetailed    = 2    // 命中提问的角色：给详细面板
-	maxBrief       = 6    // 其余相关角色：只给摘要
 )
 
 // 意图关键词（按优先级从上到下匹配）
@@ -27,7 +26,7 @@ var goalKeywords = []struct {
 	keys []string
 }{
 	{"team_build", []string{"配队", "队伍", "阵容", "双核", "三保一", "辅助谁", "队友"}},
-	{"character_build", []string{"圣遗物", "词条", "副词条", "面板", "武器", "命座", "天赋", "养成", "培养", "练", "堆", "毕业", "毕业面板", "圣遗", "build", "artifact"}},
+	{"character_build", []string{"圣遗物", "词条", "副词条", "面板", "武器", "命座", "天赋", "养成", "培养", "练", "堆", "毕业", "圣遗", "build", "artifact"}},
 	{"exploration", []string{"探索", "宝箱", "锚点", "地图", "采集", "材料在哪", "路线"}},
 }
 
@@ -43,6 +42,11 @@ func detectGoal(question string) string {
 	return "general"
 }
 
+// isBuildingIntent 是否为养成 / 配队类意图（需要圣遗物明细）
+func isBuildingIntent(goal string) bool {
+	return goal == "character_build" || goal == "team_build"
+}
+
 // BuildPlayerContext 组装玩家上下文；profile 为空或展柜为空时返回 nil（不推送）
 func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestContext {
 	if profile == nil || len(profile.Characters) == 0 {
@@ -50,139 +54,134 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 	}
 
 	goal := detectGoal(question)
-	detailed, brief := selectCharacters(profile.Characters, question, goal)
+	needDetail := isBuildingIntent(goal)
+	mentioned := mentionedNames(question, profile.Characters)
+
+	chars := make([]map[string]any, 0, len(profile.Characters))
+	used := 0
+	omitted := 0
+	for _, c := range profile.Characters {
+		// 点名角色或养成/配队意图 → 展开圣遗物明细
+		detail := needDetail || mentioned[c.Name]
+		entry := characterEntry(c, detail)
+
+		cost := roughTokens(entry)
+		if used+cost > ctxTokenBudget && len(chars) > 0 {
+			omitted = len(profile.Characters) - len(chars)
+			break // 整条丢弃，避免出现半个角色条目
+		}
+		used += cost
+		chars = append(chars, entry)
+	}
 
 	player := map[string]any{
 		"uid":        profile.UID,
+		"nickname":   profile.Nickname,
 		"level":      profile.Level,
 		"worldLevel": profile.WorldLevel,
-		"note":       "以上为本账号展柜角色的真实数据，回答养成问题时请结合具体面板与词条，不要泛泛而谈",
+		"characters": chars,
 	}
-	// characters：与提问相关的角色详情（对接文档约定的主字段名）
-	if d := buildDetailed(detailed, ctxTokenBudget); len(d) > 0 {
-		player["characters"] = d
+	rc := &RequestContext{Goal: goal, Player: player}
+	if omitted > 0 {
+		rc.Summary = "其余 " + strconv.Itoa(omitted) + " 个展柜角色因体积预算已省略"
 	}
-	// otherCharacters：展柜中其余角色的精简摘要，供配队类问题参考
-	if b := buildBrief(brief); len(b) > 0 {
-		player["otherCharacters"] = b
-	}
-	return &RequestContext{Goal: goal, Player: player}
+	return rc
 }
 
-// selectCharacters 选出与提问最相关的角色：命中名字的给详细，其余按等级给摘要
-func selectCharacters(chars []dto.CharacterCard, question string, goal string) (detailed, brief []dto.CharacterCard) {
+// mentionedNames 找出提问中被点名的角色名
+func mentionedNames(question string, chars []dto.CharacterCard) map[string]bool {
 	q := strings.ToLower(question)
-	matched := make([]dto.CharacterCard, 0, 2)
-	rest := make([]dto.CharacterCard, 0, len(chars))
-
+	out := make(map[string]bool, 4)
 	for _, c := range chars {
 		if c.Name != "" && strings.Contains(q, strings.ToLower(c.Name)) {
-			matched = append(matched, c)
-		} else {
-			rest = append(rest, c)
+			out[c.Name] = true
 		}
-	}
-
-	// 按等级降序（展柜顺序通常已按玩家习惯，等级高者更可能是主力）
-	for i := 1; i < len(rest); i++ {
-		for j := i; j > 0 && rest[j].Level > rest[j-1].Level; j-- {
-			rest[j], rest[j-1] = rest[j-1], rest[j]
-		}
-	}
-
-	detailed = matched
-	if len(detailed) > maxDetailed {
-		detailed = detailed[:maxDetailed]
-	}
-
-	// 养成 / 配队类问题才附带其余角色摘要，闲聊不推送
-	if goal == "character_build" || goal == "team_build" {
-		limit := maxBrief
-		if len(rest) < limit {
-			limit = len(rest)
-		}
-		brief = rest[:limit]
-	}
-	return detailed, brief
-}
-
-// buildDetailed 详细条目：基础信息 + 面板 + 主词条 + 推荐副词条
-func buildDetailed(chars []dto.CharacterCard, budget int) []map[string]any {
-	out := make([]map[string]any, 0, len(chars))
-	used := 0
-	for _, c := range chars {
-		entry := map[string]any{
-			"name":          c.Name,
-			"element":       c.Element,
-			"level":         c.Level,
-			"constellation": c.Constellation,
-			"fetter":        c.Fetter,
-		}
-		if c.Weapon != nil {
-			// AI 服务 schema 要求 weapon 为对象
-			entry["weapon"] = map[string]any{
-				"name":       c.Weapon.Name,
-				"rarity":     c.Weapon.Rarity,
-				"level":      c.Weapon.Level,
-				"refinement": c.Weapon.Affix,
-			}
-		}
-		if len(c.Stats) > 0 {
-			panel := make([]string, 0, len(c.Stats))
-			for _, s := range c.Stats {
-				panel = append(panel, s.Name+" "+s.Value)
-			}
-			entry["panel"] = panel
-		}
-		if mains := relicMainStats(c.Relics); len(mains) > 0 {
-			entry["relicMainStats"] = mains
-		}
-		if c.StatWeights != nil && len(c.StatWeights.SubStats) > 0 {
-			rec := make([]string, 0, 3)
-			for _, s := range c.StatWeights.SubStats {
-				rec = append(rec, s.Name)
-				if len(rec) >= 3 {
-					break
-				}
-			}
-			entry["recommendedSubStats"] = rec
-		}
-
-		cost := roughTokens(entry)
-		if used+cost > budget {
-			break
-		}
-		used += cost
-		out = append(out, entry)
 	}
 	return out
 }
 
-// buildBrief 摘要条目：名字 / 元素 / 等级 / 命座
-func buildBrief(chars []dto.CharacterCard) []map[string]any {
-	out := make([]map[string]any, 0, len(chars))
-	for _, c := range chars {
-		out = append(out, map[string]any{
-			"name":          c.Name,
-			"element":       c.Element,
-			"level":         c.Level,
-			"constellation": c.Constellation,
-		})
+// characterEntry 单个角色的上下文条目
+func characterEntry(c dto.CharacterCard, detail bool) map[string]any {
+	entry := map[string]any{
+		"name":          c.Name,
+		"level":         c.Level,
+		"constellation": c.Constellation,
 	}
-	return out
+	if c.Talents != nil {
+		entry["talents"] = map[string]int{
+			"normal": c.Talents.Normal,
+			"skill":  c.Talents.Skill,
+			"burst":  c.Talents.Burst,
+		}
+	}
+	if c.Weapon != nil {
+		entry["weapon"] = map[string]any{
+			"name":   c.Weapon.Name,
+			"refine": c.Weapon.Affix,
+			"level":  c.Weapon.Level,
+		}
+	}
+	if arts := artifactPayload(c.Relics, detail); len(arts) > 0 {
+		entry["artifacts"] = arts
+	}
+	return entry
 }
 
-func relicMainStats(relics []dto.RelicInfo) []string {
+// artifactPayload 圣遗物按套装聚合：
+//   - 概览：[{set, count}]
+//   - 明细：[{set, count, mainStats:{部位: 词条名}}]
+func artifactPayload(relics []dto.RelicInfo, detail bool) []map[string]any {
 	if len(relics) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(relics))
+	type agg struct {
+		count int
+		mains map[string]string
+	}
+	order := make([]string, 0, len(relics))
+	grouped := make(map[string]*agg, len(relics))
+
 	for _, r := range relics {
-		if r.MainStat != "" {
-			out = append(out, r.MainStat)
+		set := firstNonEmpty(r.Set, r.Name)
+		if set == "" {
+			continue
+		}
+		g, ok := grouped[set]
+		if !ok {
+			g = &agg{mains: map[string]string{}}
+			grouped[set] = g
+			order = append(order, set)
+		}
+		g.count++
+		if detail {
+			slot := firstNonEmpty(r.Slot, r.Pos)
+			if stat := statNameOnly(r.MainStat); stat != "" {
+				g.mains[slot] = stat
+			}
 		}
 	}
+
+	out := make([]map[string]any, 0, len(order))
+	for _, set := range order {
+		g := grouped[set]
+		item := map[string]any{"set": set, "count": g.count}
+		if detail && len(g.mains) > 0 {
+			item["mainStats"] = g.mains
+		}
+		out = append(out, item)
+	}
 	return out
+}
+
+// statNameOnly 从 "生命值 +4780" 提取词条名（丢掉数值，契约只要名）
+func statNameOnly(mainStat string) string {
+	if mainStat == "" {
+		return ""
+	}
+	if idx := strings.Index(mainStat, " +"); idx > 0 {
+		return mainStat[:idx]
+	}
+	return mainStat
 }
 
 // roughTokens 粗略估算条目体积（中文 1 字符 ≈ 1 token）
@@ -202,6 +201,26 @@ func roughTokens(v any) int {
 			n += len([]rune(k)) + roughTokens(val)
 		}
 		return n
+	case []map[string]any:
+		n := 0
+		for _, item := range t {
+			n += roughTokens(item)
+		}
+		return n
+	case map[string]int:
+		n := 0
+		for k, v := range t {
+			n += len([]rune(k)) + len(strconv.Itoa(v))
+		}
+		return n
+	case map[string]string:
+		n := 0
+		for k, v := range t {
+			n += len([]rune(k)) + len([]rune(v))
+		}
+		return n
+	case int:
+		return len(strconv.Itoa(t))
 	default:
 		return 8
 	}

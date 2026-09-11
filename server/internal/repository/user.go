@@ -3,6 +3,8 @@ package repository
 // 用户持久化
 
 import (
+	"time"
+
 	"teyvat-guide/server/internal/model"
 	"teyvat-guide/server/internal/pkg/database"
 
@@ -65,6 +67,56 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// TouchLogin 记录最近登录时间
+func (r *UserRepository) TouchLogin(id uint) error {
+	if r.db() == nil {
+		return nil
+	}
+	now := time.Now()
+	return r.db().Model(&model.User{}).Where("id = ?", id).
+		Update("last_login_at", now).Error
+}
+
+// ListUsers 分页查询用户；keyword 匹配 用户名 / 昵称 / 游戏 UID
+func (r *UserRepository) ListUsers(keyword string, offset, limit int) ([]model.User, int64, error) {
+	if r.db() == nil {
+		return nil, 0, nil
+	}
+	q := r.db().Model(&model.User{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("username LIKE ? OR display_name LIKE ? OR genshin_uid LIKE ?", like, like, like)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.User
+	err := q.Order("id asc").Offset(offset).Limit(limit).Find(&list).Error
+	return list, total, err
+}
+
+// UpdateStatus 设置用户状态（active / banned），幂等
+func (r *UserRepository) UpdateStatus(id uint, status string) error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Model(&model.User{}).
+		Where("id = ? AND status <> ?", id, status).
+		Update("status", status).Error
+}
+
+// CountByID 判断用户是否存在
+func (r *UserRepository) CountByID(id uint) (int64, error) {
+	if r.db() == nil {
+		return 0, nil
+	}
+	var n int64
+	err := r.db().Model(&model.User{}).Where("id = ?", id).Count(&n).Error
+	return n, err
 }
 
 // UpdateBinding 更新用户绑定的游戏 UID（uid 传空即解绑）

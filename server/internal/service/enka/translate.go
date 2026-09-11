@@ -61,6 +61,7 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 			Level:         levelFromProps(a.PropMap),
 			Constellation: len(a.TalentIDList),
 			Fetter:        a.FetterInfo.ExpLevel,
+			Talents:       talentLevels(a.SkillLevelMap),
 		}
 
 		if ch, ok := tr.assets.Character(int64(a.AvatarID)); ok {
@@ -146,6 +147,7 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 				relic := dto.RelicInfo{
 					Name:   firstNonEmpty(itemName, setName),
 					Set:    setName,
+					Slot:   tr.assets.RelicSlotName(eq.Flat.EquipType),
 					Rarity: eq.Flat.RankLevel,
 					Level:  relicDisplayLevel,
 					Pos:    eq.Flat.EquipType,
@@ -269,17 +271,55 @@ func weaponLevel(w *WeaponDetail) int {
 	return int(lv)
 }
 
-// weaponAffix 取最高精炼等级
+// weaponAffix 精炼等级（1~5）
+// Enka 的 affixMap value 是 0 基（0 = 精炼 1 阶），因此需 +1
 func weaponAffix(w *WeaponDetail) int {
-	if w == nil {
+	if w == nil || len(w.AffixMap) == 0 {
 		return 0
 	}
-	maxRank := 0
+	maxRank := int64(0)
 	for _, rank := range w.AffixMap {
 		r, _ := rank.Int64()
-		if int(r) > maxRank {
-			maxRank = int(r)
+		if r > maxRank {
+			maxRank = r
 		}
 	}
-	return maxRank
+	return int(maxRank) + 1
+}
+
+// talentLevels 从 skillLevelMap 解析天赋等级
+// key 为技能 id，升序依次对应 普通攻击 / 元素战技 / 元素爆发
+func talentLevels(m map[string]json.Number) *dto.TalentInfo {
+	if len(m) == 0 {
+		return nil
+	}
+	type kv struct {
+		id int64
+		lv int
+	}
+	list := make([]kv, 0, len(m))
+	for k, v := range m {
+		id, err := strconv.ParseInt(k, 10, 64)
+		if err != nil {
+			continue
+		}
+		lv, _ := v.Int64()
+		list = append(list, kv{id: id, lv: int(lv)})
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].id < list[j].id })
+
+	info := &dto.TalentInfo{}
+	if len(list) > 0 {
+		info.Normal = list[0].lv
+	}
+	if len(list) > 1 {
+		info.Skill = list[1].lv
+	}
+	if len(list) > 2 {
+		info.Burst = list[2].lv
+	}
+	return info
 }
