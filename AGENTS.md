@@ -149,10 +149,14 @@ logger.L().Errorw("chat failed", "err", err)
 
 ### 4.6 AI 能力
 
-统一走 `service/ai.go` 的 `AIClient` 接口（`Complete(ctx, system, history, prompt)`）。现有实现：`mock`（无密钥兜底）、`openai`（直连兼容协议）、`remote`（**默认，对接独立 AI 派蒙服务**，见 `docs/08`）。新增供应商实现该接口并在 `NewAIClient` 注册；禁止在其他地方直接引用模型 SDK。
+统一走 `service/ai.go` 的 `AIClient` 接口（`Complete` 整段补全 / `CompleteStream` 流式补全）。现有实现：`mock`（无密钥兜底）、`openai`（直连兼容协议）、`remote`（**默认，对接独立 AI 派蒙服务**，见 `docs/08`）。新增供应商实现该接口并在 `NewAIClient` 注册；禁止在其他地方直接引用模型 SDK。
 
 - remote 模式配置：`ai.base_url` 指向 AI 服务（默认 `http://127.0.0.1:8090`），`ai.api_key` 为 AI 服务密钥（`X-AI-Key`，仅走环境变量 `TEYVAT_AI_API_KEY`），`ai.timeout_seconds` 必须大于 AI 服务自身超时。
-- **AI 调用失败必须降级**：`ChatService.Ask` 捕获错误后记 `Errorw` 并返回兜底文案 + 落库，禁止把上游错误透传给前端（见 `chat.go` 的 `aiDegradeReply`）。
+- **AI 调用失败必须降级**：`ChatService.Ask` / `AskStream` 捕获错误后记 `Errorw` 并返回兜底文案 + 落库，禁止把上游错误透传给前端（见 `chat.go` 的 `aiDegradeReply`）。
+- **流式（SSE）**：`POST /api/chat` 的 `stream=true` 由 `handler/chat.go` 写成 SSE（`session` → `delta*` → `done|error`，契约见 `docs/04-API接口文档.md` §2.2）；`remote` 实现逐帧解析 AI 服务的 `/v1/complete/stream`（`parseSSE`）。两条硬约束：
+  - **流式下 `ai.timeout_seconds` 是"空闲超时"**（`withIdleTimeout`）——整段回答不设整体超时，否则长回答会被 `http.Client.Timeout` 掐断；
+  - 前端必须用 `fetch` + `ReadableStream`（axios 读不了浏览器流），走 `api/chat.ts` 的 `stream()`，禁止在组件里直接 `fetch`。
+- **历史组装只允许走 `buildHistory`**（`service/chat.go`）：20 条上限 + 1200 tokens 预算，**丢弃尾部与本次提问相同的 user 消息**（避免同一句话既进 history 又进 prompt 的重复计费）、过滤降级文案、始终保留最新一条；流式与非流式共用同一套逻辑。取历史必须用 `repository.ListRecentMessages`——`ORDER BY created_at ASC LIMIT n` 取到的是**最旧**的 n 条（已踩坑）。
 - **玩家上下文注入**（`service/ai_context.go`，契约见 `shared-docs/03-主服务对接说明.md` §6）：仅对「已登录 + 已绑定 UID」的用户生效（`/api/chat` 挂 `JWTAuthOptional`），组装逻辑必须遵守：
   - **分级注入**：所有展柜角色给「概览」（name/level/constellation/talents/weapon）；只有**提问点名**或**养成/配队意图**才展开 `artifacts` 明细（含 mainStats）；超出 `ctxTokenBudget`(1500) 时**整条丢弃末尾角色**并在 `summary` 注明省略数量
   - 字段受 AI 服务 schema 强校验，改动前对照上述文档（已踩坑：`weapon` 必须是对象；`refine` 字段名；`artifacts[].mainStats` 的 key 为中文部位名）

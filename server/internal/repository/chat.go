@@ -36,18 +36,27 @@ func (r *ChatRepository) AppendMessage(m *model.ChatMessage) error {
 	return r.db().Create(m).Error
 }
 
-// ListMessages 查询会话历史（按时间正序，最多 limit 条）
-func (r *ChatRepository) ListMessages(sessionID string, limit int) ([]model.ChatMessage, error) {
+// ListRecentMessages 查询会话**最近** limit 条消息，返回按时间正序排列的结果。
+// 注意：不能用 `ORDER BY created_at ASC LIMIT n`——那取到的是最旧的 n 条，
+// 长会话会永远停在开头；id 作为同秒内的次序兜底（created_at 精度为秒）。
+func (r *ChatRepository) ListRecentMessages(sessionID string, limit int) ([]model.ChatMessage, error) {
 	if r.db() == nil {
 		return nil, nil
 	}
 	var list []model.ChatMessage
 	err := r.db().
 		Where("session_id = ?", sessionID).
-		Order("created_at asc").
+		Order("created_at desc, id desc").
 		Limit(limit).
 		Find(&list).Error
-	return list, err
+	if err != nil {
+		return nil, err
+	}
+	// 反转为时间正序：模型需要正序上下文
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
+	return list, nil
 }
 
 // SumTokensByUsers 按用户聚合 token 消耗（chat_messages.tokens 经 chat_sessions.user_id 归属）

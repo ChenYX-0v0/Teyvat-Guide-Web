@@ -38,7 +38,14 @@ export default function MessageBubble({ message }: Props) {
             ))}
           </span>
         ) : (
-          message.content || message.error
+          <>
+            {message.content}
+            {message.error && (
+              <p className={clsx('text-xs text-amber-300/80', message.content && 'mt-1.5')}>
+                {message.error}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

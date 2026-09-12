@@ -2,13 +2,20 @@ import axios, { type AxiosError } from 'axios'
 import { t } from '@/i18n'
 import type { ApiEnvelope } from '@/types'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+/** API 基地址：与 Vite 代理约定一致（后端地址只在 vite.config.ts 配置） */
+export const apiBaseURL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export const http = axios.create({
-  baseURL,
+  baseURL: apiBaseURL,
   timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
 })
+
+/** JWT 请求头：供 fetch 发起的流式请求复用（与下方拦截器同源） */
+export function authHeader(): Record<string, string> {
+  const token = localStorage.getItem('auth-token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 // 请求自动携带 JWT
 http.interceptors.request.use((config) => {
