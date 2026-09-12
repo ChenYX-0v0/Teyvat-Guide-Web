@@ -4,6 +4,8 @@ import type {
   ApiEnvelope,
   ChatRequest,
   ChatResponse,
+  ChatSessionList,
+  ChatSessionMessages,
   ChatStreamDone,
   ChatStreamHandlers,
   HealthData,
@@ -109,6 +111,28 @@ export const chatApi = {
       // 正常结束时流已关闭，cancel 为幂等；异常时及时释放连接
       await reader.cancel().catch(() => undefined)
     }
+  },
+
+  /** 历史会话列表（需登录；匿名调用 401）。契约见 docs/04-API接口文档.md §3 */
+  listSessions(params: { page?: number; pageSize?: number } = {}) {
+    return unwrap<ChatSessionList>(http.get('/sessions', { params }))
+  },
+
+  /** 会话消息：beforeId 缺省取最新一屏；hasMore=true 时用首条 id 作 beforeId 继续往前拉 */
+  sessionMessages(sessionId: string, params: { beforeId?: number; limit?: number } = {}) {
+    return unwrap<ChatSessionMessages>(http.get(`/sessions/${sessionId}/messages`, { params }))
+  },
+
+  /** 重命名会话（需登录，仅本人；返回服务端归一化后的标题） */
+  renameSession(sessionId: string, title: string) {
+    return unwrap<{ sessionId: string; title: string }>(
+      http.patch(`/sessions/${sessionId}`, { title }),
+    )
+  },
+
+  /** 删除会话（软删除：C 端不再可见、后台仍可查；需登录，仅本人） */
+  deleteSession(sessionId: string) {
+    return unwrap<{ sessionId: string }>(http.delete(`/sessions/${sessionId}`))
   },
 
   health() {

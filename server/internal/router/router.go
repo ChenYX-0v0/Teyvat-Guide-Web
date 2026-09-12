@@ -44,6 +44,8 @@ func New(cfg *config.Config) *gin.Engine {
 	player := handler.NewPlayerHandler(playerSvc)
 	// 对话服务依赖玩家服务：登录且绑定 UID 时注入玩家档案上下文（§6）
 	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc))
+	// 会话管理（C 端，需登录）：列表 / 明细 / 重命名
+	chatSession := handler.NewChatSessionHandler(service.NewChatSessionService())
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
 	// 用户管理（内网）：封禁状态同时用于鉴权中间件（既有 Token 立即失效）
 	userAdminSvc := service.NewUserAdminService()
@@ -61,6 +63,16 @@ func New(cfg *config.Config) *gin.Engine {
 		api.GET("/health", health.Health)
 		// 对话：可选鉴权（带 Token 时注入用户身份 → 追加玩家上下文；匿名照常可用）
 		api.POST("/chat", middleware.JWTAuthOptional(cfg.Auth, checkBanned), chat.Chat)
+
+		// 会话管理（需登录）：列表 / 明细 / 重命名 / 删除（软删，C 端不可见、后台可查）。
+		// 未登录一律 401——匿名没有"我的会话"这个概念，前端也不为匿名做持久化（口径见 docs/04 §2.4）。
+		sessions := api.Group("/sessions", middleware.JWTAuth(cfg.Auth, checkBanned))
+		{
+			sessions.GET("", chatSession.List)
+			sessions.GET("/:sessionId/messages", chatSession.Messages)
+			sessions.PATCH("/:sessionId", chatSession.Rename)
+			sessions.DELETE("/:sessionId", chatSession.Delete)
+		}
 
 		// 玩家查询：可选鉴权（带 Token 时 uid 可省略，自动用绑定 UID）
 		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth, checkBanned))

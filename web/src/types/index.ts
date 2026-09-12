@@ -41,6 +41,36 @@ export interface ChatStreamHandlers {
   signal?: AbortSignal
 }
 
+/** 会话列表项（需登录；契约见 docs/04-API接口文档.md §3） */
+export interface ChatSessionItem {
+  sessionId: string
+  title: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ChatSessionList {
+  items: ChatSessionItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ChatSessionMessage {
+  id: number
+  role: Role
+  content: string
+  createdAt: string
+}
+
+/** 会话明细：messages 按 id 升序；hasMore 表示还有更早的（用首条 id 作 beforeId 继续拉） */
+export interface ChatSessionMessages {
+  sessionId: string
+  messages: ChatSessionMessage[]
+  hasMore: boolean
+}
+
 export interface ApiEnvelope<T> {
   code: number
   message: string

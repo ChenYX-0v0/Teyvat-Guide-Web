@@ -30,6 +30,7 @@ func (h *InternalChatHandler) ListChatSessions(c *gin.Context) {
 		Keyword:      c.Query("keyword"),
 		UID:          c.Query("uid"),
 		OnlyDegraded: c.Query("onlyDegraded") == "true",
+		OnlyDeleted:  c.Query("onlyDeleted") == "true",
 		From:         c.Query("from"),
 		To:           c.Query("to"),
 		Page:         parseIntDefault(c.Query("page"), 1),

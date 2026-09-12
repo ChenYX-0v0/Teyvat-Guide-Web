@@ -54,9 +54,24 @@ const zhCN = {
   // 智能问答
   'chat.title': '智能问答',
   'chat.subtitle': '由 Go 后端统一代理大模型能力',
-  'chat.clear': '清空会话',
+  'chat.new': '新对话',
   'chat.emptyHint': '还没有对话，试着问一句「新手开局怎么玩？」',
   'chat.inputPlaceholder': '问问派蒙吧：比如「万叶值得抽吗？」',
+  'chat.loadEarlier': '加载更早的消息',
+
+  // 历史会话（仅登录用户可见）
+  'chat.sessions': '历史会话',
+  'chat.sessionsEmpty': '还没有历史会话',
+  'chat.loginHint': '登录后可保存并查看历史会话；当前是匿名对话，刷新页面即重新开始。',
+  'chat.untitled': '未命名会话',
+  'chat.rename': '重命名',
+  'chat.renameSave': '保存',
+  'chat.renameCancel': '取消',
+  'chat.renameEmpty': '标题不能为空',
+  'chat.renameFailed': '重命名失败，请重试',
+  'chat.delete': '删除',
+  'chat.deleteConfirm': '删除这条会话？',
+  'chat.deleteFailed': '删除失败，请重试',
 
   // 账号信息
   'account.title': '账号信息',

@@ -55,9 +55,25 @@ const en: Partial<Dict> = {
   // Chat
   'chat.title': 'AI Chat',
   'chat.subtitle': 'LLM capability proxied by the Go backend',
-  'chat.clear': 'Clear Session',
+  'chat.new': 'New Chat',
   'chat.emptyHint': 'No messages yet. Try asking "How should a new player start?"',
   'chat.inputPlaceholder': 'Ask Paimon: e.g. "Is Kazuha worth pulling?"',
+  'chat.loadEarlier': 'Load earlier messages',
+
+  // Sessions (signed-in users only)
+  'chat.sessions': 'History',
+  'chat.sessionsEmpty': 'No saved sessions yet',
+  'chat.loginHint':
+    'Sign in to save and browse your chat history. You are chatting anonymously now, so a refresh starts over.',
+  'chat.untitled': 'Untitled session',
+  'chat.rename': 'Rename',
+  'chat.renameSave': 'Save',
+  'chat.renameCancel': 'Cancel',
+  'chat.renameEmpty': 'Title cannot be empty',
+  'chat.renameFailed': 'Rename failed, please try again',
+  'chat.delete': 'Delete',
+  'chat.deleteConfirm': 'Delete this session?',
+  'chat.deleteFailed': 'Delete failed, please try again',
 
   // Account
   'account.title': 'Account',

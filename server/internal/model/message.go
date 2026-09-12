@@ -16,6 +16,12 @@ type ChatSession struct {
 	HasPlayerContext  bool `gorm:"not null;default:false" json:"has_player_context"`
 	HasAssetReference bool `gorm:"not null;default:false" json:"has_asset_reference"`
 
+	// DeletedAt 软删除时间：非空表示用户已在 C 端删除该会话。
+	// C 端（列表/明细/改名/续聊）一律不可见；数据保留，后台仍可查并标注「已删除」
+	// （对话记录同时是审计与成本统计的来源，见 docs/04 §2.4）。
+	// 用 *time.Time 而不是 gorm.DeletedAt：后者会把后台的查询也隐式过滤掉。
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at"`
+
 	// UpdatedAt 建索引：后台会话列表按活跃时间倒序
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `gorm:"index" json:"updated_at"`

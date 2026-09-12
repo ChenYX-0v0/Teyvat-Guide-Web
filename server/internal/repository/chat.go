@@ -59,6 +59,82 @@ func (r *ChatRepository) ListRecentMessages(sessionID string, limit int) ([]mode
 	return list, nil
 }
 
+// SessionRow 会话列表行（含消息数聚合）
+type SessionRow struct {
+	ID           string
+	Title        string
+	MessageCount int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// ListSessionsByUser 某用户的会话列表（分页）。
+// 只查 user_id = userID 且**未删除**的会话——匿名会话（user_id = 0）不进任何人的列表；
+// 排序按活跃时间倒序 + id 兜底（created_at/updated_at 精度为秒，同秒必须靠 id 定序）。
+func (r *ChatRepository) ListSessionsByUser(userID uint, offset, limit int) ([]SessionRow, int64, error) {
+	if r.db() == nil {
+		return nil, 0, nil
+	}
+
+	base := func() *gorm.DB {
+		return r.db().Table("chat_sessions AS s").
+			Joins("LEFT JOIN (" + chatAggregateSQL + ") AS a ON a.session_id = s.id").
+			Where("s.user_id = ?", userID).
+			Where("s.deleted_at IS NULL")
+	}
+
+	var total int64
+	if err := base().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []SessionRow
+	err := base().
+		Select(`s.id AS id, s.title AS title,
+			COALESCE(a.message_count, 0) AS message_count,
+			s.created_at AS created_at, s.updated_at AS updated_at`).
+		Order("s.updated_at DESC, s.id DESC").
+		Offset(offset).
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+// RenameSession 重命名会话（仅本人：同时以 id 与 user_id 过滤；返回是否命中一行）。
+// 用 UpdateColumn 而非 Update：避免 GORM 自动刷新 updated_at——
+// 重命名不该改变"会话活跃时间"，否则列表顺序会因改名而跳动。
+func (r *ChatRepository) RenameSession(sessionID string, userID uint, title string) (bool, error) {
+	if r.db() == nil {
+		return false, nil
+	}
+	res := r.db().Model(&model.ChatSession{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", sessionID, userID).
+		UpdateColumn("title", title)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// SoftDeleteSession 软删除会话（仅本人；只置 deleted_at，不物理删除）。
+// C 端从此不可见（列表/明细/改名/续聊都会被过滤），后台仍可查（审计与成本统计）。
+// 返回是否命中：已删除的会话再次调用不会命中 → 上层统一按 404 处理（对 C 端就是"不存在"）。
+func (r *ChatRepository) SoftDeleteSession(sessionID string, userID uint) (bool, error) {
+	if r.db() == nil {
+		return false, nil
+	}
+	res := r.db().Model(&model.ChatSession{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", sessionID, userID).
+		UpdateColumn("deleted_at", time.Now())
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // SumTokensByUsers 按用户聚合 token 消耗（chat_messages.tokens 经 chat_sessions.user_id 归属）
 func (r *ChatRepository) SumTokensByUsers(userIDs []uint) (map[uint]int64, error) {
 	out := make(map[uint]int64, len(userIDs))
@@ -119,6 +195,7 @@ type AdminSessionFilter struct {
 	UserID       uint       // 0 表示不过滤
 	UID          string     // 按绑定的游戏 UID 过滤
 	OnlyDegraded bool       // 只看含降级回复的会话
+	OnlyDeleted  bool       // 只看用户已在 C 端删除的会话
 	From         *time.Time // 按会话活跃时间过滤
 	To           *time.Time
 	Offset       int
@@ -137,12 +214,15 @@ type AdminSessionRow struct {
 	HasAssetReference bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	DeletedAt         *time.Time // 用户 C 端删除时间；nil = 未删除
 	MessageCount      int64
 	Tokens            int64
 	DegradedCount     int64
 }
 
-// ListAdminSessions 后台会话列表（排序：活跃时间倒序 + id 兜底，避免同秒乱序）
+// ListAdminSessions 后台会话列表（排序：活跃时间倒序 + id 兜底，避免同秒乱序）。
+// **不过滤已软删除的会话**：用户删掉的对话对运营仍要可见（审计与成本统计），
+// 仅在结果里带出 DeletedAt 由前端标注；OnlyDeleted=true 时只看这些。
 func (r *ChatRepository) ListAdminSessions(f AdminSessionFilter) ([]AdminSessionRow, int64, error) {
 	if r.db() == nil {
 		return nil, 0, nil
@@ -168,6 +248,9 @@ func (r *ChatRepository) ListAdminSessions(f AdminSessionFilter) ([]AdminSession
 		if f.OnlyDegraded {
 			q = q.Where("COALESCE(a.degraded_count, 0) > 0")
 		}
+		if f.OnlyDeleted {
+			q = q.Where("s.deleted_at IS NOT NULL")
+		}
 		if f.From != nil {
 			q = q.Where("s.updated_at >= ?", *f.From)
 		}
@@ -188,7 +271,7 @@ func (r *ChatRepository) ListAdminSessions(f AdminSessionFilter) ([]AdminSession
 			COALESCE(u.username, '') AS username, COALESCE(u.display_name, '') AS display_name,
 			COALESCE(u.genshin_uid, '') AS genshin_uid,
 			s.has_player_context AS has_player_context, s.has_asset_reference AS has_asset_reference,
-			s.created_at AS created_at, s.updated_at AS updated_at,
+			s.created_at AS created_at, s.updated_at AS updated_at, s.deleted_at AS deleted_at,
 			COALESCE(a.message_count, 0) AS message_count, COALESCE(a.tokens, 0) AS tokens,
 			COALESCE(a.degraded_count, 0) AS degraded_count`).
 		Order("s.updated_at DESC, s.id DESC").
@@ -254,6 +337,27 @@ func (r *ChatRepository) ListMessagesAfter(sessionID string, afterID uint, limit
 	var list []model.ChatMessage
 	err := q.Order("id asc").Limit(limit).Find(&list).Error
 	return list, err
+}
+
+// ListMessagesBefore 取会话内 id < beforeID 的**最近** limit 条消息（beforeID = 0 表示不设上界），
+// 返回按 id 升序排列的结果。C 端打开会话先看最新一屏、再往前翻历史，因此游标是 beforeId。
+func (r *ChatRepository) ListMessagesBefore(sessionID string, beforeID uint, limit int) ([]model.ChatMessage, error) {
+	if r.db() == nil {
+		return nil, nil
+	}
+	q := r.db().Where("session_id = ?", sessionID)
+	if beforeID > 0 {
+		q = q.Where("id < ?", beforeID)
+	}
+	var list []model.ChatMessage
+	if err := q.Order("id desc").Limit(limit).Find(&list).Error; err != nil {
+		return nil, err
+	}
+	// 反转为升序：会话视图按时间正序渲染
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
+	return list, nil
 }
 
 // Touch 更新会话活跃时间

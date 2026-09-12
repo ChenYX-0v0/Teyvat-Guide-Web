@@ -160,6 +160,13 @@ func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, quest
 		return "", nil, contextAssembly{}, errors.New("问题不能为空")
 	}
 
+	// 归属校验：非本人（或已不存在）的 sessionId 一律当作新会话——
+	// 既避免"拿到别人的 id 就能续聊"，也避免匿名会话在登录后被自动认领（口径见 docs/04 §3）。
+	// 匿名（userID = 0）与匿名会话（user_id = 0）归属一致，因此同一页面内仍可连续对话。
+	if sessionID != "" && !s.ownsSession(sessionID, userID) {
+		sessionID = ""
+	}
+
 	if sessionID == "" {
 		sessionID = uuid.NewString()
 		if err := s.repo.CreateSession(&model.ChatSession{
@@ -188,6 +195,19 @@ func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, quest
 	}
 
 	return sessionID, buildHistory(recent, question), s.buildContext(ctx, userID, question), nil
+}
+
+// ownsSession 校验会话是否存在、归属该用户、且未被删除
+// （userID = 0 即匿名会话，其 user_id 也是 0）。
+// 查库失败时按"不认识"处理（返回 false）：宁可新开一个会话，也不要误续别人的会话。
+// 已软删除的会话也返回 false → 用户续聊会开一个新会话，不会让删掉的会话"复活"。
+func (s *ChatService) ownsSession(sessionID string, userID uint) bool {
+	session, err := s.repo.FindSession(sessionID)
+	if err != nil {
+		logger.L().Warnw("find session failed", "session", sessionID, "err", err)
+		return false
+	}
+	return session != nil && session.UserID == userID && session.DeletedAt == nil
 }
 
 // persistExchange 落库助手回复与会话观测标记（失败只记日志，不影响本次回答）

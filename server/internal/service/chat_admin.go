@@ -55,6 +55,7 @@ func (s *ChatAdminService) ListSessions(q dto.AdminChatQuery) (*dto.AdminChatSes
 		UserID:       q.UserID,
 		UID:          strings.TrimSpace(q.UID),
 		OnlyDegraded: q.OnlyDegraded,
+		OnlyDeleted:  q.OnlyDeleted,
 		From:         from,
 		To:           to,
 		Offset:       (page - 1) * pageSize,
@@ -91,6 +92,7 @@ func (s *ChatAdminService) ListSessions(q dto.AdminChatQuery) (*dto.AdminChatSes
 			LastQuestion:      optionalString(summarize(lastQuestions[row.ID], lastQuestionMaxRunes)),
 			CreatedAt:         row.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         row.UpdatedAt.Format(time.RFC3339),
+			DeletedAt:         formatOptionalTime(row.DeletedAt),
 		})
 	}
 
@@ -188,6 +190,15 @@ func optionalString(s string) *string {
 	if s == "" {
 		return nil
 	}
+	return &s
+}
+
+// formatOptionalTime 可空时间 → RFC3339 字符串（nil 输出 null，前端据此区分"未删除"）
+func formatOptionalTime(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format(time.RFC3339)
 	return &s
 }
 

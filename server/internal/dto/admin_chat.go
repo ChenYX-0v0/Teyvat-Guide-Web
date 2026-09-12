@@ -8,6 +8,7 @@ type AdminChatQuery struct {
 	UserID       uint   // 0 = 不过滤
 	UID          string
 	OnlyDegraded bool
+	OnlyDeleted  bool   // 只看用户已在 C 端删除的会话（后台仍可查，见 docs/04 §2.4）
 	From         string // RFC3339
 	To           string // RFC3339
 	Page         int
@@ -30,6 +31,8 @@ type AdminChatSessionItem struct {
 	LastQuestion      *string `json:"lastQuestion"` // 截断摘要
 	CreatedAt         string  `json:"createdAt"`    // RFC3339
 	UpdatedAt         string  `json:"updatedAt"`    // RFC3339
+	// DeletedAt 用户 C 端删除时间；null = 未删除（后台默认不过滤已删除会话，只做标注）
+	DeletedAt *string `json:"deletedAt"`
 }
 
 // AdminChatSessionList 会话列表（分页）
