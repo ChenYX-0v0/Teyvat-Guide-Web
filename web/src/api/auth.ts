@@ -17,4 +17,9 @@ export const authApi = {
       http.post('/auth/register', { username, password, displayName }),
     )
   },
+
+  /** 当前登录用户（应用启动时校验本地 Token 是否仍有效） */
+  me() {
+    return unwrap<{ id: number; username: string }>(http.get('/auth/me'))
+  },
 }

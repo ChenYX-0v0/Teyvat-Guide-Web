@@ -17,6 +17,15 @@ export function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** 登录态失效处理：清凭据并回登录页（axios 拦截器与 fetch 流式请求共用） */
+export function handleUnauthorized() {
+  localStorage.removeItem('auth-token')
+  localStorage.removeItem('auth-name')
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
+
 // 请求自动携带 JWT
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth-token')
@@ -34,11 +43,7 @@ http.interceptors.response.use(
       error.response?.status === 401 &&
       !error.config?.url?.includes('/auth/login')
     ) {
-      localStorage.removeItem('auth-token')
-      localStorage.removeItem('auth-name')
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      handleUnauthorized()
     }
     const message =
       error.response?.data?.message ?? error.message ?? t('errors.network')

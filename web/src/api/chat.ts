@@ -1,4 +1,4 @@
-import { apiBaseURL, authHeader, http, unwrap } from './client'
+import { apiBaseURL, authHeader, handleUnauthorized, http, unwrap } from './client'
 import { t } from '@/i18n'
 import type {
   ApiEnvelope,
@@ -58,7 +58,12 @@ export const chatApi = {
     }
 
     if (!res.ok) {
-      throw new Error(await readErrorMessage(res))
+      const message = await readErrorMessage(res)
+      if (res.status === 401) {
+        // 流式走 fetch，绕过了 axios 拦截器：这里补上同样的「清凭据回登录页」
+        handleUnauthorized()
+      }
+      throw new Error(message)
     }
     if (!res.body) {
       throw new Error(t('errors.network'))
