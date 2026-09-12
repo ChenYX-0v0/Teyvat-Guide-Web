@@ -45,7 +45,7 @@ func TestRemoteAIClientCompleteStream(t *testing.T) {
 	})
 
 	var got strings.Builder
-	tokens, err := client.CompleteStream(context.Background(), "", nil, "你好呀派蒙", nil, func(text string) error {
+	usage, err := client.CompleteStream(context.Background(), "", nil, "你好呀派蒙", nil, func(text string) error {
 		got.WriteString(text)
 		return nil
 	})
@@ -55,8 +55,8 @@ func TestRemoteAIClientCompleteStream(t *testing.T) {
 	if got.String() != "胡桃是火系主C" {
 		t.Fatalf("增量文本拼接不符：%q", got.String())
 	}
-	if tokens != 645 {
-		t.Fatalf("期望 tokens=645，实际 %d", tokens)
+	if usage.Tokens != 645 {
+		t.Fatalf("期望 tokens=645，实际 %d", usage.Tokens)
 	}
 	if gotPath != "/v1/complete/stream" {
 		t.Fatalf("请求路径不符：%s", gotPath)

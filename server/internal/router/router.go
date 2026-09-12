@@ -48,6 +48,8 @@ func New(cfg *config.Config) *gin.Engine {
 	// 用户管理（内网）：封禁状态同时用于鉴权中间件（既有 Token 立即失效）
 	userAdminSvc := service.NewUserAdminService()
 	internalUser := handler.NewInternalUserHandler(userAdminSvc)
+	// 对话记录查看（内网，只读）：契约见 admin/06-对话记录查看设计.md
+	internalChat := handler.NewInternalChatHandler(service.NewChatAdminService())
 	checkBanned := middleware.UserStatusChecker(userAdminSvc.IsBanned)
 	if cfg.Auth.AdminKey == "" {
 		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
@@ -97,6 +99,9 @@ func New(cfg *config.Config) *gin.Engine {
 		{
 			internal.GET("/users", internalUser.ListUsers)
 			internal.POST("/users/status", internalUser.SetUserStatus)
+			// 对话记录查看（只读，无修改/删除能力）
+			internal.GET("/chat/sessions", internalChat.ListChatSessions)
+			internal.GET("/chat/sessions/:sessionId/messages", internalChat.ListChatMessages)
 		}
 	}
 

@@ -25,12 +25,22 @@ const (
 	streamMaxFrameBytes = 1024 * 1024
 )
 
+// AIUsage 一次模型调用的用量与元信息（用于落库观测：成本与档位）
+type AIUsage struct {
+	Tokens       int    // 总 tokens
+	InputTokens  int    // 输入 tokens
+	OutputTokens int    // 输出 tokens
+	CachedTokens int    // 命中的前缀缓存 tokens
+	Model        string // 实际使用的模型
+	Profile      string // 实际生效的推理档位（流式下若上游未返回则为空）
+}
+
 // AIClient 大模型能力抽象，方便替换不同供应商
 type AIClient interface {
-	Complete(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext) (string, int, error)
+	Complete(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext) (string, AIUsage, error)
 	// CompleteStream 流式补全：每收到一段增量文本调用一次 onDelta（返回错误即中止本次流）。
-	// 返回值为上游给出的真实 token 用量（上游未返回则为 0）。
-	CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (int, error)
+	// 返回值为上游给出的用量（上游未返回则为零值）。
+	CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (AIUsage, error)
 }
 
 // Message 对话上下文条目
@@ -72,9 +82,10 @@ type aiEnvelope struct {
 }
 
 type aiCompleteData struct {
-	Reply  string `json:"reply"`
-	Model  string `json:"model"`
-	Tokens struct {
+	Reply   string `json:"reply"`
+	Model   string `json:"model"`
+	Profile string `json:"profile"`
+	Tokens  struct {
 		Input  int `json:"input"`
 		Output int `json:"output"`
 		Total  int `json:"total"`
@@ -136,50 +147,57 @@ func (c *remoteAIClient) payload(system string, history []Message, prompt string
 
 func (c *remoteAIClient) Complete(
 	ctx context.Context, system string, history []Message, prompt string, rc *RequestContext,
-) (string, int, error) {
+) (string, AIUsage, error) {
 	raw, err := json.Marshal(c.payload(system, history, prompt, rc))
 	if err != nil {
-		return "", 0, fmt.Errorf("marshal ai request: %w", err)
+		return "", AIUsage{}, fmt.Errorf("marshal ai request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, c.baseURL+"/v1/complete", bytes.NewReader(raw),
 	)
 	if err != nil {
-		return "", 0, fmt.Errorf("build ai request: %w", err)
+		return "", AIUsage{}, fmt.Errorf("build ai request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-AI-Key", c.apiKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", 0, fmt.Errorf("call ai service: %w", err)
+		return "", AIUsage{}, fmt.Errorf("call ai service: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }() // Close 无有意义的错误可处理
 
 	var env aiEnvelope
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
-		return "", 0, fmt.Errorf("decode ai response (status=%d): %w", resp.StatusCode, err)
+		return "", AIUsage{}, fmt.Errorf("decode ai response (status=%d): %w", resp.StatusCode, err)
 	}
 	if env.Code != 0 {
-		return "", 0, fmt.Errorf("ai service error: code=%d message=%s", env.Code, env.Message)
+		return "", AIUsage{}, fmt.Errorf("ai service error: code=%d message=%s", env.Code, env.Message)
 	}
 
 	var data aiCompleteData
 	if err := json.Unmarshal(env.Data, &data); err != nil {
-		return "", 0, fmt.Errorf("decode ai data: %w", err)
+		return "", AIUsage{}, fmt.Errorf("decode ai data: %w", err)
 	}
-	return data.Reply, data.Tokens.Total, nil
+	return data.Reply, AIUsage{
+		Tokens:       data.Tokens.Total,
+		InputTokens:  data.Tokens.Input,
+		OutputTokens: data.Tokens.Output,
+		CachedTokens: data.Tokens.Cached,
+		Model:        data.Model,
+		Profile:      data.Profile,
+	}, nil
 }
 
 // CompleteStream 对接 AI 服务 `/v1/complete/stream`（SSE，帧格式见 shared-docs/01 §6）。
 // SSE 模式下没有外层信封：上游错误只能通过 error 事件表达，因此必须逐帧解析、不能只看 HTTP 状态码。
 func (c *remoteAIClient) CompleteStream(
 	ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error,
-) (int, error) {
+) (AIUsage, error) {
 	raw, err := json.Marshal(c.payload(system, history, prompt, rc))
 	if err != nil {
-		return 0, fmt.Errorf("marshal ai request: %w", err)
+		return AIUsage{}, fmt.Errorf("marshal ai request: %w", err)
 	}
 
 	// 空闲看门狗：流式响应整体可能远超 timeout（长回答），但任意一段静默超过 timeout 即视为卡死
@@ -192,7 +210,7 @@ func (c *remoteAIClient) CompleteStream(
 		ctx, http.MethodPost, c.baseURL+"/v1/complete/stream", bytes.NewReader(raw),
 	)
 	if err != nil {
-		return 0, fmt.Errorf("build ai stream request: %w", err)
+		return AIUsage{}, fmt.Errorf("build ai stream request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
@@ -200,7 +218,7 @@ func (c *remoteAIClient) CompleteStream(
 
 	resp, err := c.stream.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("call ai stream: %w", err)
+		return AIUsage{}, fmt.Errorf("call ai stream: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -208,12 +226,12 @@ func (c *remoteAIClient) CompleteStream(
 		// 鉴权/入参类失败仍返回统一信封（HTTP 状态码 == code）
 		var env aiEnvelope
 		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil || env.Code == 0 {
-			return 0, fmt.Errorf("ai stream failed: status=%d", resp.StatusCode)
+			return AIUsage{}, fmt.Errorf("ai stream failed: status=%d", resp.StatusCode)
 		}
-		return 0, fmt.Errorf("ai service error: code=%d message=%s", env.Code, env.Message)
+		return AIUsage{}, fmt.Errorf("ai service error: code=%d message=%s", env.Code, env.Message)
 	}
 
-	tokens := 0
+	usage := AIUsage{}
 	err = parseSSE(&activityReader{reader: resp.Body, activity: activity}, func(event, data string) error {
 		switch event {
 		case "delta":
@@ -228,15 +246,29 @@ func (c *remoteAIClient) CompleteStream(
 			}
 			return onDelta(payload.Text)
 		case "done":
+			// 契约见 shared-docs/01 §6：done 带 tokens / model / finishReason / elapsedMs
+			// （profile 为可选新增字段，老版本 AI 服务不返回时保持为空）
 			var payload struct {
-				Tokens struct {
-					Total int `json:"total"`
+				Model   string `json:"model"`
+				Profile string `json:"profile"`
+				Tokens  struct {
+					Input  int `json:"input"`
+					Output int `json:"output"`
+					Total  int `json:"total"`
+					Cached int `json:"cached"`
 				} `json:"tokens"`
 			}
 			if err := json.Unmarshal([]byte(data), &payload); err != nil {
 				return fmt.Errorf("decode ai done: %w", err)
 			}
-			tokens = payload.Tokens.Total
+			usage = AIUsage{
+				Tokens:       payload.Tokens.Total,
+				InputTokens:  payload.Tokens.Input,
+				OutputTokens: payload.Tokens.Output,
+				CachedTokens: payload.Tokens.Cached,
+				Model:        payload.Model,
+				Profile:      payload.Profile,
+			}
 			return nil
 		case "error":
 			var payload struct {
@@ -255,7 +287,7 @@ func (c *remoteAIClient) CompleteStream(
 			return nil
 		}
 	})
-	return tokens, err
+	return usage, err
 }
 
 // parseSSE 解析 SSE 帧（`event: x` / `data: y`，空行分隔），逐帧回调
@@ -336,20 +368,21 @@ func (r *activityReader) Read(p []byte) (int, error) {
 
 type mockClient struct{}
 
-func (m *mockClient) Complete(_ context.Context, _ string, _ []Message, prompt string, _ *RequestContext) (string, int, error) {
+func (m *mockClient) Complete(_ context.Context, _ string, _ []Message, prompt string, _ *RequestContext) (string, AIUsage, error) {
 	reply := fmt.Sprintf(
 		"[Mock] 已收到你的问题：%q。当前未配置真实大模型，请在 config/config.yaml 中设置 ai.provider=openai 与 api_key。",
 		strings.TrimSpace(prompt),
 	)
-	return reply, len([]rune(reply)), nil
+	tokens := len([]rune(reply))
+	return reply, AIUsage{Tokens: tokens, OutputTokens: tokens, Model: "mock", Profile: "mock"}, nil
 }
 
-func (m *mockClient) CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (int, error) {
-	reply, tokens, err := m.Complete(ctx, system, history, prompt, rc)
+func (m *mockClient) CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (AIUsage, error) {
+	reply, usage, err := m.Complete(ctx, system, history, prompt, rc)
 	if err != nil {
-		return 0, err
+		return AIUsage{}, err
 	}
-	return tokens, onDelta(reply)
+	return usage, onDelta(reply)
 }
 
 // ---------- OpenAI 兼容 ----------
@@ -358,7 +391,7 @@ type openAIClient struct {
 	cfg config.AIConfig
 }
 
-func (o *openAIClient) Complete(ctx context.Context, system string, history []Message, prompt string, _ *RequestContext) (string, int, error) {
+func (o *openAIClient) Complete(ctx context.Context, system string, history []Message, prompt string, _ *RequestContext) (string, AIUsage, error) {
 	cfg := openai.DefaultConfig(o.cfg.APIKey)
 	if o.cfg.BaseURL != "" {
 		cfg.BaseURL = o.cfg.BaseURL
@@ -381,20 +414,25 @@ func (o *openAIClient) Complete(ctx context.Context, system string, history []Me
 		Messages: msgs,
 	})
 	if err != nil {
-		return "", 0, err
+		return "", AIUsage{}, err
 	}
 	if len(resp.Choices) == 0 {
-		return "", 0, fmt.Errorf("empty completion")
+		return "", AIUsage{}, fmt.Errorf("empty completion")
 	}
-	return resp.Choices[0].Message.Content, resp.Usage.TotalTokens, nil
+	return resp.Choices[0].Message.Content, AIUsage{
+		Tokens:       resp.Usage.TotalTokens,
+		InputTokens:  resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
+		Model:        resp.Model,
+	}, nil
 }
 
 // CompleteStream 直连模式暂未接流式协议：复用整段补全后一次性回调，
 // 保证 AIClient 语义一致（调用方无需按 provider 分支）。
-func (o *openAIClient) CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (int, error) {
-	reply, tokens, err := o.Complete(ctx, system, history, prompt, rc)
+func (o *openAIClient) CompleteStream(ctx context.Context, system string, history []Message, prompt string, rc *RequestContext, onDelta func(text string) error) (AIUsage, error) {
+	reply, usage, err := o.Complete(ctx, system, history, prompt, rc)
 	if err != nil {
-		return 0, err
+		return AIUsage{}, err
 	}
-	return tokens, onDelta(reply)
+	return usage, onDelta(reply)
 }

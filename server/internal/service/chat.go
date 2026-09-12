@@ -42,17 +42,34 @@ func NewChatService(cfg config.AIConfig, players *PlayerService) *ChatService {
 	}
 }
 
+// contextAssembly 一次提问组装出的业务上下文，附带"是否注入过"的标记
+// （标记用于后台观测 V1 玩家档案 / V2 资产资料的实际命中情况）
+type contextAssembly struct {
+	rc        *RequestContext
+	hasPlayer bool
+	hasAsset  bool
+}
+
+// assistantRecord 助手回复的落库载荷
+type assistantRecord struct {
+	Content   string
+	Usage     AIUsage
+	Degraded  bool
+	ElapsedMs int
+}
+
 // Ask 处理一次提问（非流式）
 // userID 为 0 表示匿名（不推送玩家上下文）；非 0 且已绑定 UID 时注入玩家档案摘要
 func (s *ChatService) Ask(ctx context.Context, userID uint, sessionID, question string) (string, string, int, int64, error) {
 	start := time.Now()
 
-	sessionID, history, rc, err := s.prepare(ctx, userID, sessionID, question)
+	sessionID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
 	if err != nil {
 		return "", "", 0, 0, err
 	}
 
-	reply, tokens, err := s.ai.Complete(ctx, s.cfg.System, history, question, rc)
+	reply, usage, err := s.ai.Complete(ctx, s.cfg.System, history, question, asm.rc)
+	rec := assistantRecord{Content: reply, Usage: usage}
 	if err != nil {
 		// 上游（AI 服务 / 模型）故障：只记日志，不向前端暴露内部细节，返回可读降级文案
 		logger.L().Errorw("ai complete failed",
@@ -60,13 +77,14 @@ func (s *ChatService) Ask(ctx context.Context, userID uint, sessionID, question 
 			"session", sessionID,
 			"provider", s.cfg.Provider,
 		)
-		reply, tokens = aiDegradeReply, 0
+		rec = assistantRecord{Content: aiDegradeReply, Degraded: true}
 		// 降级回复同样落库（保持会话连续），标记便于事后排查上游可用性
 		logger.L().Infow("chat degraded, fallback reply persisted", "session", sessionID)
 	}
+	rec.ElapsedMs = int(time.Since(start).Milliseconds())
+	s.persistExchange(sessionID, asm, rec)
 
-	s.persistAssistant(sessionID, reply, tokens)
-	return sessionID, reply, tokens, time.Since(start).Milliseconds(), nil
+	return sessionID, rec.Content, rec.Usage.Tokens, time.Since(start).Milliseconds(), nil
 }
 
 // AskStream 处理一次提问（流式）
@@ -83,7 +101,7 @@ func (s *ChatService) AskStream(
 ) (string, int, int64, error) {
 	start := time.Now()
 
-	sessionID, history, rc, err := s.prepare(ctx, userID, sessionID, question)
+	sessionID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -105,7 +123,8 @@ func (s *ChatService) AskStream(
 		return onDelta(text)
 	}
 
-	tokens, streamErr := s.ai.CompleteStream(ctx, s.cfg.System, history, question, rc, emit)
+	usage, streamErr := s.ai.CompleteStream(ctx, s.cfg.System, history, question, asm.rc, emit)
+	rec := assistantRecord{Content: buf.String(), Usage: usage}
 	if streamErr != nil {
 		logger.L().Errorw("ai stream failed",
 			"err", streamErr,
@@ -116,28 +135,29 @@ func (s *ChatService) AskStream(
 		switch {
 		case produced:
 			// 已吐出部分内容：不再追加，交由 Handler 以 error 帧提示（不泄漏上游细节）
+			rec.Degraded = true
 		case ctx.Err() != nil:
 			// 客户端已断开：没必要再补写降级文案
 		default:
 			// 一个增量都没发出：按同步链路的降级策略给出可读文案，用户仍能看到回复
-			tokens = 0
-			streamErr = emit(aiDegradeReply)
-			if streamErr == nil {
+			rec = assistantRecord{Content: aiDegradeReply, Degraded: true}
+			if err := emit(aiDegradeReply); err == nil {
 				logger.L().Infow("chat stream degraded, fallback reply persisted", "session", sessionID)
+				streamErr = nil
 			}
 		}
 	}
+	rec.ElapsedMs = int(time.Since(start).Milliseconds())
+	s.persistExchange(sessionID, asm, rec)
 
-	// 落库（含降级文案与中断时的部分内容），保证会话连续
-	s.persistAssistant(sessionID, buf.String(), tokens)
-	return sessionID, tokens, time.Since(start).Milliseconds(), streamErr
+	return sessionID, rec.Usage.Tokens, time.Since(start).Milliseconds(), streamErr
 }
 
-// prepare 提问前的公共编排：建会话 → 落库用户消息 → 组装历史与玩家上下文
-func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, question string) (string, []Message, *RequestContext, error) {
+// prepare 提问前的公共编排：建会话 → 落库用户消息 → 组装历史与业务上下文
+func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, question string) (string, []Message, contextAssembly, error) {
 	question = trim(question)
 	if question == "" {
-		return "", nil, nil, errors.New("问题不能为空")
+		return "", nil, contextAssembly{}, errors.New("问题不能为空")
 	}
 
 	if sessionID == "" {
@@ -164,22 +184,34 @@ func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, quest
 
 	recent, err := s.repo.ListRecentMessages(sessionID, historyLimit)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, contextAssembly{}, err
 	}
 
 	return sessionID, buildHistory(recent, question), s.buildContext(ctx, userID, question), nil
 }
 
-// persistAssistant 落库助手回复并刷新会话活跃时间（失败只记日志，不影响本次回答）
-func (s *ChatService) persistAssistant(sessionID, content string, tokens int) {
+// persistExchange 落库助手回复与会话观测标记（失败只记日志，不影响本次回答）
+func (s *ChatService) persistExchange(sessionID string, asm contextAssembly, rec assistantRecord) {
 	if err := s.repo.AppendMessage(&model.ChatMessage{
-		SessionID: sessionID,
-		Role:      "assistant",
-		Content:   content,
-		Tokens:    tokens,
-		CreatedAt: time.Now(),
+		SessionID:    sessionID,
+		Role:         "assistant",
+		Content:      rec.Content,
+		Tokens:       rec.Usage.Tokens,
+		TokensInput:  rec.Usage.InputTokens,
+		TokensOutput: rec.Usage.OutputTokens,
+		TokensCached: rec.Usage.CachedTokens,
+		Model:        rec.Usage.Model,
+		Profile:      rec.Usage.Profile,
+		Degraded:     rec.Degraded,
+		ElapsedMs:    rec.ElapsedMs,
+		CreatedAt:    time.Now(),
 	}); err != nil {
 		logger.L().Errorw("append assistant message failed", "session", sessionID, "err", err)
+	}
+	if asm.hasPlayer || asm.hasAsset {
+		if err := s.repo.MarkSessionContext(sessionID, asm.hasPlayer, asm.hasAsset); err != nil {
+			logger.L().Warnw("mark session context failed", "session", sessionID, "err", err)
+		}
 	}
 	if err := s.repo.Touch(sessionID); err != nil {
 		logger.L().Errorw("touch session failed", "session", sessionID, "err", err)
@@ -224,7 +256,7 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 //   - V2 资产资料（公开数据，任何用户都生效）：命中角色名时给出库里的权威推荐词条
 //   - V1 玩家档案（私有数据，需登录且已绑定 UID）：分级注入展柜角色面板
 // 任何失败都不阻塞对话（缺上下文只是回答不够精准）。
-func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) *RequestContext {
+func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) contextAssembly {
 	var refs []CharacterStatRef
 	if s.players != nil {
 		refs = s.players.StatWeightsForQuestion(question)
@@ -235,12 +267,15 @@ func (s *ChatService) buildContext(ctx context.Context, userID uint, question st
 	}
 
 	rc := s.buildPlayerContext(ctx, userID, question)
+	asm := contextAssembly{rc: rc, hasPlayer: rc != nil, hasAsset: summary != ""}
+
 	switch {
 	case rc == nil && summary == "":
-		return nil
+		return asm
 	case rc == nil:
 		// 匿名用户也能拿到公开资料：数值类问题不再靠模型记忆
-		return &RequestContext{Summary: summary}
+		asm.rc = &RequestContext{Summary: summary}
+		return asm
 	}
 
 	if summary != "" {
@@ -251,7 +286,7 @@ func (s *ChatService) buildContext(ctx context.Context, userID uint, question st
 			rc.Summary = summary + "\n" + rc.Summary
 		}
 	}
-	return rc
+	return asm
 }
 
 // buildPlayerContext 玩家档案上下文（V1）：仅对「已登录且已绑定 UID」的用户生效
