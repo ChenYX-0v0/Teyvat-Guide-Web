@@ -192,6 +192,16 @@ logger.L().Errorw("chat failed", "err", err)
 - 直连数据库改映射的外部系统，改完必须调 `POST /api/admin/assets/reload?purgeSnapshots=true` 或 `/assets/purge-snapshots`，否则运行中的服务仍用旧内存映射、旧翻译快照仍会命中。
 - Enka 无 SLA：查询有 60s 缓存 + 5min 负缓存，新增批量功能必须考虑限速。
 
+### 4.8 会话管理（C 端）
+
+- 接口：`GET /api/sessions`、`GET /api/sessions/:sessionId/messages`、`PATCH /api/sessions/:sessionId`（`handler/session.go` → `service/chat_session.go`），契约见共享仓 `web/04-API接口文档.md` §2.4。
+- **一律挂 `middleware.JWTAuth`**（不是 `JWTAuthOptional`）：匿名没有「我的会话」，未登录 401。
+- **归属校验两条线都要**：读/改名用 `id + user_id` 过滤，非本人**返回 404**（不返回 403，避免探测会话是否存在）；`POST /api/chat` 收到非本人的 `sessionId` 时**当作新会话**（`ChatService.ownsSession`），禁止续聊别人的会话。匿名（uid = 0）与匿名会话（user_id = 0）归属一致，同一页面内仍可连续对话。
+- **消息只从服务端拉**（前端不缓存正文）；分页用 `beforeId` 向上翻（`repository.ListMessagesBefore`，`id desc` 取 N 条后反转），不要用 `afterId`。
+- **删除是软删除**（`repository.SoftDeleteSession` 置 `chat_sessions.deleted_at`，不物理删除）：C 端四条路径（列表 / 明细 / 改名 / 续聊）都必须过滤 `deleted_at IS NULL`；**后台不过滤**，照常列出并用 `deletedAt` 标注、`onlyDeleted` 筛选，后台不提供删除入口。字段用 `*time.Time`，**不要用 `gorm.DeletedAt`**——后者会把后台查询也一起隐式过滤掉。
+- 重命名用 `UpdateColumn`、删除用 `UpdateColumn`：**都不要刷新 `updated_at`**，否则列表顺序会因改名 / 删除而跳动。
+- 前端 `store/useChatStore.ts` 负责列表 / 切换 / 重命名 / 删除 / 恢复：**只对登录用户持久化 `sessionId`**（localStorage），匿名不持久化；`token` 变化（退出登录 / 换账号）时必须清空内存视图，否则上一个账号的对话会留在页面上。
+
 ## 5. 前端规范（React + TS）
 
 ### 5.1 命名
