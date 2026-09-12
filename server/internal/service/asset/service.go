@@ -8,6 +8,8 @@ package asset
 import (
 	"encoding/json"
 	"errors"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -246,6 +248,35 @@ func (s *Service) StatRecommendation(characterID int64) (StatRecommendation, boo
 	defer s.mu.RUnlock()
 	rec, ok := s.statRecs[characterID]
 	return rec, ok
+}
+
+// CharactersMentioned 返回提问中「名字被提到」的角色（V2 结构化查表用）。
+// 按名字长度倒序，长名优先——否则「雷电将军」会被「将军」这类短名抢先命中；
+// 同长度按名字排序，保证结果稳定（map 遍历本身无序）。
+func (s *Service) CharactersMentioned(question string) []Character {
+	question = strings.TrimSpace(question)
+	if question == "" {
+		return nil
+	}
+	q := strings.ToLower(question)
+
+	s.mu.RLock()
+	matched := make([]Character, 0, 2)
+	for _, c := range s.characters {
+		if c.Name != "" && strings.Contains(q, strings.ToLower(c.Name)) {
+			matched = append(matched, c)
+		}
+	}
+	s.mu.RUnlock()
+
+	sort.Slice(matched, func(i, j int) bool {
+		li, lj := len([]rune(matched[i].Name)), len([]rune(matched[j].Name))
+		if li != lj {
+			return li > lj
+		}
+		return matched[i].Name < matched[j].Name
+	})
+	return matched
 }
 
 // ReportMissing 异步记录未命中的 ID（补录依据）

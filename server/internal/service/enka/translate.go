@@ -23,6 +23,25 @@ func NewTranslator(assets *asset.Service) *Translator {
 	return &Translator{assets: assets}
 }
 
+// TranslateStatRecommendation 把库里的推荐词条翻译成中文词条名并按权重降序。
+// 玩家档案翻译与 V2 资料查表（AI 上下文）共用这一份实现，避免两处逻辑漂移。
+// 库里既无副词条也无主词条时返回 nil，供调用方区分「没有资料」。
+func (tr *Translator) TranslateStatRecommendation(rec asset.StatRecommendation) *dto.StatRecommendation {
+	if len(rec.SubStats) == 0 && len(rec.MainStats) == 0 {
+		return nil
+	}
+	entries := make([]dto.StatWeightEntry, 0, len(rec.SubStats))
+	for _, it := range rec.SubStats {
+		name := it.StatKey
+		if p, ok := tr.assets.Prop(it.StatKey); ok {
+			name = p.Name
+		}
+		entries = append(entries, dto.StatWeightEntry{Name: name, Weight: it.Weight, Tier: it.Tier})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Weight > entries[j].Weight })
+	return &dto.StatRecommendation{SubStats: entries, MainStats: rec.MainStats}
+}
+
 // TranslateProfile 翻译玩家档案
 func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 	profile := &dto.PlayerProfile{
@@ -73,23 +92,16 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 			card.Name = fmt.Sprintf("未知角色 #%d", a.AvatarID)
 			report(asset.KindCharacter, fmt.Sprint(a.AvatarID))
 		}
-		// 推荐强化词条（有录入才输出，statKey 翻译为中文词条名并按权重降序）
+		// 推荐强化词条（有录入才输出）
 		// tierByName：中文词条名 → 属性分级（primary/secondary），供面板属性与圣遗物词条着色
 		tierByName := map[string]string{}
 		if rec, ok := tr.assets.StatRecommendation(int64(a.AvatarID)); ok && len(rec.SubStats) > 0 {
-			entries := make([]dto.StatWeightEntry, 0, len(rec.SubStats))
-			for _, it := range rec.SubStats {
-				name := it.StatKey
-				if p, ok2 := tr.assets.Prop(it.StatKey); ok2 {
-					name = p.Name
-				}
-				entries = append(entries, dto.StatWeightEntry{Name: name, Weight: it.Weight, Tier: it.Tier})
-				if it.Tier != "" {
-					tierByName[name] = it.Tier
+			card.StatWeights = tr.TranslateStatRecommendation(rec)
+			for _, e := range card.StatWeights.SubStats {
+				if e.Tier != "" {
+					tierByName[e.Name] = e.Tier
 				}
 			}
-			sort.Slice(entries, func(i, j int) bool { return entries[i].Weight > entries[j].Weight })
-			card.StatWeights = &dto.StatRecommendation{SubStats: entries, MainStats: rec.MainStats}
 		}
 
 		card.Stats = tr.panelStats(a.FightPropMap, card.Element, tierByName)

@@ -22,6 +22,28 @@ import (
 // （Enka 慢且有限流，故不每次直查；但面板过旧会误导养成建议，故设 10 分钟上限）
 const snapshotTTL = 10 * time.Minute
 
+// statSlotEnums 推荐词条 payload 的部位 key（契约见 docs/04-API接口文档.md §6.2）
+// → 圣遗物部位枚举；中文部位名从 asset_relic_slots 表取，不硬编码。
+var statSlotEnums = []struct{ key, pos string }{
+	{"sand", "EQUIP_SHOES"},    // 时之沙
+	{"goblet", "EQUIP_RING"},   // 空之杯
+	{"circlet", "EQUIP_DRESS"}, // 理之冠
+}
+
+// CharacterStatRef 一个角色的权威资料（V2 结构化查表用）。
+// SubStats 已翻译成中文并按权重降序；SubStats/MainStats 同时为空表示「本服暂无该角色的资料」。
+type CharacterStatRef struct {
+	Name      string
+	SubStats  []dto.StatWeightEntry
+	MainStats []StatSlotRef // 按沙/杯/冠固定顺序，保证渲染文本可复现
+}
+
+// StatSlotRef 一个部位的主词条推荐
+type StatSlotRef struct {
+	Slot string // 中文部位名（取自映射表）
+	Stat string // 推荐主属性
+}
+
 type PlayerService struct {
 	assets     *asset.Service
 	enka       *enka.Client
@@ -107,6 +129,44 @@ func (s *PlayerService) Snapshot(uid string) (*model.PlayerProfileSnapshot, erro
 // ImportAssets 批量导入映射数据
 func (s *PlayerService) ImportAssets(p asset.ImportPayload) error {
 	return s.assets.Import(p)
+}
+
+// StatWeightsForQuestion 返回提问中命中角色的权威推荐词条（V2.1 结构化查表）。
+// 只读公开资产数据，与登录态无关；命中但库里没有数据的角色也会返回（两个字段均为空），
+// 让上层能明确告诉模型「本服没有这份资料」，而不是让它凭记忆编数值（V2.3）。
+func (s *PlayerService) StatWeightsForQuestion(question string) []CharacterStatRef {
+	chars := s.assets.CharactersMentioned(question)
+	if len(chars) == 0 {
+		return nil
+	}
+
+	refs := make([]CharacterStatRef, 0, len(chars))
+	for _, c := range chars {
+		ref := CharacterStatRef{Name: c.Name}
+		if rec, ok := s.assets.StatRecommendation(c.ID); ok {
+			if tr := s.translator.TranslateStatRecommendation(rec); tr != nil {
+				ref.SubStats = tr.SubStats
+				ref.MainStats = s.mainStatLabels(tr.MainStats)
+			}
+		}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+// mainStatLabels 把 payload 的部位 key 换成中文部位名（中文名取自映射表），
+// 按沙/杯/冠固定顺序输出，避免 map 遍历顺序让同一问题每次渲染出不同文本
+func (s *PlayerService) mainStatLabels(main map[string]string) []StatSlotRef {
+	if len(main) == 0 {
+		return nil
+	}
+	out := make([]StatSlotRef, 0, len(main))
+	for _, slot := range statSlotEnums {
+		if v, ok := main[slot.key]; ok && v != "" {
+			out = append(out, StatSlotRef{Slot: s.assets.RelicSlotName(slot.pos), Stat: v})
+		}
+	}
+	return out
 }
 
 // ---------- 账号 ↔ 游戏 UID 绑定（一对一） ----------

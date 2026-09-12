@@ -163,6 +163,12 @@ logger.L().Errorw("chat failed", "err", err)
   - 上下文构建失败只记 `Warnw` 并照常对话，绝不让对话失败
   - 拉档案必须走缓存：快照 TTL `snapshotTTL`(10min) + Enka 客户端 TTL(60s) + 同 UID 单飞，禁止每次对话直查上游
   - 用户私有数据只在本次请求内存在，AI 服务不落库
+- **资产资料注入（V2 结构化查表，公开数据）**：提问命中角色名时，把库里的权威推荐词条渲染进 `context.summary`，让数值类问题不再靠模型记忆。**与登录态无关**（匿名请求同样注入，这是与 V1 的关键区别）。约束：
+  - 只允许走 `PlayerService.StatWeightsForQuestion`（名字命中用 `asset.CharactersMentioned`，**长名优先**，否则「雷电将军」会被更短的名字抢先）+ `ai_context.go` 的 `BuildAssetSummary` 渲染，不要另写一套查表/渲染；
+  - 资料文本独立预算 `referenceTokenBudget=400`、最多 `maxReferenceCharacters=2` 个角色——与玩家档案的 `ctxTokenBudget=1500` 是**两笔账**，二者共用 AI 服务的上下文预算（AI 服务超预算时会整条丢弃末尾角色）；
+  - 库里没有数据的角色必须显式渲染成「本服暂无该角色的资料（不得凭记忆给出数值）」——这是 AI 服务侧「资料外不编造」规则生效的前提；
+  - 词条名翻译复用 `enka.TranslateStatRecommendation`（与玩家档案同一实现）；部位中文名从 `asset_relic_slots` 表取，**禁止硬编码中文部位名**；
+  - 渲染文本必须顺序稳定（不要直接遍历 map），否则同一问题每次文本不同，会破坏上游前缀缓存的可复现性。
 
 ## 4.7 玩家查询（Enka 数据源）
 

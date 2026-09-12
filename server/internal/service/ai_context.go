@@ -1,11 +1,14 @@
 package service
 
-// 玩家上下文组装（对接契约见 03-主服务对接说明 §6）
+// AI 上下文组装（对接契约见 03-主服务对接说明 §6）
 //
-// 分级注入策略：
-//   - 所有展柜角色都给「概览」：名字 / 等级 / 命座 / 天赋 / 武器
-//   - 只有「提问中点名的角色」或「养成类意图」才展开圣遗物明细（含主词条）
-//   - 超出预算时整条丢弃末尾角色，并在 summary 注明省略数量（不给半个角色条目）
+// 两条注入链路：
+//   V1 玩家档案（私有数据，需登录 + 绑定 UID）
+//     - 所有展柜角色都给「概览」：名字 / 等级 / 命座 / 天赋 / 武器
+//     - 只有「提问中点名的角色」或「养成类意图」才展开圣遗物明细（含主词条）
+//     - 超出预算时整条丢弃末尾角色，并在 summary 注明省略数量（不给半个角色条目）
+//   V2 资产资料（公开数据，与登录态无关）
+//     - 提问命中角色名时，把库里的权威推荐词条渲染进 summary，让数值类问题不靠模型记忆
 //
 // 约定：数据只在本次请求内存中存在，AI 服务不落库。
 
@@ -17,7 +20,13 @@ import (
 )
 
 const (
-	ctxTokenBudget = 1500 // 上下文 token 预算（中文按 1 字符 ≈ 1 token 粗估）
+	ctxTokenBudget = 1500 // 玩家档案的 token 预算（中文按 1 字符 ≈ 1 token 粗估）
+
+	// referenceTokenBudget V2 资料文本的独立预算：与玩家档案共用 AI 服务的上下文预算，
+	// 单独设一个小额度，避免资料把面板挤掉。
+	referenceTokenBudget = 400
+	// maxReferenceCharacters 一次最多注入几个命中角色的资料（防止长提问塞满上下文）
+	maxReferenceCharacters = 2
 )
 
 // 意图关键词（按优先级从上到下匹配）
@@ -182,6 +191,72 @@ func statNameOnly(mainStat string) string {
 		return mainStat[:idx]
 	}
 	return mainStat
+}
+
+// ---------- V2 · 结构化资料查表 ----------
+
+// BuildAssetSummary 把命中的角色资料渲染成 `context.summary` 文本（V2.1）。
+// 返回空串表示一个角色都没命中，不推送资料。
+//
+// 为什么要显式标注「本服暂无资料」：模型对热门角色有记忆，不说清楚它会用记忆里的旧数值作答；
+// 标成「暂无资料」后，配合人格提示词里的「资料外不编造」规则，冷门/新角色就会老实承认不知道（V2.3）。
+func BuildAssetSummary(refs []CharacterStatRef) string {
+	if len(refs) == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, len(refs))
+	used := 0
+	for _, ref := range refs {
+		line := renderAssetRef(ref)
+		if line == "" {
+			continue
+		}
+		cost := roughTokens(line)
+		if len(lines) > 0 && (used+cost > referenceTokenBudget || len(lines) >= maxReferenceCharacters) {
+			break
+		}
+		used += cost
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return "【游戏资料】（来自本服资料库，是本回合数值与词条问题的唯一依据）\n- " +
+		strings.Join(lines, "\n- ")
+}
+
+// renderAssetRef 渲染单个角色一行资料
+func renderAssetRef(ref CharacterStatRef) string {
+	if ref.Name == "" {
+		return ""
+	}
+	if len(ref.SubStats) == 0 && len(ref.MainStats) == 0 {
+		return ref.Name + "：本服暂无该角色的资料（不得凭记忆给出数值）"
+	}
+
+	var b strings.Builder
+	b.WriteString(ref.Name)
+	b.WriteString("：推荐副词条 ")
+	parts := make([]string, 0, len(ref.SubStats))
+	for _, st := range ref.SubStats {
+		item := st.Name
+		if st.Tier != "" {
+			item += "(" + st.Tier + ")"
+		}
+		parts = append(parts, item)
+	}
+	b.WriteString(strings.Join(parts, " > "))
+
+	if len(ref.MainStats) > 0 {
+		mains := make([]string, 0, len(ref.MainStats))
+		for _, slot := range ref.MainStats {
+			mains = append(mains, slot.Slot+" "+slot.Stat)
+		}
+		b.WriteString("；推荐主词条 " + strings.Join(mains, "，"))
+	}
+	return b.String()
 }
 
 // roughTokens 粗略估算条目体积（中文 1 字符 ≈ 1 token）

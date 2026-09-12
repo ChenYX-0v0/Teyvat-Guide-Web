@@ -220,9 +220,43 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 	return picked
 }
 
-// buildContext 组装玩家上下文：仅对「已登录且已绑定 UID」的用户生效
-// 任何失败都不阻塞对话（缺上下文只是回答不够个性化）
+// buildContext 组装发送给 AI 服务的业务上下文，两条链路任一有内容即推送：
+//   - V2 资产资料（公开数据，任何用户都生效）：命中角色名时给出库里的权威推荐词条
+//   - V1 玩家档案（私有数据，需登录且已绑定 UID）：分级注入展柜角色面板
+// 任何失败都不阻塞对话（缺上下文只是回答不够精准）。
 func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) *RequestContext {
+	var refs []CharacterStatRef
+	if s.players != nil {
+		refs = s.players.StatWeightsForQuestion(question)
+	}
+	summary := BuildAssetSummary(refs)
+	if summary != "" {
+		logger.L().Infow("ai asset reference attached", "matched", len(refs))
+	}
+
+	rc := s.buildPlayerContext(ctx, userID, question)
+	switch {
+	case rc == nil && summary == "":
+		return nil
+	case rc == nil:
+		// 匿名用户也能拿到公开资料：数值类问题不再靠模型记忆
+		return &RequestContext{Summary: summary}
+	}
+
+	if summary != "" {
+		// summary 渲染时置于玩家档案之前：先给「权威资料」，再给「你的面板」
+		if rc.Summary == "" {
+			rc.Summary = summary
+		} else {
+			rc.Summary = summary + "\n" + rc.Summary
+		}
+	}
+	return rc
+}
+
+// buildPlayerContext 玩家档案上下文（V1）：仅对「已登录且已绑定 UID」的用户生效
+// 任何失败都不阻塞对话（缺上下文只是回答不够个性化）
+func (s *ChatService) buildPlayerContext(ctx context.Context, userID uint, question string) *RequestContext {
 	if userID == 0 || s.players == nil {
 		return nil
 	}
