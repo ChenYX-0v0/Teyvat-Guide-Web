@@ -1,11 +1,32 @@
 package service
 
 import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
 	"teyvat-guide/server/internal/dto"
 	"teyvat-guide/server/internal/model"
 	"teyvat-guide/server/internal/pkg/logger"
 	"teyvat-guide/server/internal/repository"
 )
+
+// 预设问答的字段上限（按**字符**计，不是字节）
+const (
+	presetSceneMaxRunes    = 32
+	presetQuestionMaxRunes = 200   // 表列 size:255
+	presetAnswerMaxRunes   = 4000  // 太长没人看，也避免前端撑爆
+	presetSortMin          = -9999
+	presetSortMax          = 9999
+)
+
+// ErrPresetNotFound 预设问答不存在（Handler 映射 404）
+var ErrPresetNotFound = errors.New("预设问答不存在")
+
+// ErrPresetInvalid 参数不合法（Handler 映射 400）
+var ErrPresetInvalid = errors.New("预设问答参数有误")
 
 // PresetQAService 预设问答：匿名用户在对话页看到的内容。
 // 匿名已被禁用 AI 对话（口径见 shared-docs/05 §1），因此这条链路
@@ -115,4 +136,124 @@ func (s *PresetQAService) ensureSeed() {
 		return
 	}
 	logger.L().Infow("preset qa seeded", "count", len(items))
+}
+
+// ---------- 后台维护（内网读写；下架用 enabled=0，不做物理删除） ----------
+
+// ListAll 全部条目（含已下架）
+func (s *PresetQAService) ListAll() (*dto.PresetQAAdminList, error) {
+	rows, err := s.repo.ListAll()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]dto.PresetQAAdminItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toAdminItem(row))
+	}
+	return &dto.PresetQAAdminList{Items: items}, nil
+}
+
+// Create 新建（Enabled 缺省为 true）
+func (s *PresetQAService) Create(req dto.PresetQASaveRequest) (*dto.PresetQAAdminItem, error) {
+	req, err := normalizeSave(req)
+	if err != nil {
+		return nil, err
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	item := &model.PresetQA{
+		SceneKey: req.SceneKey,
+		Question: req.Question,
+		Answer:   req.Answer,
+		Sort:     req.Sort,
+		Enabled:  enabled,
+	}
+	if err := s.repo.Create(item); err != nil {
+		return nil, err
+	}
+	logger.L().Infow("preset qa created", "id", item.ID, "enabled", item.Enabled)
+	out := toAdminItem(*item)
+	return &out, nil
+}
+
+// Update 更新（Enabled 为 nil 时保持原值）。
+// 先查存在性再更新：MySQL 在"值没变化"时 RowsAffected 为 0，不能据此判 404。
+func (s *PresetQAService) Update(id uint, req dto.PresetQASaveRequest) (*dto.PresetQAAdminItem, error) {
+	current, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, ErrPresetNotFound
+	}
+	req, err = normalizeSave(req)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := map[string]any{
+		"scene_key": req.SceneKey,
+		"question":  req.Question,
+		"answer":    req.Answer,
+		"sort":      req.Sort,
+	}
+	if req.Enabled != nil {
+		fields["enabled"] = *req.Enabled
+	}
+	if err := s.repo.Update(id, fields); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, ErrPresetNotFound
+	}
+	logger.L().Infow("preset qa updated", "id", id, "enabled", updated.Enabled)
+	out := toAdminItem(*updated)
+	return &out, nil
+}
+
+// normalizeSave 去首尾空白 + 校验长度（按字符数）
+func normalizeSave(req dto.PresetQASaveRequest) (dto.PresetQASaveRequest, error) {
+	req.SceneKey = strings.TrimSpace(req.SceneKey)
+	req.Question = strings.TrimSpace(req.Question)
+	req.Answer = strings.TrimSpace(req.Answer)
+
+	if req.Question == "" {
+		return req, fmt.Errorf("%w: 提问不能为空", ErrPresetInvalid)
+	}
+	if req.Answer == "" {
+		return req, fmt.Errorf("%w: 回答不能为空", ErrPresetInvalid)
+	}
+	if utf8.RuneCountInString(req.SceneKey) > presetSceneMaxRunes {
+		return req, fmt.Errorf("%w: 分组最多 %d 个字符", ErrPresetInvalid, presetSceneMaxRunes)
+	}
+	if utf8.RuneCountInString(req.Question) > presetQuestionMaxRunes {
+		return req, fmt.Errorf("%w: 提问最多 %d 个字符", ErrPresetInvalid, presetQuestionMaxRunes)
+	}
+	if utf8.RuneCountInString(req.Answer) > presetAnswerMaxRunes {
+		return req, fmt.Errorf("%w: 回答最多 %d 个字符", ErrPresetInvalid, presetAnswerMaxRunes)
+	}
+	if req.Sort < presetSortMin || req.Sort > presetSortMax {
+		return req, fmt.Errorf("%w: 排序需在 %d~%d 之间", ErrPresetInvalid, presetSortMin, presetSortMax)
+	}
+	return req, nil
+}
+
+func toAdminItem(row model.PresetQA) dto.PresetQAAdminItem {
+	return dto.PresetQAAdminItem{
+		ID:        row.ID,
+		SceneKey:  row.SceneKey,
+		Question:  row.Question,
+		Answer:    row.Answer,
+		Sort:      row.Sort,
+		Enabled:   row.Enabled,
+		CreatedAt: row.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: row.UpdatedAt.Format(time.RFC3339),
+	}
 }

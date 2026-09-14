@@ -151,6 +151,11 @@ func New(cfg *config.Config) *gin.Engine {
 			// 对话记录查看（只读，无修改/删除能力）
 			internal.GET("/chat/sessions", internalChat.ListChatSessions)
 			internal.GET("/chat/sessions/:sessionId/messages", internalChat.ListChatMessages)
+			// 预设问答维护（后台可运营：新建 / 编辑 / 上下架；**不做物理删除**，
+			// 下架用 enabled=0 —— 与"预设问答要能随时改、随时撤"的运营诉求一致）
+			internal.GET("/preset-qa", preset.AdminList)
+			internal.POST("/preset-qa", preset.Create)
+			internal.PUT("/preset-qa/:id", preset.Update)
 		}
 
 		// AI 提示词只读接口：AI 派蒙服务在 PROMPT_STORE_MODE=http 时按场景拉取
