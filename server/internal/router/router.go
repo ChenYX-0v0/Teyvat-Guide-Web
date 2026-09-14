@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net"
+	"net/url"
 	"time"
 
 	"teyvat-guide/server/internal/config"
@@ -16,6 +18,29 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// allowOrigin 判定跨域来源是否放行。
+// 回环地址（localhost / 127.0.0.1 / ::1）在任何模式下都放行；
+// debug 模式额外放行局域网私有网段（192.168/16、10/8、172.16/12），便于手机等设备联调；
+// release 模式保持严格白名单，只认回环地址（见 shared-docs/04 用户体系与鉴权边界设计）。
+func allowOrigin(origin, mode string) bool {
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	if mode != "debug" {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsPrivate()
+}
+
 // New 注册路由并返回引擎
 func New(cfg *config.Config) *gin.Engine {
 	gin.SetMode(cfg.Server.Mode)
@@ -24,7 +49,7 @@ func New(cfg *config.Config) *gin.Engine {
 	r.Use(gin.Recovery(), middleware.AccessLog())
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowOriginFunc:  func(origin string) bool { return allowOrigin(origin, cfg.Server.Mode) },
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -52,6 +77,8 @@ func New(cfg *config.Config) *gin.Engine {
 	internalUser := handler.NewInternalUserHandler(userAdminSvc)
 	// 对话记录查看（内网，只读）：契约见 admin/06-对话记录查看设计.md
 	internalChat := handler.NewInternalChatHandler(service.NewChatAdminService())
+	// AI 提示词（内网，只读）：供 AI 派蒙服务拉取，契约见 shared-docs/03 主服务对接说明 §5
+	internalAI := handler.NewInternalAIHandler(service.NewAIPromptService())
 	checkBanned := middleware.UserStatusChecker(userAdminSvc.IsBanned)
 	if cfg.Auth.AdminKey == "" {
 		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
@@ -104,8 +131,8 @@ func New(cfg *config.Config) *gin.Engine {
 	// 内网管理接口（X-Internal-Key 保护，契约路径不带 /api 前缀）：供后台运维系统调用
 	// internal_key 未配置时不注册（安全默认：不暴露无鉴权接口）
 	if cfg.Auth.InternalKey == "" {
-		logger.L().Warnw("auth.internal_key 未配置，内网管理接口未注册",
-			"hint", "配置 TEYVAT_AUTH_INTERNAL_KEY 后重启启用 /internal/v1/admin/*")
+		logger.L().Warnw("auth.internal_key 未配置，内网接口未注册",
+			"hint", "配置 TEYVAT_AUTH_INTERNAL_KEY 后重启启用 /internal/v1/admin/* 与 /internal/v1/ai/prompts")
 	} else {
 		internal := r.Group("/internal/v1/admin", middleware.InternalKeyAuth(cfg.Auth))
 		{
@@ -114,6 +141,13 @@ func New(cfg *config.Config) *gin.Engine {
 			// 对话记录查看（只读，无修改/删除能力）
 			internal.GET("/chat/sessions", internalChat.ListChatSessions)
 			internal.GET("/chat/sessions/:sessionId/messages", internalChat.ListChatMessages)
+		}
+
+		// AI 提示词只读接口：AI 派蒙服务在 PROMPT_STORE_MODE=http 时按场景拉取
+		// （路径不带 /admin：它是"AI 服务 ↔ 主服务"的对接面，不是后台运维面）
+		ai := r.Group("/internal/v1/ai", middleware.InternalKeyAuth(cfg.Auth))
+		{
+			ai.GET("/prompts", internalAI.GetAIPrompts)
 		}
 	}
 
@@ -127,6 +161,7 @@ func autoMigrate() {
 		&model.ChatMessage{},
 		&model.PlayerProfileSnapshot{},
 		&model.User{},
+		&model.AIPrompt{},
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},
