@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { MessagesSquare, Plus } from 'lucide-react'
 import MessageBubble from '@/components/chat/MessageBubble'
 import ChatInput from '@/components/chat/ChatInput'
 import SessionList from '@/components/chat/SessionList'
@@ -18,6 +18,8 @@ export default function ChatPage() {
     restore,
   } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
+  // 移动端：历史会话抽屉（桌面端由常驻侧栏承担，不需要这个状态）
+  const [sessionsOpen, setSessionsOpen] = useState(false)
 
   // 恢复上次会话 + 拉会话列表；匿名用户 restore 内部直接返回（匿名不持久化）
   useEffect(() => {
@@ -36,21 +38,30 @@ export default function ChatPage() {
       <SessionList />
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div>
-            <h2 className="text-base font-medium text-white">{t('chat.title')}</h2>
-            <p className="text-xs text-white/40">{t('chat.subtitle')}</p>
+        <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-medium text-white">{t('chat.title')}</h2>
+            <p className="hidden truncate text-xs text-white/40 sm:block">{t('chat.subtitle')}</p>
           </div>
-          <button
-            onClick={startNewSession}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 transition hover:border-teyvat-gold/40 hover:text-teyvat-gold"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t('chat.new')}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => setSessionsOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 transition hover:border-teyvat-gold/40 hover:text-teyvat-gold md:hidden"
+            >
+              <MessagesSquare className="h-3.5 w-3.5" />
+              {t('chat.sessions')}
+            </button>
+            <button
+              onClick={startNewSession}
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 transition hover:border-teyvat-gold/40 hover:text-teyvat-gold"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t('chat.new')}
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+        <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
           {hasEarlier && (
             <div className="pt-4 text-center">
               <button
@@ -79,6 +90,16 @@ export default function ChatPage() {
 
         <ChatInput disabled={loading} onSend={sendMessage} />
       </div>
+
+      {/* 移动端历史会话抽屉（复用同一个 SessionList，选中后自动关闭） */}
+      {sessionsOpen && (
+        <div className="fixed inset-0 z-40 touch-none md:hidden" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setSessionsOpen(false)} />
+          <div className="absolute inset-y-0 left-0">
+            <SessionList variant="drawer" onNavigate={() => setSessionsOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

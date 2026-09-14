@@ -18,8 +18,8 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-14">
-      <h2 className="text-3xl font-semibold tracking-wide text-teyvat-gold">
+    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+      <h2 className="text-2xl font-semibold tracking-wide text-teyvat-gold sm:text-3xl">
         {t('home.welcome')}
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-white/60">{t('home.intro')}</p>
@@ -36,7 +36,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      <div className="mt-10 flex items-center gap-4">
+      <div className="mt-10 flex flex-wrap items-center gap-4">
         <Link
           to="/chat"
           className="rounded-xl bg-teyvat-gold px-5 py-2.5 text-sm font-medium text-teyvat-ink transition hover:bg-teyvat-gold-deep"

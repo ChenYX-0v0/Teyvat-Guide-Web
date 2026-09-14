@@ -38,8 +38,9 @@ export default function LoginPage() {
     }
   }
 
+  // 输入框字号移动端 ≥16px：iOS 聚焦更小字号会自动放大页面（sm 起回到 text-sm）
   const inputClass =
-    'w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition placeholder:text-white/25 focus:border-teyvat-gold/50'
+    'w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-base outline-none transition placeholder:text-white/25 focus:border-teyvat-gold/50 sm:text-sm'
 
   return (
     <div className="flex h-full items-center justify-center px-4">

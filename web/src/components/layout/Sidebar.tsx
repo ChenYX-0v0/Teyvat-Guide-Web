@@ -1,20 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { House, MessagesSquare, BookOpen, UserRound } from 'lucide-react'
 import clsx from 'clsx'
-import { t } from '@/i18n'
+import { navItems } from './navItems'
 
-const items = [
-  { to: '/', label: t('sidebar.home'), icon: House, end: true },
-  { to: '/chat', label: t('sidebar.chat'), icon: MessagesSquare, end: false },
-  { to: '/account', label: t('sidebar.account'), icon: UserRound, end: false },
-  { to: '/wiki', label: t('sidebar.wiki'), icon: BookOpen, end: false },
-]
-
+/** 桌面端常驻侧栏（<md 不渲染，移动端用 MobileNav 抽屉） */
 export default function Sidebar() {
   return (
     <aside className="hidden w-56 shrink-0 border-r border-white/10 bg-black/20 p-3 md:block">
       <nav className="flex flex-col gap-1">
-        {items.map(({ to, label, icon: Icon, end }) => (
+        {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

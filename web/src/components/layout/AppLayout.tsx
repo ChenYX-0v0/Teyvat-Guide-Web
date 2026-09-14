@@ -1,11 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Header from './Header'
+import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
 import { useAuthStore } from '@/store/useAuthStore'
 
 export default function AppLayout() {
   const verify = useAuthStore((s) => s.verify)
+  const [navOpen, setNavOpen] = useState(false)
 
   // 启动时校验本地 Token：过期/失效则清凭据回登录页，避免"以为登录了其实在匿名聊天"
   useEffect(() => {
@@ -13,14 +15,17 @@ export default function AppLayout() {
   }, [verify])
 
   return (
-    <div className="flex h-full flex-col">
-      <Header />
+    // h-dvh：移动端浏览器地址栏收起/展开时按动态视口取高，避免 h-full 导致的高度跳动与底部裁切
+    <div className="flex h-dvh flex-col">
+      <Header onMenuClick={() => setNavOpen(true)} />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>
+      {/* 抽屉放在 Header 之外：Header 的 backdrop-blur 会成为 fixed 后代的包含块 */}
+      <MobileNav open={navOpen} onClose={() => setNavOpen(false)} />
     </div>
   )
 }

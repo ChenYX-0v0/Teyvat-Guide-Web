@@ -28,10 +28,11 @@ export default function ChatInput({ disabled, onSend }: Props) {
     }
   }
 
+  // 输入框字号在移动端 ≥16px（iOS 聚焦更小字号会自动放大页面），sm 起回到 text-sm
   return (
     <form
       onSubmit={onSubmit}
-      className="flex items-end gap-2 border-t border-white/10 bg-black/25 p-4 backdrop-blur"
+      className="flex items-end gap-2 border-t border-white/10 bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur"
     >
       <textarea
         value={value}
@@ -39,7 +40,7 @@ export default function ChatInput({ disabled, onSend }: Props) {
         onKeyDown={onKeyDown}
         rows={1}
         placeholder={t('chat.inputPlaceholder')}
-        className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-teyvat-gold/50"
+        className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-base outline-none transition placeholder:text-white/30 focus:border-teyvat-gold/50 sm:text-sm"
       />
       <button
         type="submit"

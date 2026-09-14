@@ -19,6 +19,8 @@ const en: Partial<Dict> = {
   'header.title': 'Teyvat Guide',
   'header.subtitle': 'Teyvat Guide · Genshin AI Assistant',
   'header.logout': 'Log out',
+  'header.menu': 'Menu',
+  'header.close': 'Close',
   'sidebar.home': 'Home',
   'sidebar.chat': 'AI Chat',
   'sidebar.account': 'Account',

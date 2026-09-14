@@ -18,6 +18,8 @@ const zhCN = {
   'header.title': 'AI 提瓦特向导',
   'header.subtitle': 'Teyvat Guide · 原神智能助手机',
   'header.logout': '退出登录',
+  'header.menu': '菜单',
+  'header.close': '关闭',
   'sidebar.home': '首页',
   'sidebar.chat': '智能问答',
   'sidebar.account': '账号信息',

@@ -229,7 +229,18 @@ logger.L().Errorw("chat failed", "err", err)
 
 ### 5.4 新增页面三步
 
-1. `pages/XxxPage.tsx` → 2. `router/index.tsx` 注册 → 3. 需要入口则在 `Sidebar.tsx` 加导航项。
+1. `pages/XxxPage.tsx` → 2. `router/index.tsx` 注册 → 3. 需要入口则在 `components/layout/navItems.ts` 加导航项（桌面侧栏与移动端抽屉共用这一份，见 §5.5）。
+
+### 5.5 移动端（响应式）
+
+断点用 Tailwind 默认值（`sm` = 40rem、`md` = 48rem），mobile-first：先写手机端，再用 `sm:` / `md:` 放大。下面几条是 2026-09-14 真机问题后固化的红线：
+
+- **导航项只有一份**（`components/layout/navItems.ts`），`Sidebar` 与 `MobileNav` 共用。**禁止只往 `Sidebar` 加项**——`Sidebar` 是 `hidden md:block`，只加一边必然出现「桌面有、手机没有」（历史问题：手机端登录后完全没有导航入口）。
+- **抽屉不能放在带 `backdrop-blur` / `transform` / `filter` 的祖先里**：这些属性会为 `position: fixed` 后代创建包含块（`MobileNav` 因此渲染在 `AppLayout` 中、`Header` 之外）。
+- **输入类元素移动端字号 ≥16px**（写 `text-base sm:text-sm`）：iOS 聚焦更小字号的输入框会自动放大整页。
+- **页面高度用 `h-dvh`**（不用 `h-full` / `100vh`）；底部固定元素补 `pb-[max(1rem,env(safe-area-inset-bottom))]`。
+- **可复用的列表 / 面板必须同时给移动端入口**（如 `SessionList` 桌面常驻侧栏、移动端 `variant="drawer"`），不能变成「手机上不可达的功能」。
+- 改动布局后按 375 / 390 / 414 三档宽度过一遍。
 
 ## 6. 通用代码风格
 

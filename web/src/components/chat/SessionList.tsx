@@ -5,15 +5,25 @@ import { useChatStore } from '@/store/useChatStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
+type Props = {
+  /** sidebar = 桌面常驻侧栏；drawer = 移动端抽屉内容 */
+  variant?: 'sidebar' | 'drawer'
+  /** 抽屉场景：选中会话 / 新建对话后关闭抽屉 */
+  onNavigate?: () => void
+}
+
 /**
- * 历史会话侧栏。
+ * 历史会话列表。
  * 列表只有登录用户才有（匿名不持久化，也没有"我的会话"这个概念），
  * 因此未登录时只给一句登录引导。契约见 docs/04-API接口文档.md §2.4。
  *
  * 删除是软删除：只从自己的列表移除，服务端保留（后台审计仍可查），
  * 因此这里做一次就地二次确认，避免误点。
+ *
+ * 同一个组件两处复用：桌面是 `hidden md:flex` 的侧栏，移动端放进抽屉
+ * （`variant="drawer"`）——避免"手机上看不到历史会话"那类两套实现漂移。
  */
-export default function SessionList() {
+export default function SessionList({ variant = 'sidebar', onNavigate }: Props) {
   const {
     sessions,
     sessionsLoading,
@@ -72,13 +82,21 @@ export default function SessionList() {
     }
   }
 
+  const rootClass =
+    variant === 'sidebar'
+      ? 'hidden w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 md:flex'
+      : 'flex h-full w-72 max-w-[85vw] flex-col border-r border-white/10 bg-teyvat-ink'
+
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 md:flex">
+    <aside className={rootClass}>
       <div className="flex items-center justify-between px-3 py-3">
         <span className="text-xs font-medium text-white/50">{t('chat.sessions')}</span>
         {token && (
           <button
-            onClick={startNewSession}
+            onClick={() => {
+              startNewSession()
+              onNavigate?.()
+            }}
             title={t('chat.new')}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-white/50 transition hover:bg-white/5 hover:text-teyvat-gold"
           >
@@ -161,7 +179,10 @@ export default function SessionList() {
                 ) : (
                   <>
                     <button
-                      onClick={() => void openSession(item.sessionId)}
+                      onClick={() => {
+                        void openSession(item.sessionId)
+                        onNavigate?.()
+                      }}
                       title={item.title}
                       className="min-w-0 flex-1 truncate text-left text-xs"
                     >
