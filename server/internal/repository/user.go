@@ -79,15 +79,29 @@ func (r *UserRepository) TouchLogin(id uint) error {
 		Update("last_login_at", now).Error
 }
 
-// ListUsers 分页查询用户；keyword 匹配 用户名 / 昵称 / 游戏 UID
-func (r *UserRepository) ListUsers(keyword string, offset, limit int) ([]model.User, int64, error) {
+// ListUsers 分页查询用户；keyword 匹配 用户名 / 昵称 / 游戏 UID。
+//
+// includeIDs 的语义必须区分「不过滤」与「筛出来是空集」：
+//   - nil     → 不过滤（返回所有用户）
+//   - 非 nil  → 只返回这些 ID（**空切片表示没有任何用户命中**，返回 0 条）
+//
+// 用量 / 无关问题这类条件是**按消息聚合**出来的，先由 ChatRepository 算出候选 ID 集合，
+// 再在这里参与 title 之外的过滤，这样 total 与分页天然一致。
+func (r *UserRepository) ListUsers(keyword string, includeIDs []uint, offset, limit int) ([]model.User, int64, error) {
 	if r.db() == nil {
 		return nil, 0, nil
 	}
+	if includeIDs != nil && len(includeIDs) == 0 {
+		return nil, 0, nil
+	}
+
 	q := r.db().Model(&model.User{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		q = q.Where("username LIKE ? OR display_name LIKE ? OR genshin_uid LIKE ?", like, like, like)
+	}
+	if includeIDs != nil {
+		q = q.Where("id IN ?", includeIDs)
 	}
 
 	var total int64

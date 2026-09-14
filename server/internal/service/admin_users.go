@@ -5,6 +5,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"teyvat-guide/server/internal/dto"
@@ -32,19 +33,19 @@ func NewUserAdminService() *UserAdminService {
 	}
 }
 
-// List 分页查询用户（keyword 匹配 用户名 / 昵称 / 游戏 UID），附带 token 消耗聚合
-func (s *UserAdminService) List(keyword string, page, pageSize int) (*dto.AdminUserList, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
+// List 分页查询用户（keyword 匹配 用户名 / 昵称 / 游戏 UID），附带累计 token、当日用量与无关提问数。
+// 用量与无关问题口径见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2.5 / §3.4。
+func (s *UserAdminService) List(q dto.AdminUserQuery) (*dto.AdminUserList, error) {
+	page, pageSize := normalizePaging(q.Page, q.PageSize)
+
+	// 用量 / 无关问题这两类条件是**按消息聚合**出来的：先算出候选用户 ID 集合，
+	// 再参与列表过滤，这样 total 与分页天然一致（nil = 不过滤，非 nil 空集 = 无命中）
+	includeIDs, err := s.resolveUsageFilter(q)
+	if err != nil {
+		return nil, err
 	}
 
-	users, total, err := s.users.ListUsers(keyword, (page-1)*pageSize, pageSize)
+	users, total, err := s.users.ListUsers(strings.TrimSpace(q.Keyword), includeIDs, (page-1)*pageSize, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -58,16 +59,32 @@ func (s *UserAdminService) List(keyword string, page, pageSize int) (*dto.AdminU
 		// 聚合失败不影响列表可用性（仅 token 显示为 0）
 		logger.L().Warnw("aggregate user tokens failed", "err", err)
 	}
+	from, to := usageWindow(q.UsageDate)
+	usageMap, err := s.chats.SumUsageByUsersInRange(ids, from, to)
+	if err != nil {
+		logger.L().Warnw("aggregate user daily usage failed", "err", err)
+	}
+	offTopicMap, err := s.chats.SumOffTopicByUsers(ids)
+	if err != nil {
+		logger.L().Warnw("aggregate user off-topic failed", "err", err)
+	}
 
 	items := make([]dto.AdminUserItem, 0, len(users))
 	for _, u := range users {
+		usage := usageMap[u.ID]
 		item := dto.AdminUserItem{
-			ID:          u.ID,
-			Username:    u.Username,
-			DisplayName: u.DisplayName,
-			Status:      u.Status,
-			CreatedAt:   u.CreatedAt.Format(time.RFC3339),
-			TotalTokens: tokenMap[u.ID],
+			ID:            u.ID,
+			Username:      u.Username,
+			DisplayName:   u.DisplayName,
+			Status:        u.Status,
+			CreatedAt:     u.CreatedAt.Format(time.RFC3339),
+			TotalTokens:   tokenMap[u.ID],
+			TodayTokens:   usage.Tokens,
+			TodayInput:    usage.TokensInput,
+			TodayOutput:   usage.TokensOutput,
+			TodayCached:   usage.TokensCached,
+			TodayRequests: usage.Requests,
+			OffTopicCount: offTopicMap[u.ID],
 		}
 		if u.GenshinUID != "" {
 			uid := u.GenshinUID
@@ -86,6 +103,63 @@ func (s *UserAdminService) List(keyword string, page, pageSize int) (*dto.AdminU
 		Page:     page,
 		PageSize: pageSize,
 	}, nil
+}
+
+// resolveUsageFilter 把「当日用量 ≥ N」「有无关提问」翻译成候选用户 ID 集合。
+// 返回 nil 表示不过滤；返回非 nil 空切片表示"没有任何用户命中"。
+func (s *UserAdminService) resolveUsageFilter(q dto.AdminUserQuery) ([]uint, error) {
+	var candidates []uint // nil = 还没有条件
+	if q.MinDailyTokens > 0 {
+		from, to := usageWindow(q.UsageDate)
+		ids, err := s.chats.UserIDsWithTokensAtLeast(from, to, q.MinDailyTokens)
+		if err != nil {
+			return nil, err
+		}
+		candidates = intersect(candidates, ids)
+	}
+	if q.OnlyOffTopic {
+		min := q.OffTopicMin
+		if min < 1 {
+			min = 1
+		}
+		ids, err := s.chats.UserIDsWithOffTopic(int64(min))
+		if err != nil {
+			return nil, err
+		}
+		candidates = intersect(candidates, ids)
+	}
+	return candidates, nil
+}
+
+// intersect 求交集：prev 为 nil 表示"还没有条件"，直接取 next。
+// next 来自仓储，**一定是非 nil 切片**，因此空交集会保持非 nil → 上层判为"无命中"。
+func intersect(prev, next []uint) []uint {
+	if prev == nil {
+		return next
+	}
+	set := make(map[uint]struct{}, len(prev))
+	for _, id := range prev {
+		set[id] = struct{}{}
+	}
+	out := make([]uint, 0)
+	for _, id := range next {
+		if _, ok := set[id]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// usageWindow 把 usageDate（YYYY-MM-DD，**本地时区**）解析成 [当天 00:00, 次日 00:00)；
+// 空或非法时用今天（与配额口径一致，见 shared-docs/05 §2.1）。
+func usageWindow(date string) (time.Time, time.Time) {
+	day := StartOfToday()
+	if s := strings.TrimSpace(date); s != "" {
+		if parsed, err := time.ParseInLocation("2006-01-02", s, time.Local); err == nil {
+			day = parsed
+		}
+	}
+	return day, day.AddDate(0, 0, 1)
 }
 
 // SetBanned 封禁 / 解封（幂等）。封禁后该用户既有 JWT 会在鉴权中间件被拒绝（见 IsBanned）。

@@ -2,10 +2,11 @@ import { create } from 'zustand'
 import { chatApi } from '@/api/chat'
 import { getAuthToken } from '@/store/useAuthStore'
 import { t } from '@/i18n'
-import type { ChatMessage, ChatSessionItem, ChatSessionMessage } from '@/types'
+import type { ChatMessage, ChatSessionItem, ChatSessionMessage, PresetQAItem } from '@/types'
 
 // 会话管理（需登录；契约见 docs/04-API接口文档.md §3）
 // 口径：匿名不持久化——本地只记登录用户的当前会话；消息一律从服务端拉（换设备/清缓存后一致）。
+// 匿名（无 Token）已不能提问：对话页展示预设问答（`/api/preset-qa`，不调模型、不消耗 token）。
 const SESSION_KEY = 'chat-session-id'
 
 /** 服务端消息 → 视图消息（createdAt 为 RFC3339；解析失败退回当前时间） */
@@ -45,6 +46,10 @@ interface ChatState {
    * token 变化（退出登录 / 换账号）时清空内存视图，避免上一个账号的对话留在页面上。
    */
   ownerToken: string | null
+  /** 预设问答（匿名用户在对话页看到的内容；登录后不再展示） */
+  presets: PresetQAItem[]
+  presetsLoading: boolean
+  loadPresets: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
   /** 新对话：只清当前视图，旧会话仍在服务端（可从列表找回；不提供删除） */
   startNewSession: () => void
@@ -70,11 +75,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   earliestId: undefined,
   sessions: [],
   sessionsLoading: false,
+  presets: [],
+  presetsLoading: false,
   ownerToken: getAuthToken(),
 
   async sendMessage(content) {
     const text = content.trim()
     if (!text || get().loading) return
+
+    // 匿名不能提问（/api/chat 已强制登录，见 docs/04 §2）：前端在提问前就拦住
+    if (!getAuthToken()) {
+      set({ error: t('chat.loginRequired') })
+      return
+    }
 
     const session = get().sessionId
     const userMsg: ChatMessage = {
@@ -163,6 +176,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  async loadPresets() {
+    set({ presetsLoading: true })
+    try {
+      const data = await chatApi.presetQa()
+      set({ presets: data.items, presetsLoading: false })
+    } catch {
+      // 取不到不阻塞页面：面板会给出"暂时取不到"的提示
+      set({ presets: [], presetsLoading: false })
+    }
+  },
+
   async openSession(sessionId) {
     set({ loading: true, error: undefined, hasEarlier: false, earliestId: undefined })
     try {
@@ -238,8 +262,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   /**
-   * 恢复上次会话：仅登录用户（匿名不持久化，刷新即新对话）。
-   * 先比对登录态：token 变了（退出/换号）就清空内存视图，再按需恢复。
+   * 恢复上次会话：仅登录用户（匿名不持久化，且匿名已不能提问）。
+   * 先比对登录态：token 变了（退出/换号）就清空内存视图，再按需恢复；
+   * 匿名则改为拉预设问答——对话页展示的就是它。
    */
   async restore() {
     const token = getAuthToken()
@@ -254,7 +279,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         error: undefined,
       })
     }
-    if (!token) return
+    if (!token) {
+      void get().loadPresets()
+      return
+    }
 
     void get().loadSessions()
     const saved = localStorage.getItem(SESSION_KEY)

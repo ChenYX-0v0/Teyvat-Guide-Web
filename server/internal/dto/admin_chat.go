@@ -8,7 +8,8 @@ type AdminChatQuery struct {
 	UserID       uint   // 0 = 不过滤
 	UID          string
 	OnlyDegraded bool
-	OnlyDeleted  bool   // 只看用户已在 C 端删除的会话（后台仍可查，见 docs/04 §2.4）
+	OnlyDeleted  bool // 只看用户已在 C 端删除的会话（后台仍可查，见 docs/04 §2.4）
+	OnlyOffTopic bool // 只看含无关提问的会话（2026-09-14 新增，见 shared-docs/05 §3.4）
 	From         string // RFC3339
 	To           string // RFC3339
 	Page         int
@@ -33,6 +34,8 @@ type AdminChatSessionItem struct {
 	UpdatedAt         string  `json:"updatedAt"`    // RFC3339
 	// DeletedAt 用户 C 端删除时间；null = 未删除（后台默认不过滤已删除会话，只做标注）
 	DeletedAt *string `json:"deletedAt"`
+	// OffTopicCount 会话内无关提问条数（2026-09-14 新增；判定未开启时为 0）
+	OffTopicCount int64 `json:"offTopicCount"`
 }
 
 // AdminChatSessionList 会话列表（分页）
@@ -57,6 +60,10 @@ type AdminChatMessageItem struct {
 	Degraded     bool   `json:"degraded"`
 	ElapsedMs    int    `json:"elapsedMs"`
 	CreatedAt    string `json:"createdAt"`
+	// 无关问题判定（2026-09-14 新增；仅 role='user' 有意义）
+	// null = **未判定**（判定未开启 / 抽样未覆盖 / 判定失败），false = 判定为有关
+	OffTopic       *bool  `json:"offTopic"`
+	OffTopicReason string `json:"offTopicReason"`
 }
 
 // AdminChatMessages 会话明细（游标分页）

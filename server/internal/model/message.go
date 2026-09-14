@@ -47,5 +47,14 @@ type ChatMessage struct {
 	Degraded     bool   `gorm:"not null;default:false" json:"degraded"`     // 是否为降级兜底回复（不要靠文案比对判断）
 	ElapsedMs    int    `gorm:"not null;default:0" json:"elapsed_ms"`       // 该条回答耗时
 
+	// 无关问题判定（只有 role = 'user' 的消息有意义；由 AI 服务判定后随回复回传）
+	// 必须区分「未判定」与「判定为有关」，否则抽样期的无关率会被系统性低估：
+	//   OffTopic = nil   → 未判定（判定开关关闭 / 抽样未覆盖 / 判定失败）
+	//   OffTopic = false → 判定为有关
+	//   OffTopic = true  → 无关
+	// （见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §3.3）
+	OffTopic       *bool  `json:"off_topic"`
+	OffTopicReason string `gorm:"size:32;not null;default:''" json:"off_topic_reason"` // 子类：chitchat | other_domain | injection | unclear
+
 	CreatedAt time.Time `json:"created_at"`
 }

@@ -16,6 +16,23 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	AI       AIConfig       `mapstructure:"ai"`
 	Auth     AuthConfig     `mapstructure:"auth"`
+	Quota    QuotaConfig    `mapstructure:"quota"`
+}
+
+// QuotaConfig 用量配额与并发闸门（口径真源：shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2）
+// 只在主服务侧强制：AI 服务只认一把 X-AI-Key，无法区分用户。
+type QuotaConfig struct {
+	// DailyTokensPerUser 每用户每自然日（本地时区）token 上限；0 = 不限制
+	DailyTokensPerUser int `mapstructure:"daily_tokens_per_user"`
+	// DailyTokensGlobal 全站当日 token 上限（熔断，防批量注册绕过单用户配额）；0 = 关闭
+	DailyTokensGlobal int `mapstructure:"daily_tokens_global"`
+	// MaxConcurrentPerUser 同一用户同时进行中的 AI 请求上限；0 = 不限制
+	// （AI 服务侧是全局信号量 LLM_MAX_CONCURRENCY，一人打满会让所有人排队）
+	MaxConcurrentPerUser int `mapstructure:"max_concurrent_per_user"`
+	// WhitelistUserIDs 豁免用户（默认空）
+	WhitelistUserIDs []uint `mapstructure:"whitelist_user_ids"`
+	// Metric 计量口径：total（默认，SUM(tokens)）| cached_weighted（预留：cached 按 1/50 加权）
+	Metric string `mapstructure:"metric"`
 }
 
 type ServerConfig struct {
@@ -118,4 +135,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.seed_user", "admin")
 	v.SetDefault("auth.seed_pass", "admin123")
 	v.SetDefault("auth.internal_key", "") // 为空则内网管理接口不注册
+	// 配额与并发闸门（口径见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2）
+	v.SetDefault("quota.daily_tokens_per_user", 100000) // 每用户每自然日 10 万 token；0 = 不限
+	v.SetDefault("quota.daily_tokens_global", 0)        // 全站日预算（熔断）；0 = 关闭
+	v.SetDefault("quota.max_concurrent_per_user", 2)    // 同一用户同时进行中的请求数；0 = 不限
+	v.SetDefault("quota.metric", "total")               // total | cached_weighted（预留，暂只实现 total）
 }

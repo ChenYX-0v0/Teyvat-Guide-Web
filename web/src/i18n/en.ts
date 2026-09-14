@@ -66,13 +66,21 @@ const en: Partial<Dict> = {
   'chat.sessions': 'History',
   'chat.sessionsEmpty': 'No saved sessions yet',
   'chat.loginHint':
-    'Sign in to save and browse your chat history. You are chatting anonymously now, so a refresh starts over.',
+    'Sign in to save and browse your chat history. Without signing in you can only read the preset Q&A.',
   'chat.untitled': 'Untitled session',
   'chat.rename': 'Rename',
   'chat.renameSave': 'Save',
   'chat.renameCancel': 'Cancel',
   'chat.renameEmpty': 'Title cannot be empty',
   'chat.renameFailed': 'Rename failed, please try again',
+
+  // Preset Q&A (visible without signing in; asking questions requires sign-in)
+  'chat.presetTitle': 'Try these common questions',
+  'chat.presetHint':
+    'Without signing in you can only read preset Q&A. Sign in and Paimon can answer based on your account and showcase characters.',
+  'chat.presetLogin': 'Sign in to start chatting',
+  'chat.presetEmpty': 'Preset Q&A is unavailable right now, please try again later',
+  'chat.loginRequired': 'Please sign in before asking Paimon',
   'chat.delete': 'Delete',
   'chat.deleteConfirm': 'Delete this session?',
   'chat.deleteFailed': 'Delete failed, please try again',

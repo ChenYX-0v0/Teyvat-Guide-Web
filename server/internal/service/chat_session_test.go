@@ -234,7 +234,7 @@ func TestChatSessionRename(t *testing.T) {
 // 写入侧：拿别人的 sessionId 提问不能续聊那条会话，而是新开一个属于调用者的会话
 func TestChatAskRejectsForeignSession(t *testing.T) {
 	setupChatSessionService(t)
-	svc := NewChatService(config.AIConfig{Provider: "mock"}, nil)
+	svc := NewChatService(config.AIConfig{Provider: "mock"}, nil, nil)
 	ctx := context.Background()
 
 	sessionID, reply, _, _, err := svc.Ask(ctx, 2, "s1", "你好")
@@ -338,7 +338,7 @@ func TestChatSessionSoftDelete(t *testing.T) {
 	}
 
 	// 写入侧：已删除的会话不能续聊（新开会话），且删除标记不被改写
-	chat := NewChatService(config.AIConfig{Provider: "mock"}, nil)
+	chat := NewChatService(config.AIConfig{Provider: "mock"}, nil, nil)
 	again, _, _, _, err := chat.Ask(context.Background(), 1, "s1", "继续")
 	if err != nil {
 		t.Fatalf("Ask 失败：%v", err)

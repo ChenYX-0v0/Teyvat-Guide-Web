@@ -33,6 +33,11 @@ type AIUsage struct {
 	CachedTokens int    // 命中的前缀缓存 tokens
 	Model        string // 实际使用的模型
 	Profile      string // 实际生效的推理档位（流式下若上游未返回则为空）
+
+	// 无关问题判定（AI 服务侧判定后随回复回传，见 shared-docs/05 §3）
+	// nil = **未判定**（判定开关关闭 / 抽样未覆盖 / 判定失败），不要当作 false
+	OffTopic       *bool
+	OffTopicReason string // chitchat | other_domain | injection | unclear
 }
 
 // AIClient 大模型能力抽象，方便替换不同供应商
@@ -93,6 +98,9 @@ type aiCompleteData struct {
 	} `json:"tokens"`
 	FinishReason string `json:"finishReason"`
 	ElapsedMs    int    `json:"elapsedMs"`
+	// 无关问题判定（可选字段；**缺失 = 未判定**，见 shared-docs/05 §3.3）
+	OffTopic       *bool  `json:"offTopic"`
+	OffTopicReason string `json:"offTopicReason"`
 }
 
 type remoteAIClient struct {
@@ -181,12 +189,14 @@ func (c *remoteAIClient) Complete(
 		return "", AIUsage{}, fmt.Errorf("decode ai data: %w", err)
 	}
 	return data.Reply, AIUsage{
-		Tokens:       data.Tokens.Total,
-		InputTokens:  data.Tokens.Input,
-		OutputTokens: data.Tokens.Output,
-		CachedTokens: data.Tokens.Cached,
-		Model:        data.Model,
-		Profile:      data.Profile,
+		Tokens:         data.Tokens.Total,
+		InputTokens:    data.Tokens.Input,
+		OutputTokens:   data.Tokens.Output,
+		CachedTokens:   data.Tokens.Cached,
+		Model:          data.Model,
+		Profile:        data.Profile,
+		OffTopic:       data.OffTopic,
+		OffTopicReason: data.OffTopicReason,
 	}, nil
 }
 
@@ -257,17 +267,22 @@ func (c *remoteAIClient) CompleteStream(
 					Total  int `json:"total"`
 					Cached int `json:"cached"`
 				} `json:"tokens"`
+				// 无关问题判定（可选字段；缺失 = 未判定，见 shared-docs/05 §3.3）
+				OffTopic       *bool  `json:"offTopic"`
+				OffTopicReason string `json:"offTopicReason"`
 			}
 			if err := json.Unmarshal([]byte(data), &payload); err != nil {
 				return fmt.Errorf("decode ai done: %w", err)
 			}
 			usage = AIUsage{
-				Tokens:       payload.Tokens.Total,
-				InputTokens:  payload.Tokens.Input,
-				OutputTokens: payload.Tokens.Output,
-				CachedTokens: payload.Tokens.Cached,
-				Model:        payload.Model,
-				Profile:      payload.Profile,
+				Tokens:         payload.Tokens.Total,
+				InputTokens:    payload.Tokens.Input,
+				OutputTokens:   payload.Tokens.Output,
+				CachedTokens:   payload.Tokens.Cached,
+				Model:          payload.Model,
+				Profile:        payload.Profile,
+				OffTopic:       payload.OffTopic,
+				OffTopicReason: payload.OffTopicReason,
 			}
 			return nil
 		case "error":

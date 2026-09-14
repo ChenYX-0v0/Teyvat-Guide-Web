@@ -67,8 +67,13 @@ func New(cfg *config.Config) *gin.Engine {
 	assets := asset.New(database.DB())
 	playerSvc := service.NewPlayerService(database.DB())
 	player := handler.NewPlayerHandler(playerSvc)
+	// 配额与并发闸门：**只能在主服务侧按用户强制**（AI 服务只认一把 X-AI-Key，不区分用户）。
+	// 口径见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2。
+	quotaSvc := service.NewQuotaService(cfg.Quota)
 	// 对话服务依赖玩家服务：登录且绑定 UID 时注入玩家档案上下文（§6）
-	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc))
+	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc, quotaSvc))
+	// 预设问答（免登录）：匿名用户在对话页看到的内容
+	preset := handler.NewPresetHandler(service.NewPresetQAService())
 	// 会话管理（C 端，需登录）：列表 / 明细 / 重命名
 	chatSession := handler.NewChatSessionHandler(service.NewChatSessionService())
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
@@ -88,8 +93,13 @@ func New(cfg *config.Config) *gin.Engine {
 	api := r.Group("/api")
 	{
 		api.GET("/health", health.Health)
-		// 对话：可选鉴权（带 Token 时注入用户身份 → 追加玩家上下文；匿名照常可用）
-		api.POST("/chat", middleware.JWTAuthOptional(cfg.Auth, checkBanned), chat.Chat)
+		// 预设问答：**无需登录**——匿名用户在对话页看到的内容，不调模型、不消耗 token
+		// （匿名禁用 AI 后的替代体验，见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §1）
+		api.GET("/preset-qa", preset.List)
+
+		// 对话：**强制登录**（2026-09-14 变更）。匿名不再具备 AI 对话能力——
+		// 额度无归属、不可审计，也没有任何配额手段；/api/genshin/* 等只读接口仍匿名可用。
+		api.POST("/chat", middleware.JWTAuth(cfg.Auth, checkBanned), chat.Chat)
 
 		// 会话管理（需登录）：列表 / 明细 / 重命名 / 删除（软删，C 端不可见、后台可查）。
 		// 未登录一律 401——匿名没有"我的会话"这个概念，前端也不为匿名做持久化（口径见 docs/04 §2.4）。
@@ -159,6 +169,7 @@ func autoMigrate() {
 	if err := database.DB().AutoMigrate(
 		&model.ChatSession{},
 		&model.ChatMessage{},
+		&model.PresetQA{},
 		&model.PlayerProfileSnapshot{},
 		&model.User{},
 		&model.AIPrompt{},

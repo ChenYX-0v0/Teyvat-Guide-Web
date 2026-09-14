@@ -19,7 +19,7 @@ import (
 func newChatTestServer(t *testing.T, provider string) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	svc := service.NewChatService(config.AIConfig{Provider: provider}, nil)
+	svc := service.NewChatService(config.AIConfig{Provider: provider}, nil, nil)
 	r := gin.New()
 	r.POST("/api/chat", NewChatHandler(svc).Chat)
 	return r

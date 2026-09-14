@@ -64,13 +64,20 @@ const zhCN = {
   // 历史会话（仅登录用户可见）
   'chat.sessions': '历史会话',
   'chat.sessionsEmpty': '还没有历史会话',
-  'chat.loginHint': '登录后可保存并查看历史会话；当前是匿名对话，刷新页面即重新开始。',
+  'chat.loginHint': '登录后可保存并查看历史会话；未登录时只能看预设问答。',
   'chat.untitled': '未命名会话',
   'chat.rename': '重命名',
   'chat.renameSave': '保存',
   'chat.renameCancel': '取消',
   'chat.renameEmpty': '标题不能为空',
   'chat.renameFailed': '重命名失败，请重试',
+
+  // 预设问答（匿名可见；登录后才能向派蒙提问）
+  'chat.presetTitle': '先看看这些常见问题',
+  'chat.presetHint': '未登录时只能查看预设问答；登录后派蒙可以结合你的账号与展柜角色作答。',
+  'chat.presetLogin': '登录后开始对话',
+  'chat.presetEmpty': '预设问答暂时取不到，稍后再试',
+  'chat.loginRequired': '请先登录再向派蒙提问',
   'chat.delete': '删除',
   'chat.deleteConfirm': '删除这条会话？',
   'chat.deleteFailed': '删除失败，请重试',

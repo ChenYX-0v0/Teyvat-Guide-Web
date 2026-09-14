@@ -9,6 +9,7 @@ import type {
   ChatStreamDone,
   ChatStreamHandlers,
   HealthData,
+  PresetQAList,
 } from '@/types'
 
 const decoder = new TextDecoder()
@@ -133,6 +134,14 @@ export const chatApi = {
   /** 删除会话（软删除：C 端不再可见、后台仍可查；需登录，仅本人） */
   deleteSession(sessionId: string) {
     return unwrap<{ sessionId: string }>(http.delete(`/sessions/${sessionId}`))
+  },
+
+  /**
+   * 预设问答（**无需登录**）：匿名用户在对话页看到的内容。
+   * 不调模型、不消耗 token，契约见 docs/04-API接口文档.md §2.5。
+   */
+  presetQa() {
+    return unwrap<PresetQAList>(http.get('/preset-qa'))
   },
 
   health() {

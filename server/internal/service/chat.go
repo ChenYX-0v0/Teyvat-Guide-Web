@@ -31,15 +31,25 @@ type ChatService struct {
 	ai      AIClient
 	repo    *repository.ChatRepository
 	players *PlayerService // 可为 nil：无玩家查询能力时不做上下文推送
+	quota   *QuotaService  // 可为 nil（单测构造）：为 nil 时不做配额与并发限制
 }
 
-func NewChatService(cfg config.AIConfig, players *PlayerService) *ChatService {
+func NewChatService(cfg config.AIConfig, players *PlayerService, quota *QuotaService) *ChatService {
 	return &ChatService{
 		cfg:     cfg,
 		ai:      NewAIClient(cfg),
 		repo:    repository.NewChatRepository(),
 		players: players,
+		quota:   quota,
 	}
+}
+
+// acquireQuota 配额与并发占位（未注入 QuotaService 时直接放行，便于单测构造）
+func (s *ChatService) acquireQuota(userID uint) (func(), error) {
+	if s.quota == nil {
+		return func() {}, nil
+	}
+	return s.quota.Acquire(userID)
 }
 
 // contextAssembly 一次提问组装出的业务上下文，附带"是否注入过"的标记
@@ -63,7 +73,14 @@ type assistantRecord struct {
 func (s *ChatService) Ask(ctx context.Context, userID uint, sessionID, question string) (string, string, int, int64, error) {
 	start := time.Now()
 
-	sessionID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
+	// 配额与并发检查必须在**建会话之前**：超限直接返回 429，不产生任何会话/消息（docs/04 §2.6）
+	release, err := s.acquireQuota(userID)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+	defer release()
+
+	sessionID, userMsgID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
 	if err != nil {
 		return "", "", 0, 0, err
 	}
@@ -82,7 +99,7 @@ func (s *ChatService) Ask(ctx context.Context, userID uint, sessionID, question 
 		logger.L().Infow("chat degraded, fallback reply persisted", "session", sessionID)
 	}
 	rec.ElapsedMs = int(time.Since(start).Milliseconds())
-	s.persistExchange(sessionID, asm, rec)
+	s.persistExchange(sessionID, userMsgID, asm, rec)
 
 	return sessionID, rec.Content, rec.Usage.Tokens, time.Since(start).Milliseconds(), nil
 }
@@ -101,7 +118,14 @@ func (s *ChatService) AskStream(
 ) (string, int, int64, error) {
 	start := time.Now()
 
-	sessionID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
+	// 配额与并发检查在**任何 SSE 帧写出之前**（Handler 因此还能返回 429 JSON，见 docs/04 §2.6）
+	release, err := s.acquireQuota(userID)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	defer release()
+
+	sessionID, userMsgID, history, asm, err := s.prepare(ctx, userID, sessionID, question)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -148,21 +172,21 @@ func (s *ChatService) AskStream(
 		}
 	}
 	rec.ElapsedMs = int(time.Since(start).Milliseconds())
-	s.persistExchange(sessionID, asm, rec)
+	s.persistExchange(sessionID, userMsgID, asm, rec)
 
 	return sessionID, rec.Usage.Tokens, time.Since(start).Milliseconds(), streamErr
 }
 
-// prepare 提问前的公共编排：建会话 → 落库用户消息 → 组装历史与业务上下文
-func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, question string) (string, []Message, contextAssembly, error) {
+// prepare 提问前的公共编排：建会话 → 落库用户消息 → 组装历史与业务上下文。
+// 第二个返回值是本轮提问的消息 ID，用于回写无关问题判定（落库失败时为 0）。
+func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, question string) (string, uint, []Message, contextAssembly, error) {
 	question = trim(question)
 	if question == "" {
-		return "", nil, contextAssembly{}, errors.New("问题不能为空")
+		return "", 0, nil, contextAssembly{}, errors.New("问题不能为空")
 	}
 
-	// 归属校验：非本人（或已不存在）的 sessionId 一律当作新会话——
-	// 既避免"拿到别人的 id 就能续聊"，也避免匿名会话在登录后被自动认领（口径见 docs/04 §3）。
-	// 匿名（userID = 0）与匿名会话（user_id = 0）归属一致，因此同一页面内仍可连续对话。
+	// 归属校验：非本人（或已不存在、已删除）的 sessionId 一律当作新会话——
+	// 既避免"拿到别人的 id 就能续聊"，也避免已删除的会话被续聊复活（口径见 docs/04 §2.4）。
 	if sessionID != "" && !s.ownsSession(sessionID, userID) {
 		sessionID = ""
 	}
@@ -172,7 +196,7 @@ func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, quest
 		if err := s.repo.CreateSession(&model.ChatSession{
 			ID:        sessionID,
 			Title:     titleOf(question),
-			UserID:    userID, // 0 = 匿名会话
+			UserID:    userID, // 0 曾表示匿名会话；2026-09-14 起匿名已不能提问，仅存量数据
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}); err != nil {
@@ -180,21 +204,22 @@ func (s *ChatService) prepare(ctx context.Context, userID uint, sessionID, quest
 		}
 	}
 
-	if err := s.repo.AppendMessage(&model.ChatMessage{
+	userMsg := &model.ChatMessage{
 		SessionID: sessionID,
 		Role:      "user",
 		Content:   question,
 		CreatedAt: time.Now(),
-	}); err != nil {
+	}
+	if err := s.repo.AppendMessage(userMsg); err != nil {
 		logger.L().Errorw("append user message failed", "session", sessionID, "err", err)
 	}
 
 	recent, err := s.repo.ListRecentMessages(sessionID, historyLimit)
 	if err != nil {
-		return "", nil, contextAssembly{}, err
+		return sessionID, userMsg.ID, nil, contextAssembly{}, err
 	}
 
-	return sessionID, buildHistory(recent, question), s.buildContext(ctx, userID, question), nil
+	return sessionID, userMsg.ID, buildHistory(recent, question), s.buildContext(ctx, userID, question), nil
 }
 
 // ownsSession 校验会话是否存在、归属该用户、且未被删除
@@ -211,7 +236,8 @@ func (s *ChatService) ownsSession(sessionID string, userID uint) bool {
 }
 
 // persistExchange 落库助手回复与会话观测标记（失败只记日志，不影响本次回答）
-func (s *ChatService) persistExchange(sessionID string, asm contextAssembly, rec assistantRecord) {
+// userMsgID：本轮提问的消息 ID，用于回写无关问题判定（见 shared-docs/05 §3.3）
+func (s *ChatService) persistExchange(sessionID string, userMsgID uint, asm contextAssembly, rec assistantRecord) {
 	if err := s.repo.AppendMessage(&model.ChatMessage{
 		SessionID:    sessionID,
 		Role:         "assistant",
@@ -227,6 +253,15 @@ func (s *ChatService) persistExchange(sessionID string, asm contextAssembly, rec
 		CreatedAt:    time.Now(),
 	}); err != nil {
 		logger.L().Errorw("append assistant message failed", "session", sessionID, "err", err)
+	}
+
+	// 无关问题判定回写到**用户提问**那条消息上（OffTopic 为 nil 表示未判定 → 保持 NULL）
+	if err := s.repo.MarkMessageOffTopic(userMsgID, rec.Usage.OffTopic, rec.Usage.OffTopicReason); err != nil {
+		logger.L().Warnw("mark off-topic failed", "session", sessionID, "message", userMsgID, "err", err)
+	}
+	if rec.Usage.OffTopic != nil {
+		logger.L().Infow("off-topic judged",
+			"session", sessionID, "offTopic", *rec.Usage.OffTopic, "reason", rec.Usage.OffTopicReason)
 	}
 	if asm.hasPlayer || asm.hasAsset {
 		if err := s.repo.MarkSessionContext(sessionID, asm.hasPlayer, asm.hasAsset); err != nil {

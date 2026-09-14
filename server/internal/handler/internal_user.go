@@ -6,6 +6,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"teyvat-guide/server/internal/dto"
 	"teyvat-guide/server/internal/pkg/logger"
@@ -23,12 +24,36 @@ func NewInternalUserHandler(svc *service.UserAdminService) *InternalUserHandler 
 	return &InternalUserHandler{svc: svc}
 }
 
-// ListUsers GET /internal/v1/admin/users?keyword=&page=1&pageSize=20
+// ListUsers GET /internal/v1/admin/users
+//
+//	?keyword=&usageDate=2026-09-14&minDailyTokens=50000&onlyOffTopic=true&offTopicMin=1&page=1&pageSize=20
 func (h *InternalUserHandler) ListUsers(c *gin.Context) {
-	page := parseIntDefault(c.Query("page"), 1)
-	pageSize := parseIntDefault(c.Query("pageSize"), 20)
+	q := dto.AdminUserQuery{
+		Keyword:      c.Query("keyword"),
+		UsageDate:    c.Query("usageDate"),
+		OnlyOffTopic: c.Query("onlyOffTopic") == "true",
+		Page:         parseIntDefault(c.Query("page"), 1),
+		PageSize:     parseIntDefault(c.Query("pageSize"), 20),
+	}
+	// minDailyTokens / offTopicMin 都允许为 0（= 不过滤），因此不能走 parseIntDefault（它把 0 当非法）
+	if raw := c.Query("minDailyTokens"); raw != "" {
+		v, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || v < 0 {
+			response.BadRequest(c, "minDailyTokens 必须为非负整数")
+			return
+		}
+		q.MinDailyTokens = v
+	}
+	if raw := c.Query("offTopicMin"); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v < 0 {
+			response.BadRequest(c, "offTopicMin 必须为非负整数")
+			return
+		}
+		q.OffTopicMin = v
+	}
 
-	data, err := h.svc.List(c.Query("keyword"), page, pageSize)
+	data, err := h.svc.List(q)
 	if err != nil {
 		logger.L().Errorw("list users failed", "err", err)
 		response.Internal(c, "查询用户列表失败")

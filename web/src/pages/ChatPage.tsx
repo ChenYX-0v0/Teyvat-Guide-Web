@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { MessagesSquare, Plus } from 'lucide-react'
 import MessageBubble from '@/components/chat/MessageBubble'
 import ChatInput from '@/components/chat/ChatInput'
+import PresetQaPanel from '@/components/chat/PresetQaPanel'
 import SessionList from '@/components/chat/SessionList'
 import { useChatStore } from '@/store/useChatStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
 export default function ChatPage() {
@@ -17,14 +19,16 @@ export default function ChatPage() {
     startNewSession,
     restore,
   } = useChatStore()
+  // 登录态决定视图：未登录只能看预设问答（匿名已禁用 AI 对话，见 docs/04 §2）
+  const token = useAuthStore((s) => s.token)
   const bottomRef = useRef<HTMLDivElement>(null)
   // 移动端：历史会话抽屉（桌面端由常驻侧栏承担，不需要这个状态）
   const [sessionsOpen, setSessionsOpen] = useState(false)
 
-  // 恢复上次会话 + 拉会话列表；匿名用户 restore 内部直接返回（匿名不持久化）
+  // 恢复上次会话（仅登录用户）+ 会话列表；匿名则拉预设问答
   useEffect(() => {
     void restore()
-  }, [restore])
+  }, [restore, token])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -32,6 +36,19 @@ export default function ChatPage() {
 
   // 气泡自带的错误提示优先级更高，避免同一条失败既在气泡又在顶部重复展示
   const hasBubbleError = messages.some((m) => m.error)
+
+  // 匿名：预设问答 + 登录引导（没有会话侧栏，也没有可用的输入框）
+  if (!token) {
+    return (
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div className="px-4 py-3 sm:px-6">
+          <h2 className="truncate text-base font-medium text-white">{t('chat.title')}</h2>
+          <p className="hidden truncate text-xs text-white/40 sm:block">{t('chat.subtitle')}</p>
+        </div>
+        <PresetQaPanel />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full">

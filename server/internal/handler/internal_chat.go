@@ -24,13 +24,16 @@ func NewInternalChatHandler(svc *service.ChatAdminService) *InternalChatHandler 
 	return &InternalChatHandler{svc: svc}
 }
 
-// ListChatSessions GET /internal/v1/admin/chat/sessions?keyword=&userId=&uid=&onlyDegraded=&from=&to=&page=1&pageSize=20
+// ListChatSessions GET /internal/v1/admin/chat/sessions
+//
+//	?keyword=&userId=&uid=&onlyDegraded=&onlyDeleted=&onlyOffTopic=&from=&to=&page=1&pageSize=20
 func (h *InternalChatHandler) ListChatSessions(c *gin.Context) {
 	q := dto.AdminChatQuery{
 		Keyword:      c.Query("keyword"),
 		UID:          c.Query("uid"),
 		OnlyDegraded: c.Query("onlyDegraded") == "true",
 		OnlyDeleted:  c.Query("onlyDeleted") == "true",
+		OnlyOffTopic: c.Query("onlyOffTopic") == "true",
 		From:         c.Query("from"),
 		To:           c.Query("to"),
 		Page:         parseIntDefault(c.Query("page"), 1),

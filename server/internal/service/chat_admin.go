@@ -56,6 +56,7 @@ func (s *ChatAdminService) ListSessions(q dto.AdminChatQuery) (*dto.AdminChatSes
 		UID:          strings.TrimSpace(q.UID),
 		OnlyDegraded: q.OnlyDegraded,
 		OnlyDeleted:  q.OnlyDeleted,
+		OnlyOffTopic: q.OnlyOffTopic,
 		From:         from,
 		To:           to,
 		Offset:       (page - 1) * pageSize,
@@ -93,6 +94,7 @@ func (s *ChatAdminService) ListSessions(q dto.AdminChatQuery) (*dto.AdminChatSes
 			CreatedAt:         row.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         row.UpdatedAt.Format(time.RFC3339),
 			DeletedAt:         formatOptionalTime(row.DeletedAt),
+			OffTopicCount:     row.OffTopicCount,
 		})
 	}
 
@@ -147,6 +149,9 @@ func (s *ChatAdminService) Messages(sessionID string, afterID uint, limit int) (
 			Degraded:     m.Degraded,
 			ElapsedMs:    m.ElapsedMs,
 			CreatedAt:    m.CreatedAt.Format(time.RFC3339),
+			// 只有提问消息带判定；OffTopic 为 nil 表示未判定（前端不显示 Tag）
+			OffTopic:       m.OffTopic,
+			OffTopicReason: m.OffTopicReason,
 		})
 	}
 

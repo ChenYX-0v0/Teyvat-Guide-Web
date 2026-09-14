@@ -160,6 +160,164 @@ func (r *ChatRepository) SumTokensByUsers(userIDs []uint) (map[uint]int64, error
 	return out, nil
 }
 
+// ---------- 后台：用量与无关问题观测（见 shared-docs/05 §2.5 / §3.4） ----------
+
+// UserUsageRow 某用户在一个时间窗内的用量聚合
+type UserUsageRow struct {
+	UserID       uint
+	Tokens       int64
+	TokensInput  int64
+	TokensOutput int64
+	TokensCached int64
+	Requests     int64 // assistant 消息数（= 回答条数）
+}
+
+// SumUsageByUsersInRange 批量取若干用户在 [from, to) 内的用量（按用户分组）。
+// 时间窗用左闭右开 + 半开区间，避免跨天边界重复计数。
+func (r *ChatRepository) SumUsageByUsersInRange(userIDs []uint, from, to time.Time) (map[uint]UserUsageRow, error) {
+	out := make(map[uint]UserUsageRow, len(userIDs))
+	if r.db() == nil || len(userIDs) == 0 {
+		return out, nil
+	}
+	var rows []UserUsageRow
+	err := r.db().Table("chat_messages AS m").
+		Select(`s.user_id AS user_id,
+			COALESCE(SUM(m.tokens), 0) AS tokens,
+			COALESCE(SUM(m.tokens_input), 0) AS tokens_input,
+			COALESCE(SUM(m.tokens_output), 0) AS tokens_output,
+			COALESCE(SUM(m.tokens_cached), 0) AS tokens_cached,
+			COALESCE(SUM(CASE WHEN m.role = 'assistant' THEN 1 ELSE 0 END), 0) AS requests`).
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id IN ? AND m.created_at >= ? AND m.created_at < ?", userIDs, from, to).
+		Group("s.user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.UserID] = row
+	}
+	return out, nil
+}
+
+// SumOffTopicByUsers 批量取若干用户的**累计**无关提问数（`role='user' AND off_topic=1`；NULL 不计数）
+func (r *ChatRepository) SumOffTopicByUsers(userIDs []uint) (map[uint]int64, error) {
+	out := make(map[uint]int64, len(userIDs))
+	if r.db() == nil || len(userIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		UserID uint
+		Total  int64
+	}
+	err := r.db().Table("chat_messages AS m").
+		Select("s.user_id AS user_id, COUNT(*) AS total").
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id IN ? AND m.role = 'user' AND m.off_topic = 1", userIDs).
+		Group("s.user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.UserID] = row.Total
+	}
+	return out, nil
+}
+
+// UserIDsWithTokensAtLeast 取 [from, to) 内用量 ≥ minTokens 的用户 ID（后台「5 万观察线」筛选用）。
+// 返回的切片**非 nil**（可能为空）：调用方据此走"筛出来是空集"分支，而不是"不过滤"。
+func (r *ChatRepository) UserIDsWithTokensAtLeast(from, to time.Time, minTokens int64) ([]uint, error) {
+	out := make([]uint, 0)
+	if r.db() == nil {
+		return out, nil
+	}
+	var rows []struct{ UserID uint }
+	err := r.db().Table("chat_messages AS m").
+		Select("s.user_id AS user_id").
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id > 0 AND m.created_at >= ? AND m.created_at < ?", from, to).
+		Group("s.user_id").
+		Having("COALESCE(SUM(m.tokens), 0) >= ?", minTokens).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out = append(out, row.UserID)
+	}
+	return out, nil
+}
+
+// UserIDsWithOffTopic 取累计无关提问数 ≥ minCount 的用户 ID（minCount < 1 时按 1 处理）
+func (r *ChatRepository) UserIDsWithOffTopic(minCount int64) ([]uint, error) {
+	out := make([]uint, 0)
+	if r.db() == nil {
+		return out, nil
+	}
+	if minCount < 1 {
+		minCount = 1
+	}
+	var rows []struct{ UserID uint }
+	err := r.db().Table("chat_messages AS m").
+		Select("s.user_id AS user_id").
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id > 0 AND m.role = 'user' AND m.off_topic = 1").
+		Group("s.user_id").
+		Having("COUNT(*) >= ?", minCount).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out = append(out, row.UserID)
+	}
+	return out, nil
+}
+
+// SumUserTokensSince 某用户自 since（含）起的 token 消耗。
+// 配额口径：`chat_messages.tokens` 经 `chat_sessions.user_id` 归属，与后台成本统计同源
+// （见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2.1）。
+func (r *ChatRepository) SumUserTokensSince(userID uint, since time.Time) (int64, error) {
+	if r.db() == nil || userID == 0 {
+		return 0, nil
+	}
+	var total int64
+	err := r.db().Table("chat_messages AS m").
+		Select("COALESCE(SUM(m.tokens), 0)").
+		Joins("JOIN chat_sessions AS s ON s.id = m.session_id").
+		Where("s.user_id = ? AND m.created_at >= ?", userID, since).
+		Row().Scan(&total)
+	return total, err
+}
+
+// SumTotalTokensSince 全站自 since（含）起的 token 消耗（全局日预算熔断用）
+func (r *ChatRepository) SumTotalTokensSince(since time.Time) (int64, error) {
+	if r.db() == nil {
+		return 0, nil
+	}
+	var total int64
+	err := r.db().Table("chat_messages").
+		Select("COALESCE(SUM(tokens), 0)").
+		Where("created_at >= ?", since).
+		Row().Scan(&total)
+	return total, err
+}
+
+// MarkMessageOffTopic 记录无关问题判定结果。
+// offTopic 为 nil 表示**未判定**：直接跳过，保持列为 NULL（不要写成 false）。
+func (r *ChatRepository) MarkMessageOffTopic(messageID uint, offTopic *bool, reason string) error {
+	if r.db() == nil || messageID == 0 || offTopic == nil {
+		return nil
+	}
+	return r.db().Model(&model.ChatMessage{}).
+		Where("id = ?", messageID).
+		Updates(map[string]any{
+			"off_topic":        *offTopic,
+			"off_topic_reason": reason,
+		}).Error
+}
+
 // MarkSessionContext 标记会话曾注入过业务上下文（一旦为真不回退），供后台观测 V1/V2 命中情况
 func (r *ChatRepository) MarkSessionContext(sessionID string, hasPlayer, hasAsset bool) error {
 	if r.db() == nil {
@@ -180,12 +338,14 @@ func (r *ChatRepository) MarkSessionContext(sessionID string, hasPlayer, hasAsse
 
 // ---------- 后台对话记录查看（只读；契约见 admin/06-对话记录查看设计.md） ----------
 
-// chatAggregateSQL 会话级聚合（消息数 / token / 降级条数）；方言中立写法
+// chatAggregateSQL 会话级聚合（消息数 / token / 降级条数 / 无关提问条数）；方言中立写法。
+// off_topic 为 NULL（未判定）时不计数——判定未开启时该列恒为 0，不要与"判定为有关"混淆。
 const chatAggregateSQL = `
 SELECT session_id,
        COUNT(*) AS message_count,
        COALESCE(SUM(tokens), 0) AS tokens,
-       COALESCE(SUM(CASE WHEN degraded = 1 THEN 1 ELSE 0 END), 0) AS degraded_count
+       COALESCE(SUM(CASE WHEN degraded = 1 THEN 1 ELSE 0 END), 0) AS degraded_count,
+       COALESCE(SUM(CASE WHEN role = 'user' AND off_topic = 1 THEN 1 ELSE 0 END), 0) AS off_topic_count
 FROM chat_messages
 GROUP BY session_id`
 
@@ -196,6 +356,7 @@ type AdminSessionFilter struct {
 	UID          string     // 按绑定的游戏 UID 过滤
 	OnlyDegraded bool       // 只看含降级回复的会话
 	OnlyDeleted  bool       // 只看用户已在 C 端删除的会话
+	OnlyOffTopic bool       // 只看**含无关提问**的会话（见 shared-docs/05 §3.4）
 	From         *time.Time // 按会话活跃时间过滤
 	To           *time.Time
 	Offset       int
@@ -218,6 +379,7 @@ type AdminSessionRow struct {
 	MessageCount      int64
 	Tokens            int64
 	DegradedCount     int64
+	OffTopicCount     int64 // 会话内无关提问条数（判定未开启时为 0）
 }
 
 // ListAdminSessions 后台会话列表（排序：活跃时间倒序 + id 兜底，避免同秒乱序）。
@@ -251,6 +413,10 @@ func (r *ChatRepository) ListAdminSessions(f AdminSessionFilter) ([]AdminSession
 		if f.OnlyDeleted {
 			q = q.Where("s.deleted_at IS NOT NULL")
 		}
+		if f.OnlyOffTopic {
+			// 含无关提问的会话（判定未开启时恒不命中，符合预期）
+			q = q.Where("COALESCE(a.off_topic_count, 0) > 0")
+		}
 		if f.From != nil {
 			q = q.Where("s.updated_at >= ?", *f.From)
 		}
@@ -273,7 +439,8 @@ func (r *ChatRepository) ListAdminSessions(f AdminSessionFilter) ([]AdminSession
 			s.has_player_context AS has_player_context, s.has_asset_reference AS has_asset_reference,
 			s.created_at AS created_at, s.updated_at AS updated_at, s.deleted_at AS deleted_at,
 			COALESCE(a.message_count, 0) AS message_count, COALESCE(a.tokens, 0) AS tokens,
-			COALESCE(a.degraded_count, 0) AS degraded_count`).
+			COALESCE(a.degraded_count, 0) AS degraded_count,
+			COALESCE(a.off_topic_count, 0) AS off_topic_count`).
 		Order("s.updated_at DESC, s.id DESC").
 		Offset(f.Offset).
 		Limit(f.Limit).

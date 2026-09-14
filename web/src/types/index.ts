@@ -71,6 +71,22 @@ export interface ChatSessionMessages {
   hasMore: boolean
 }
 
+/**
+ * 预设问答条目：匿名用户在对话页看到的内容。
+ * 不调用模型、不消耗 token（`/api/chat` 已改为强制登录，见 docs/04-API接口文档.md §2.5）。
+ */
+export interface PresetQAItem {
+  id: number
+  sceneKey: string
+  question: string
+  answer: string
+  sort: number
+}
+
+export interface PresetQAList {
+  items: PresetQAItem[]
+}
+
 export interface ApiEnvelope<T> {
   code: number
   message: string
