@@ -27,6 +27,10 @@ const zhCN = {
 
   // 登录
   'login.welcome': '欢迎回来，旅行者',
+  // 邀请制（当前部署口径，见 docs/11 上线准备 §7.6）：登录页说明，不提供注册入口
+  'login.inviteOnly': '本站为不公开邀请制，仅限受邀用户登录',
+  'login.inviteHint': '没有账号？请联系管理员开通。',
+  // 以下 4 条为"开放注册"模式保留（当前不展示；改回 auth.allow_register=true 时可复用）
   'login.registerWelcome': '创建你的旅行者账号',
   'login.username': '用户名',
   'login.password': '密码',

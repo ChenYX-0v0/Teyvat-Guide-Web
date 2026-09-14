@@ -28,6 +28,10 @@ const en: Partial<Dict> = {
 
   // Login
   'login.welcome': 'Welcome back, Traveler',
+  // Invite-only deployment (see docs/11 §7.6): notice only, no sign-up entry
+  'login.inviteOnly': 'Invite-only: sign-in is limited to invited users',
+  'login.inviteHint': "Don't have an account? Ask the admin to create one for you.",
+  // The 4 keys below are kept for the "open registration" mode (not shown while invite-only)
   'login.registerWelcome': 'Create your traveler account',
   'login.username': 'Username',
   'login.password': 'Password',

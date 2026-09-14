@@ -53,3 +53,21 @@ type SetUserStatusRequest struct {
 	ID     uint `json:"id" binding:"required"`
 	Banned bool `json:"banned"`
 }
+
+// ---------- 后台代建账号（邀请制下的开户入口，2026-09-15 新增） ----------
+// 契约见 shared-docs/04-用户体系与鉴权边界设计.md §4.2
+
+// AdminCreateUserRequest 新建 C 端账号；displayName 缺省 = username
+type AdminCreateUserRequest struct {
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	DisplayName string `json:"displayName"`
+}
+
+// AdminCreatedUser 新建结果。**不回传密码**——密码由管理员在弹窗里设定并自行转达受邀用户。
+type AdminCreatedUser struct {
+	ID          uint   `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	CreatedAt   string `json:"createdAt"` // RFC3339
+}

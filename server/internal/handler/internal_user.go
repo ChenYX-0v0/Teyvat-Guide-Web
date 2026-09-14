@@ -89,3 +89,26 @@ func (h *InternalUserHandler) SetUserStatus(c *gin.Context) {
 		response.Internal(c, "更新用户状态失败")
 	}
 }
+
+// CreateUser POST /internal/v1/admin/users  { "username": "...", "password": "...", "displayName": "..." }
+// 后台代建账号——**邀请制（`auth.allow_register=false`）下的唯一开户入口**。
+// 契约见 shared-docs/04-用户体系与鉴权边界设计.md §4.2。
+func (h *InternalUserHandler) CreateUser(c *gin.Context) {
+	var req dto.AdminCreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误："+err.Error())
+		return
+	}
+	data, err := h.svc.CreateUser(req)
+	switch {
+	case err == nil:
+		response.OK(c, data)
+	case errors.Is(err, service.ErrUsernameTaken):
+		response.Fail(c, http.StatusConflict, 409, err.Error())
+	case errors.Is(err, service.ErrUserInvalid):
+		response.BadRequest(c, err.Error())
+	default:
+		logger.L().Errorw("create user failed", "username", req.Username, "err", err)
+		response.Internal(c, "创建用户失败")
+	}
+}

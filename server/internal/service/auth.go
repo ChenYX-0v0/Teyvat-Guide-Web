@@ -5,6 +5,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"teyvat-guide/server/internal/config"
@@ -21,7 +22,44 @@ var (
 	ErrUsernameTaken  = errors.New("用户名已存在")
 	ErrBadCredentials = errors.New("用户名或密码错误")
 	ErrUserBanned     = errors.New("账号已被封禁")
+	// ErrUserInvalid 账号参数不合法（用户名长度 / 密码长度等），Handler 映射 400
+	ErrUserInvalid = errors.New("账号参数不合法")
+	// ErrRegisterClosed 公开注册已关闭（不公开 / 邀请制部署）：账号改由后台「新增用户」创建
+	ErrRegisterClosed = errors.New("本站为不公开邀请制，已关闭注册；请联系管理员开通账号")
 )
+
+// createUserWithPassword 校验 + bcrypt 哈希 + 落库。
+// **公开注册（AuthService.Register）与后台代建（UserAdminService.CreateUser）共用同一套规则**，
+// 避免两处校验/哈希逻辑各自漂移。
+func createUserWithPassword(repo *repository.UserRepository, username, password, displayName string) (*model.User, error) {
+	username = strings.TrimSpace(username)
+	if len(username) < 3 || len(username) > 32 {
+		return nil, fmt.Errorf("%w：用户名长度需为 3~32 个字符", ErrUserInvalid)
+	}
+	if len(password) < 6 {
+		return nil, fmt.Errorf("%w：密码长度至少 6 位", ErrUserInvalid)
+	}
+	existing, err := repo.FindByUsername(username)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, ErrUsernameTaken
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	u := &model.User{
+		Username:     username,
+		PasswordHash: string(hash),
+		DisplayName:  firstNonEmpty(strings.TrimSpace(displayName), username),
+	}
+	if err := repo.Create(u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
 
 type AuthService struct {
 	cfg    config.AuthConfig
@@ -67,32 +105,15 @@ func (s *AuthService) seedIfEmpty() {
 	logger.L().Infow("seed user created", "username", s.cfg.SeedUser)
 }
 
-// Register 注册新用户
+// Register 公开注册。
+// ⚠️ **不公开 / 邀请制部署下这里是关闭的**（`auth.allow_register=false`，本项目当前口径）：
+// 账号只能由后台「用户管理 → 新增用户」代建（`UserAdminService.CreateUser`），
+// 该路径不受此开关限制——否则邀请制部署就没法开户了。口径见 shared-docs/04 §2.3。
 func (s *AuthService) Register(username, password, displayName string) (*model.User, error) {
-	if len(username) < 3 || len(username) > 32 {
-		return nil, errors.New("用户名长度需为 3~32 个字符")
+	if !s.cfg.AllowRegister {
+		return nil, ErrRegisterClosed
 	}
-	if len(password) < 6 {
-		return nil, errors.New("密码长度至少 6 位")
-	}
-	if existing, err := s.repo.FindByUsername(username); err != nil {
-		return nil, err
-	} else if existing != nil {
-		return nil, ErrUsernameTaken
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
-	u := &model.User{
-		Username:     username,
-		PasswordHash: string(hash),
-		DisplayName:  firstNonEmpty(displayName, username),
-	}
-	if err := s.repo.Create(u); err != nil {
-		return nil, err
-	}
-	return u, nil
+	return createUserWithPassword(s.repo, username, password, displayName)
 }
 
 // Login 校验账密并签发 JWT

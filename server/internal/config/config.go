@@ -67,6 +67,10 @@ type AIConfig struct {
 type AuthConfig struct {
 	JWTSecret   string `mapstructure:"jwt_secret"`
 	JWTTTLHours int    `mapstructure:"jwt_ttl_hours"` // token 有效期（小时）
+	// AllowRegister 是否开放公开注册。false = 不公开/邀请制：`POST /api/auth/register` 直接 403，
+	// 账号只能在后台「用户管理 → 新增用户」里由管理员创建（内网接口）。
+	// 口径见 shared-docs/04-用户体系与鉴权边界设计.md §2.3 与 web/11 §7.6。
+	AllowRegister bool `mapstructure:"allow_register"`
 	SeedUser    string `mapstructure:"seed_user"`     // 首次启动种子账号（用户表为空时自动创建）
 	SeedPass    string `mapstructure:"seed_pass"`
 	AdminKey    string `mapstructure:"admin_key"`    // 管理接口密钥（X-Admin-Key）；为空时回落 jwt_secret
@@ -135,6 +139,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.timeout_seconds", 65) // 必须大于 AI 服务自身超时（55s）
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_ttl_hours", 72)
+	// 默认沿用"开放注册"的通用行为；**本项目当前部署口径是在 config.yaml 里置 false（邀请制）**
+	v.SetDefault("auth.allow_register", true)
 	v.SetDefault("auth.seed_user", "admin")
 	v.SetDefault("auth.seed_pass", "admin123")
 	v.SetDefault("auth.internal_key", "") // 为空则内网管理接口不注册

@@ -191,3 +191,22 @@ func (s *UserAdminService) IsBanned(userID uint) bool {
 	}
 	return u.IsBanned()
 }
+
+// CreateUser 后台代建 C 端账号——**邀请制下的唯一开户入口**（2026-09-15 新增）。
+//
+// 与公开注册共用 createUserWithPassword（同样的长度校验、唯一性检查与 bcrypt 哈希），
+// 但**不受 `auth.allow_register` 开关限制**：关掉的是"自己注册"，不是"管理员开号"。
+// 契约见 shared-docs/04-用户体系与鉴权边界设计.md §4.2。
+func (s *UserAdminService) CreateUser(req dto.AdminCreateUserRequest) (*dto.AdminCreatedUser, error) {
+	u, err := createUserWithPassword(s.users, req.Username, req.Password, req.DisplayName)
+	if err != nil {
+		return nil, err
+	}
+	logger.L().Infow("user created by admin", "user", u.ID, "username", u.Username)
+	return &dto.AdminCreatedUser{
+		ID:          u.ID,
+		Username:    u.Username,
+		DisplayName: u.DisplayName,
+		CreatedAt:   u.CreatedAt.Format(time.RFC3339),
+	}, nil
+}

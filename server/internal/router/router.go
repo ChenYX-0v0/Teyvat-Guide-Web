@@ -151,6 +151,9 @@ func New(cfg *config.Config) *gin.Engine {
 		{
 			internal.GET("/users", internalUser.ListUsers)
 			internal.POST("/users/status", internalUser.SetUserStatus)
+			// 后台代建账号（邀请制下的唯一开户入口）：公开注册关闭时（auth.allow_register=false）
+			// 账号只能在这里创建——`CreateUser` 刻意不受该开关限制
+			internal.POST("/users", internalUser.CreateUser)
 			// 对话记录查看（只读，无修改/删除能力）
 			internal.GET("/chat/sessions", internalChat.ListChatSessions)
 			internal.GET("/chat/sessions/:sessionId/messages", internalChat.ListChatMessages)

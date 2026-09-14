@@ -28,6 +28,7 @@ type credentialsRequest struct {
 }
 
 // Register POST /api/auth/register
+// 不公开 / 邀请制部署（`auth.allow_register=false`）下直接 403：账号由后台「新增用户」代建。
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req credentialsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -35,16 +36,20 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	u, err := h.svc.Register(req.Username, req.Password, req.DisplayName)
-	if err != nil {
-		if errors.Is(err, service.ErrUsernameTaken) {
-			response.Fail(c, http.StatusConflict, 409, err.Error())
-			return
-		}
+	switch {
+	case err == nil:
+		logger.L().Infow("user registered", "username", u.Username)
+		response.OK(c, gin.H{"id": u.ID, "username": u.Username})
+	case errors.Is(err, service.ErrRegisterClosed):
+		response.Fail(c, http.StatusForbidden, 403, err.Error())
+	case errors.Is(err, service.ErrUsernameTaken):
+		response.Fail(c, http.StatusConflict, 409, err.Error())
+	case errors.Is(err, service.ErrUserInvalid):
 		response.BadRequest(c, err.Error())
-		return
+	default:
+		logger.L().Errorw("register failed", "username", req.Username, "err", err)
+		response.Internal(c, "注册失败")
 	}
-	logger.L().Infow("user registered", "username", u.Username)
-	response.OK(c, gin.H{"id": u.ID, "username": u.Username})
 }
 
 // Login POST /api/auth/login —— 返回 JWT
