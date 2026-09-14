@@ -84,6 +84,9 @@ func New(cfg *config.Config) *gin.Engine {
 	internalChat := handler.NewInternalChatHandler(service.NewChatAdminService())
 	// AI 提示词（内网，只读）：供 AI 派蒙服务拉取，契约见 shared-docs/03 主服务对接说明 §5
 	internalAI := handler.NewInternalAIHandler(service.NewAIPromptService())
+	// AI 提示词维护（内网，读写）：新增版本 / 启用与回滚，后台页面「提示词管理」。
+	// 只提供"新增版本 + 启停"——内容按版本不可变，回滚不靠改内容（契约见 shared-docs/03 §5.2）
+	internalAIAdmin := handler.NewInternalAIPromptAdminHandler(service.NewAIPromptAdminService())
 	checkBanned := middleware.UserStatusChecker(userAdminSvc.IsBanned)
 	if cfg.Auth.AdminKey == "" {
 		logger.L().Warnw("auth.admin_key 未配置，管理接口回落使用 auth.jwt_secret；" +
@@ -156,6 +159,11 @@ func New(cfg *config.Config) *gin.Engine {
 			internal.GET("/preset-qa", preset.AdminList)
 			internal.POST("/preset-qa", preset.Create)
 			internal.PUT("/preset-qa/:id", preset.Update)
+			// 提示词维护（后台可运营：新增版本 / 启用回滚；**不提供改内容**，
+			// 改文案一律"新增一版"、老版本留作回滚——见 shared-docs/03 §5.2）
+			internal.GET("/ai-prompts", internalAIAdmin.AdminList)
+			internal.POST("/ai-prompts", internalAIAdmin.Create)
+			internal.PUT("/ai-prompts/:id", internalAIAdmin.SetEnabled)
 		}
 
 		// AI 提示词只读接口：AI 派蒙服务在 PROMPT_STORE_MODE=http 时按场景拉取

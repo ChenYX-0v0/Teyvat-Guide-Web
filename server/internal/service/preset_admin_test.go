@@ -93,6 +93,33 @@ func TestPresetQAAdminCRUD(t *testing.T) {
 	}
 }
 
+// 回归：新建时就取消上架，必须真的落成未启用
+// （Enabled 带 gorm `default:true`，结构体插入会跳过 false 零值 → 曾落成 true）
+func TestPresetQAAdminCreateDisabledStaysDisabled(t *testing.T) {
+	setupUsageTestDB(t)
+	svc := NewPresetQAService()
+
+	disabled := false
+	created, err := svc.Create(dto.PresetQASaveRequest{
+		SceneKey: "event", Question: "还没定稿的问题", Answer: "还没定稿的回答", Enabled: &disabled,
+	})
+	if err != nil {
+		t.Fatalf("新建失败：%v", err)
+	}
+	if created.Enabled {
+		t.Fatal("新建时取消上架，应落成未启用")
+	}
+	list, err := svc.List()
+	if err != nil {
+		t.Fatalf("C 端列表失败：%v", err)
+	}
+	for _, it := range list.Items {
+		if it.ID == created.ID {
+			t.Fatalf("未启用的条目不应下发给 C 端：%+v", it)
+		}
+	}
+}
+
 func TestPresetQAAdminValidation(t *testing.T) {
 	setupUsageTestDB(t)
 	svc := NewPresetQAService()

@@ -128,7 +128,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.provider", "mock")
 	v.SetDefault("ai.base_url", "https://api.openai.com/v1")
 	v.SetDefault("ai.model", "gpt-4o-mini")
-	v.SetDefault("ai.system", "你是「AI 提瓦特向导」，一位熟悉《原神》的资深玩家助手，回答简洁、准确、友好。")
+	// 人格提示词归 AI 服务（存 ai_prompts 表，可按版本热更新），这里默认为空 = 不下发补充指令。
+	// 注意：一旦填了值，它会作为动态区拼在派蒙人格**之后**（persona.py 的 request_system），
+	// 等于第二套人格，与 ai_prompts 里的派蒙设定冲突——要加"每请求补充指令"请入库成新场景。
+	v.SetDefault("ai.system", "")
 	v.SetDefault("ai.timeout_seconds", 65) // 必须大于 AI 服务自身超时（55s）
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_ttl_hours", 72)

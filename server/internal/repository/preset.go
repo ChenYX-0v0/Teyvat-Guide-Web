@@ -81,12 +81,29 @@ func (r *PresetQARepository) FindByID(id uint) (*model.PresetQA, error) {
 	return &item, nil
 }
 
-// Create 新建
+// Create 新建。
+// ⚠️ Enabled 带 `default:true`：GORM 插入时会**跳过 false 零值**（该列取库默认值 true），
+// 于是"新建时就取消上架"会落成启用（后台弹窗允许这么点）。插入后显式改正一次，
+// 保证"新建即下架"能真的落成 enabled=0。
 func (r *PresetQARepository) Create(item *model.PresetQA) error {
 	if r.db() == nil {
 		return nil
 	}
-	return r.db().Create(item).Error
+	// 注意顺序：GORM 插入带 default 的字段后会把库里的默认值**回写进结构体**
+	// （item.Enabled 会变成 true），所以"是否要未启用"必须在插入前记下来。
+	wantDisabled := !item.Enabled
+	if err := r.db().Create(item).Error; err != nil {
+		return err
+	}
+	if wantDisabled {
+		if err := r.db().Model(&model.PresetQA{}).
+			Where("id = ?", item.ID).
+			Update("enabled", false).Error; err != nil {
+			return err
+		}
+		item.Enabled = false
+	}
+	return nil
 }
 
 // Update 按字段更新。
