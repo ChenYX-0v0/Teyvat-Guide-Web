@@ -35,6 +35,18 @@ type RelicSet struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// RelicSetEffect 圣遗物套装 2 / 4 件效果（V2.2，2026-09-15 新增；表名 relic_set_effects）
+// 主键 (set_id, piece)。数据源 EnkaGameAssets 只有套装名与 2 件套数值、**没有效果描述文本**，
+// 因此这一半只能人工整理录入（见 ai/05 §V2.2-e）。
+type RelicSetEffect struct {
+	SetID  int    `gorm:"primaryKey" json:"setId"`
+	Piece  int    `gorm:"primaryKey" json:"piece"` // 2 | 4
+	Effect string `gorm:"type:text;not null" json:"effect"`
+	// Source 来源与核对状态（如「官方资料整理·待核对」）：上线前逐条核对，核对过改为正式来源
+	Source    string    `gorm:"size:64;not null" json:"source"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // TextMapEntry 文本映射（StableHash → 中文）
 type TextMapEntry struct {
 	Hash int64  `gorm:"primaryKey" json:"hash"`

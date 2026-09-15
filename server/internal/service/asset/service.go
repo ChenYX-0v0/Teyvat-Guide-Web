@@ -45,6 +45,7 @@ type Service struct {
 	relicSlots   map[string]string // 部位枚举 → 中文部位名
 	affixes      map[int64]Affix
 	statRecs     map[int64]StatRecommendation
+	setEffects   map[int][]RelicSetEffect // 套装 ID → 2/4 件效果（按件数升序）
 }
 
 // New 创建服务；db 为 nil 时降级为空映射（翻译全部走 fallback）
@@ -68,6 +69,10 @@ func (s *Service) Load() error {
 	}
 	var sets []RelicSet
 	if err := s.db.Find(&sets).Error; err != nil {
+		return err
+	}
+	var setEffects []RelicSetEffect
+	if err := s.db.Find(&setEffects).Error; err != nil {
 		return err
 	}
 	var texts []TextMapEntry
@@ -138,6 +143,15 @@ func (s *Service) Load() error {
 			recMap[row.CharacterID] = rec
 		}
 	}
+	setEffectMap := make(map[int][]RelicSetEffect, len(setEffects))
+	for _, e := range setEffects {
+		setEffectMap[e.SetID] = append(setEffectMap[e.SetID], e)
+	}
+	// 按件数升序：渲染出的资料文本要可复现（map 遍历无序，DB 返回顺序也不保证）
+	for id, list := range setEffectMap {
+		sort.Slice(list, func(i, j int) bool { return list[i].Piece < list[j].Piece })
+		setEffectMap[id] = list
+	}
 
 	s.mu.Lock()
 	s.characters = charMap
@@ -151,11 +165,13 @@ func (s *Service) Load() error {
 	s.relicSlots = slotMap
 	s.affixes = affixMap
 	s.statRecs = recMap
+	s.setEffects = setEffectMap
 	s.mu.Unlock()
 
 	logger.L().Infow("asset maps loaded",
 		"characters", len(chars), "weapons", len(weapons),
-		"relicSets", len(sets), "texts", len(texts), "props", len(props),
+		"relicSets", len(sets), "relicSetEffects", len(setEffects),
+		"texts", len(texts), "props", len(props),
 		"fightProps", len(fightProps), "affixes", len(affixes), "statRecs", len(recMap))
 	return nil
 }
@@ -184,6 +200,20 @@ func (s *Service) RelicSet(id int) (RelicSet, bool) {
 	defer s.mu.RUnlock()
 	r, ok := s.relicSets[id]
 	return r, ok
+}
+
+// RelicSetEffects 按套装 ID 取 2/4 件效果（按件数升序）。没有资料时返回 nil。
+// 返回副本，调用方持有期间不会与 reload 竞争。
+func (s *Service) RelicSetEffects(setID int) []RelicSetEffect {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	list := s.setEffects[setID]
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]RelicSetEffect, len(list))
+	copy(out, list)
+	return out
 }
 
 func (s *Service) Text(hash int64) (string, bool) {
@@ -265,6 +295,34 @@ func (s *Service) CharactersMentioned(question string) []Character {
 	for _, c := range s.characters {
 		if c.Name != "" && strings.Contains(q, strings.ToLower(c.Name)) {
 			matched = append(matched, c)
+		}
+	}
+	s.mu.RUnlock()
+
+	sort.Slice(matched, func(i, j int) bool {
+		li, lj := len([]rune(matched[i].Name)), len([]rune(matched[j].Name))
+		if li != lj {
+			return li > lj
+		}
+		return matched[i].Name < matched[j].Name
+	})
+	return matched
+}
+
+// RelicSetsMentioned 返回提问中「名字被提到」的圣遗物套装（V2.2 结构化查表用）。
+// 与 CharactersMentioned 同一套策略：长名优先、同长按名字排序（map 遍历无序，结果要稳定）。
+func (s *Service) RelicSetsMentioned(question string) []RelicSet {
+	question = strings.TrimSpace(question)
+	if question == "" {
+		return nil
+	}
+	q := strings.ToLower(question)
+
+	s.mu.RLock()
+	matched := make([]RelicSet, 0, 2)
+	for _, rs := range s.relicSets {
+		if rs.Name != "" && strings.Contains(q, strings.ToLower(rs.Name)) {
+			matched = append(matched, rs)
 		}
 	}
 	s.mu.RUnlock()

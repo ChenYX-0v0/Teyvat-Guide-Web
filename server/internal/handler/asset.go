@@ -35,11 +35,12 @@ func (h *AssetHandler) Import(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{
-		"characters": len(payload.Characters),
-		"weapons":    len(payload.Weapons),
-		"relicSets":  len(payload.RelicSets),
-		"textMap":    len(payload.TextMap),
-		"propMap":    len(payload.PropMap),
+		"characters":      len(payload.Characters),
+		"weapons":         len(payload.Weapons),
+		"relicSets":       len(payload.RelicSets),
+		"relicSetEffects": len(payload.RelicSetEffects),
+		"textMap":         len(payload.TextMap),
+		"propMap":         len(payload.PropMap),
 	})
 }
 

@@ -17,15 +17,18 @@ type StatWeightImport struct {
 
 // ImportPayload 管理接口 / CLI 的导入载荷，按表分组，全部可选
 type ImportPayload struct {
-	Characters  []Character        `json:"characters"`
-	Weapons     []Weapon           `json:"weapons"`
-	RelicSets   []RelicSet         `json:"relicSets"`
-	TextMap     []TextMapEntry     `json:"textMap"`
-	PropMap     []PropMap          `json:"propMap"`
-	FightProps  []FightProp        `json:"fightProps"`
-	RelicSlots  []RelicSlot        `json:"relicSlots"`
-	Affixes     []Affix            `json:"affixes"`
-	StatWeights []StatWeightImport `json:"statWeights"`
+	Characters []Character `json:"characters"`
+	Weapons    []Weapon    `json:"weapons"`
+	RelicSets  []RelicSet  `json:"relicSets"`
+	// RelicSetEffects 圣遗物套装 2/4 件效果（V2.2，2026-09-15 新增）：
+	// 数据源（EnkaGameAssets）没有效果文本，只能人工整理录入，见 ai/05 V2.2-e
+	RelicSetEffects []RelicSetEffect   `json:"relicSetEffects"`
+	TextMap         []TextMapEntry     `json:"textMap"`
+	PropMap         []PropMap          `json:"propMap"`
+	FightProps      []FightProp        `json:"fightProps"`
+	RelicSlots      []RelicSlot        `json:"relicSlots"`
+	Affixes         []Affix            `json:"affixes"`
+	StatWeights     []StatWeightImport `json:"statWeights"`
 }
 
 const upsertBatchSize = 500
@@ -43,6 +46,9 @@ func (s *Service) Import(p ImportPayload) error {
 			return err
 		}
 		if err := upsertBatch(tx, p.RelicSets, upsertBatchSize); err != nil {
+			return err
+		}
+		if err := upsertBatch(tx, p.RelicSetEffects, upsertBatchSize); err != nil {
 			return err
 		}
 		if err := upsertBatch(tx, p.TextMap, 1000); err != nil {

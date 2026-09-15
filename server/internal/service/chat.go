@@ -313,12 +313,14 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 // 任何失败都不阻塞对话（缺上下文只是回答不够精准）。
 func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) contextAssembly {
 	var refs []CharacterStatRef
+	var sets []RelicSetRef
 	if s.players != nil {
 		refs = s.players.StatWeightsForQuestion(question)
+		sets = s.players.RelicSetEffectsForQuestion(question)
 	}
-	summary := BuildAssetSummary(refs)
+	summary := BuildAssetSummary(refs, sets)
 	if summary != "" {
-		logger.L().Infow("ai asset reference attached", "matched", len(refs))
+		logger.L().Infow("ai asset reference attached", "matched", len(refs), "sets", len(sets))
 	}
 
 	rc := s.buildPlayerContext(ctx, userID, question)

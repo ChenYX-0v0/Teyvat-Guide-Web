@@ -60,9 +60,9 @@ var elementMap = map[string]string{
 
 // QualityType → 星级
 var qualityMap = map[string]int{
-	"QUALITY_ORANGE":     5,
-	"QUALITY_ORANGE_MC":  5,
-	"QUALITY_PURPLE":     4,
+	"QUALITY_ORANGE":    5,
+	"QUALITY_ORANGE_MC": 5,
+	"QUALITY_PURPLE":    4,
 }
 
 // 武器类型数字 → 中文（原神 WeaponType 约定）
@@ -97,7 +97,7 @@ func main() {
 
 	// CLI 独立运行，先确保映射表存在（后端启动时也会 autoMigrate）
 	if err := db.AutoMigrate(
-		&asset.Character{}, &asset.Weapon{}, &asset.RelicSet{},
+		&asset.Character{}, &asset.Weapon{}, &asset.RelicSet{}, &asset.RelicSetEffect{},
 		&asset.TextMapEntry{}, &asset.PropMap{}, &asset.FightProp{}, &asset.RelicSlot{}, &asset.Affix{}, &asset.Missing{},
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "建表失败: %v\n", err)
@@ -175,8 +175,8 @@ func main() {
 	if *importFile != "" {
 		var payload asset.ImportPayload
 		readJSON(*importFile, &payload)
-		fmt.Printf("relicSlots: %d 条, propMap: %d 条, fightProps: %d 条\n",
-			len(payload.RelicSlots), len(payload.PropMap), len(payload.FightProps))
+		fmt.Printf("relicSlots: %d 条, propMap: %d 条, fightProps: %d 条, relicSetEffects: %d 条\n",
+			len(payload.RelicSlots), len(payload.PropMap), len(payload.FightProps), len(payload.RelicSetEffects))
 		if err := svc.Import(payload); err != nil {
 			fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
 			os.Exit(1)

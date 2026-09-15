@@ -38,6 +38,19 @@ type CharacterStatRef struct {
 	MainStats []StatSlotRef // 按沙/杯/冠固定顺序，保证渲染文本可复现
 }
 
+// RelicSetEffectRef 套装某个件数的效果（Piece = 2 或 4）
+type RelicSetEffectRef struct {
+	Piece  int
+	Effect string
+}
+
+// RelicSetRef 一个圣遗物套装的权威效果（V2.2 结构化查表用，2026-09-15 新增）。
+// Effects 为空表示「名字命中、但本服没有这个套装的效果资料」。
+type RelicSetRef struct {
+	Name    string
+	Effects []RelicSetEffectRef // 按件数升序（2、4）
+}
+
 // StatSlotRef 一个部位的主词条推荐
 type StatSlotRef struct {
 	Slot string // 中文部位名（取自映射表）
@@ -148,6 +161,29 @@ func (s *PlayerService) StatWeightsForQuestion(question string) []CharacterStatR
 				ref.SubStats = tr.SubStats
 				ref.MainStats = s.mainStatLabels(tr.MainStats)
 			}
+		}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+// RelicSetEffectsForQuestion 返回提问中命中套装的 2/4 件效果（V2.2 结构化查表，2026-09-15）。
+// 与 StatWeightsForQuestion 同构：只读公开资产数据、与登录态无关；名字命中但库里没有效果的套装
+// 也会返回（Effects 为空），让上层显式告诉模型「本服暂无资料」，而不是凭记忆描述效果（V2.3 同款保险）。
+func (s *PlayerService) RelicSetEffectsForQuestion(question string) []RelicSetRef {
+	sets := s.assets.RelicSetsMentioned(question)
+	if len(sets) == 0 {
+		return nil
+	}
+
+	refs := make([]RelicSetRef, 0, len(sets))
+	for _, rs := range sets {
+		ref := RelicSetRef{Name: rs.Name}
+		for _, e := range s.assets.RelicSetEffects(rs.SetID) {
+			if e.Effect == "" {
+				continue
+			}
+			ref.Effects = append(ref.Effects, RelicSetEffectRef{Piece: e.Piece, Effect: e.Effect})
 		}
 		refs = append(refs, ref)
 	}

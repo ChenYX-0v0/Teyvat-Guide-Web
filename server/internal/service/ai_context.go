@@ -24,9 +24,13 @@ const (
 
 	// referenceTokenBudget V2 资料文本的独立预算：与玩家档案共用 AI 服务的上下文预算，
 	// 单独设一个小额度，避免资料把面板挤掉。
-	referenceTokenBudget = 400
+	// 2026-09-15 由 400 上调到 800：V2.2 引入套装效果后，一条 4 件套文本本身就有 100~200 字，
+	// 400 会把套装整条挤掉（角色词条约 120 字/个 ×2 + 套装约 250 字/个 ×2 ≈ 740）。
+	referenceTokenBudget = 800
 	// maxReferenceCharacters 一次最多注入几个命中角色的资料（防止长提问塞满上下文）
 	maxReferenceCharacters = 2
+	// maxReferenceSets 一次最多注入几个命中套装的效果（同上；4 件套文本长，单独设上限）
+	maxReferenceSets = 2
 )
 
 // 意图关键词（按优先级从上到下匹配）
@@ -195,25 +199,45 @@ func statNameOnly(mainStat string) string {
 
 // ---------- V2 · 结构化资料查表 ----------
 
-// BuildAssetSummary 把命中的角色资料渲染成 `context.summary` 文本（V2.1）。
-// 返回空串表示一个角色都没命中，不推送资料。
+// BuildAssetSummary 把命中的角色资料与套装效果渲染成 `context.summary` 文本（V2.1 角色 / V2.2 套装）。
+// 返回空串表示什么都没命中，不推送资料。
 //
-// 为什么要显式标注「本服暂无资料」：模型对热门角色有记忆，不说清楚它会用记忆里的旧数值作答；
-// 标成「暂无资料」后，配合人格提示词里的「资料外不编造」规则，冷门/新角色就会老实承认不知道（V2.3）。
-func BuildAssetSummary(refs []CharacterStatRef) string {
-	if len(refs) == 0 {
+// 为什么要显式标注「本服暂无资料」：模型对热门角色与套装都有记忆，不说清楚它会用记忆里的内容作答；
+// 标成「暂无资料」后，配合人格提示词里的「资料外不编造」规则，库里没有的就会老实承认不知道（V2.3）。
+func BuildAssetSummary(refs []CharacterStatRef, sets []RelicSetRef) string {
+	if len(refs) == 0 && len(sets) == 0 {
 		return ""
 	}
 
-	lines := make([]string, 0, len(refs))
+	lines := make([]string, 0, len(refs)+len(sets))
 	used := 0
-	for _, ref := range refs {
+
+	// 角色词条在前（更常被问），套装效果在后；两者共用同一份预算与各自条数上限
+	for i, ref := range refs {
+		if i >= maxReferenceCharacters {
+			break
+		}
 		line := renderAssetRef(ref)
 		if line == "" {
 			continue
 		}
 		cost := roughTokens(line)
-		if len(lines) > 0 && (used+cost > referenceTokenBudget || len(lines) >= maxReferenceCharacters) {
+		if len(lines) > 0 && used+cost > referenceTokenBudget {
+			break
+		}
+		used += cost
+		lines = append(lines, line)
+	}
+	for i, ref := range sets {
+		if i >= maxReferenceSets {
+			break
+		}
+		line := renderRelicSetRef(ref)
+		if line == "" {
+			continue
+		}
+		cost := roughTokens(line)
+		if len(lines) > 0 && used+cost > referenceTokenBudget {
 			break
 		}
 		used += cost
@@ -225,6 +249,21 @@ func BuildAssetSummary(refs []CharacterStatRef) string {
 
 	return "【游戏资料】（来自本服资料库，是本回合数值与词条问题的唯一依据）\n- " +
 		strings.Join(lines, "\n- ")
+}
+
+// renderRelicSetRef 渲染单个套装一行资料：2 件套 / 4 件套效果各一段（V2.2）。
+func renderRelicSetRef(ref RelicSetRef) string {
+	if ref.Name == "" {
+		return ""
+	}
+	if len(ref.Effects) == 0 {
+		return ref.Name + "：本服暂无该套装的效果资料（不得凭记忆描述效果）"
+	}
+	parts := make([]string, 0, len(ref.Effects))
+	for _, e := range ref.Effects {
+		parts = append(parts, strconv.Itoa(e.Piece)+" 件套 "+e.Effect)
+	}
+	return ref.Name + "：" + strings.Join(parts, "；")
 }
 
 // renderAssetRef 渲染单个角色一行资料
