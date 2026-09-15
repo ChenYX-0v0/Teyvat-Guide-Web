@@ -175,7 +175,9 @@ if ($WithAdmin) {
     Write-Step "启动后台管理系统（:$AdminPort）"
     $adminOut = Join-Path $runDir 'admin.out'
     $adminErr = Join-Path $runDir 'admin.err'
-    $adminProc = Start-Process -FilePath 'npm' -ArgumentList 'run', 'dev' -WorkingDirectory $AdminPath `
+    # npm 是 .cmd 批处理，Start-Process 不能直接起（会报 "%1 is not a valid Win32 application"），
+    # 必须经 cmd.exe /c 包一层
+    $adminProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'npm', 'run', 'dev' -WorkingDirectory $AdminPath `
         -PassThru -RedirectStandardOutput $adminOut -RedirectStandardError $adminErr -WindowStyle Hidden
     if (Wait-Http "http://127.0.0.1:$AdminPort" 90) {
         Write-Ok "就绪（PID $($adminProc.Id)）"

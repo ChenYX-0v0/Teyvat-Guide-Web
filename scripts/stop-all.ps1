@@ -30,7 +30,8 @@ param(
 if ($WithAdmin) { $Ports += 3000 }
 
 # 本项目服务进程的命令行特征（用于判断"父进程要不要一起停"）
-$servicePattern = 'app\.main|vite\.js|next"?\s+dev|npm-cli\.js"?\s+run\s+dev|teyvat-guide'
+# 含 cmd.exe /c npm run dev 这层壳（start-all 用 cmd.exe 起后台，见该脚本说明）
+$servicePattern = 'app\.main|vite\.js|next"?\s+dev|npm-cli\.js"?\s+run\s+dev|npm"?\s+run\s+dev|teyvat-guide'
 
 function Stop-ProcessChain([int]$port) {
     $owners = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
