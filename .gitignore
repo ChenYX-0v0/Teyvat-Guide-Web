@@ -36,3 +36,8 @@ Thumbs.db
 # ===== 共享文档仓链接（Junction，内容在 teyvat-docs 仓，不随项目提交）=====
 /docs/
 /shared-docs/
+
+# ===== M3 数据迁移产物（含用户数据，禁止入库）=====
+deploy/out/
+backup/
+*.sql.gz

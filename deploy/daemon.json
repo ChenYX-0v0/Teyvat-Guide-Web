@@ -1,0 +1,11 @@
+{
+  "registry-mirrors": [
+    "https://<你的专属加速器地址>.mirror.aliyuncs.com"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "max-concurrent-downloads": 6
+}

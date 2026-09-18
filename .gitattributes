@@ -1,0 +1,15 @@
+# 换行符与编码约定（本项目跨 Windows 开发 / Linux 部署）
+#
+# 起因：`.sh` 若带 CRLF，在 Linux 上执行会报 `\r: command not found`；
+# 而 `.ps1` 若不带 BOM，Windows PowerShell 5.1 会按 ANSI 读，中文乱码甚至解析失败。
+*.sh           text eol=lf
+Dockerfile     text eol=lf
+*.dockerignore text eol=lf
+
+*.ps1          text eol=crlf
+*.psm1         text eol=crlf
+
+*.md           text eol=crlf
+*.json         text eol=crlf
+*.yml          text eol=crlf
+*.yaml         text eol=crlf
