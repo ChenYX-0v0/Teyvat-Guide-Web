@@ -129,12 +129,23 @@ python3 -c "import secrets;print(secrets.token_urlsafe(48))"   # 生成一把
 
 ## 3. M3：数据库
 
-### 3.1 选型
+### 3.1 选型：**RDS（2026-09-19 已定，两个库都上云）**
 
-| 方案 | 何时选 | 备注 |
+| 方案 | 结论 | 备注 |
 | --- | --- | --- |
-| **RDS MySQL 8.0** | **推荐** | 自动备份、可恢复演练；把 `TEYVAT_DATABASE_HOST` 指向 RDS 内网地址 |
-| 容器内 MySQL | 想省钱/单机自足 | 打开 compose 末尾注释掉的 `mysql` 服务，`TEYVAT_DATABASE_HOST=mysql` |
+| **RDS MySQL（已购，包年）** | **采用** | 自动备份 + 可恢复演练；**业务库与后台库放同一实例**（两个 schema，直连成本低） |
+| 容器内 MySQL | 不用 | compose 末尾那段注释保留着，仅当本地单机自足时才考虑 |
+
+**两个库、两个账号（别混）**：
+
+| 库 | 归谁用 | 账号 | 权限范围 |
+| --- | --- | --- | --- |
+| `teyvat_guide` | 主服务 + 后台的业务数据源（资产表、用户、会话） | `teyvat` | 仅 `teyvat_guide.*`（含 DDL，GORM AutoMigrate 需要） |
+| `teyvat_admin` | **后台自己的库**（管理员账号、会话、项目注册表） | `teyvat_ops` | 仅 `teyvat_admin.*` |
+
+> **为什么要两个账号**：`teyvat_admin` 里有 `users`（管理员）表，业务服务**不该**有写它的权限——
+> 主服务万一被攻破，攻击者也造不出一个管理员账号。这是刻意划的权限边界，别图省事合成一个。
+> 库名约定：业务库 `teyvat_guide`；管理库 `teyvat_admin`（旧名 `demo_project` 已废弃，本地保留作回退）。
 
 ### 3.2 本地导出（Windows，会用仓库里的 MySQL 客户端）
 
@@ -162,6 +173,33 @@ mysqldump --single-transaction --routines --triggers --set-gtid-purged=OFF \
   --databases teyvat_guide > /opt/backup/teyvat_guide-$(date +%F).sql
 # 恢复演练：建一个临时库导入一遍，确认行数与 §3.3 一致（别直接在生产库上试）
 ```
+
+### 3.5 后台管理库（`teyvat_admin`）—— 与业务库同一实例
+
+后台（`demo-app`）走的是 `DB_*`（管理库）与 `TEYVAT_DB_*`（业务库）**两套连接**，迁移时两边都要改。
+脚本与产物在 `server/cmd/assetimport` 之外的 `deploy/out/`（已 gitignore，含密码，别提交）：
+
+```bash
+# ① 建库 + 建后台账号（用 RDS 高权限账号）
+mysql --host=<RDS地址> --user=<高权限账号> -p < deploy/out/rds-init-admin.sql
+
+# ② 建表（结构以仓库里的 database.sql 为唯一真相；它已去掉建库块，6 张表）
+mysql --host=<RDS地址> --user=teyvat_ops -p --database=teyvat_admin < deploy/out/rds-schema-admin.sql
+
+# ③ 导数据（纯 INSERT，文件内已 SET FOREIGN_KEY_CHECKS=0 —— dump 按表名排序，
+#    user_sessions 会排在 users 前面，不关外键就会失败）
+mysql --host=<RDS地址> --user=teyvat_ops -p --database=teyvat_admin < deploy/out/rds-import-admin-data.sql
+
+# ④ 校验（无输出 = 对得上；再打印管理员与两个已注册项目）
+mysql --host=<RDS地址> --user=teyvat_ops -p --database=teyvat_admin < deploy/db-verify-admin.sql
+```
+
+预期：`users`=1（`super_admin`，`permission_level=0`）、`managed_projects`=2（`teyvat-guide` / `teyvat-ai`）、
+`user_sessions`≥5，6 张表 collation 全是 `utf8mb4_unicode_ci`。
+
+> 结构为什么用 `database.sql` 重建、而不是直接导本地表结构：本地 `users`/`user_sessions` 是**走非脚本路径**
+> 建出来的（`id` 是有符号 `bigint`、collation 是 `0900`），与 `database.sql` 的 `BIGINT UNSIGNED` / `unicode_ci` 不一致。
+> 迁移正好把这个历史包袱丢掉，云端结构 = 脚本结构，以后新环境照脚本建即可复现。
 
 ---
 
@@ -226,6 +264,8 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | `mysql -e "source X.sql"` 报 `Failed to open file` | **路径含中文**（Windows 常见，实测过） | 用 `<` 重定向（`mysql ... < X.sql`），或把文件复制到纯英文路径再 source |
 | PowerShell 脚本跑一半就中断 | `mysqldump`/`docker` 把进度与提示写到 **stderr**，`$ErrorActionPreference='Stop'` 会当成终止性错误 | 本包的 ps1 已统一用 `'Continue'` + 显式检查 `$LASTEXITCODE`（踩过，别再改回去） |
 | ps1 里的中文变乱码 / 报"字符串缺少终止符" | 脚本存成 **UTF-8 无 BOM**，PowerShell 5.1 按 ANSI 读 | 本包两个 ps1 已带 BOM（`EF BB BF`）；新增脚本请保持带 BOM |
+| 后台登录报数据库错误 / 连上了却没数据 | 后台有**两套**连接：`DB_*`=管理库 `teyvat_admin`、`TEYVAT_DB_*`=业务库 `teyvat_guide`（且**不会**回落到 `DB_*`） | 迁移时两套都要改；`.env.local` 里 `TEYVAT_DB_NAME` 必须显式写 |
+| 导入后台库数据报外键错 | dump 按表名排序，`user_sessions` 先于 `users` | 用 `deploy/out/rds-import-admin-data.sql`（文件内已包 `SET FOREIGN_KEY_CHECKS=0`） |
 
 ---
 
