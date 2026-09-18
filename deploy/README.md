@@ -165,6 +165,15 @@ mysql --host=<内网地址> --user=<用户> -p < deploy/out/teyvat_guide-YYYYMMD
 mysql --host=<内网地址> --user=<用户> -p teyvat_guide < deploy/db-verify.sql
 ```
 
+> ⚠️ **`db-export.ps1` 已带 `--skip-add-locks`，别去掉**：`mysqldump` 的 `--add-locks` 默认开启，
+> 会给每张表的 INSERT 包一层 `LOCK TABLES ... WRITE` / `UNLOCK TABLES`，而应用账号没授 `LOCK TABLES` 权限，
+> 导入会在第一条 `LOCK TABLES` 处整批中断并报 `ERROR 1044 Access denied ... to database`（**看着像"连库权限都没有"，
+> 极易误判成 GRANT 没生效**——2026-09-19 实测踩过）。老 dump 若已带这句，用 `Select-String -NotMatch '^(LOCK|UNLOCK) TABLES'`
+> 剥掉再导，或临时给账号补 `LOCK TABLES` 权限。
+
+> 2026-09-19 实测记录（两个库都按此走通）：RDS MySQL **8.0.36**，本地导出用 **8.4 客户端**，导入无版本问题；
+> `SHOW GRANTS` 已显示库级权限时，**新建账号的授权可能要过一会儿才在实际连接上生效**，导入报 1044 先确认不是 `LOCK TABLES` 那句，再重试一次。
+
 ### 3.4 备份与恢复演练（`web/11 §6` 明确要求）
 
 ```bash
@@ -266,6 +275,8 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | ps1 里的中文变乱码 / 报"字符串缺少终止符" | 脚本存成 **UTF-8 无 BOM**，PowerShell 5.1 按 ANSI 读 | 本包两个 ps1 已带 BOM（`EF BB BF`）；新增脚本请保持带 BOM |
 | 后台登录报数据库错误 / 连上了却没数据 | 后台有**两套**连接：`DB_*`=管理库 `teyvat_admin`、`TEYVAT_DB_*`=业务库 `teyvat_guide`（且**不会**回落到 `DB_*`） | 迁移时两套都要改；`.env.local` 里 `TEYVAT_DB_NAME` 必须显式写 |
 | 导入后台库数据报外键错 | dump 按表名排序，`user_sessions` 先于 `users` | 用 `deploy/out/rds-import-admin-data.sql`（文件内已包 `SET FOREIGN_KEY_CHECKS=0`） |
+| 导入报 `ERROR 1044 Access denied ... to database`，但 `SHOW GRANTS` 明明有权限 | dump 里有 `LOCK TABLES`（`--add-locks` 默认开），而应用账号没授 `LOCK TABLES` | 导出加 `--skip-add-locks`（`db-export.ps1` 已加）；老 dump 剥掉 `LOCK TABLES`/`UNLOCK TABLES` 两行再导 |
+| 用 `rm-xxx.mysql.rds.aliyuncs.com:3306` 连不上、报错像密码错 | ① 账号名打错一个字母；② 把 `@@port`（服务器内部端口，如 3009）当成外网端口 | 外网入口用 **3306**；账号名从控制台「账号管理」原样复制；`SELECT USER(), CURRENT_USER(), @@version, @@port` 可自查 |
 
 ---
 

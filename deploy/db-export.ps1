@@ -67,7 +67,14 @@ $conn = @("--host=$dbHost", "--port=$dbPort", "--user=$dbUser", "--password=$dbP
 
 # ---------------------------------------------------------------- 导出
 Write-Host '==> 导出（结构 + 数据 + 存储过程/触发器）' -ForegroundColor Cyan
-& $dump @conn '--single-transaction' '--routines' '--triggers' '--set-gtid-purged=OFF' '--databases' $dbName "--result-file=$sqlFile" 2>&1 |
+# ⚠️ 必须带 --skip-add-locks（2026-09-19 实测踩过，排查了很久）：
+#    mysqldump 的 --add-locks 默认开启，会给每张表的 INSERT 包一层
+#    `LOCK TABLES ... WRITE` / `UNLOCK TABLES`（注意 --single-transaction 并不会关掉它）。
+#    而云上 RDS 的应用账号只授了 SELECT/INSERT/UPDATE/DELETE/CREATE/ALTER/INDEX/DROP/REFERENCES，
+#    **没有 LOCK TABLES 权限** → 导入会在第一条 LOCK TABLES 处整批中断，报
+#    `ERROR 1044 (42000): Access denied for user 'teyvat'@'%' to database 'teyvat_guide'`
+#    （报错信息看着像"连库权限都没有"，极易误判成 GRANT 没生效）。
+& $dump @conn '--single-transaction' '--routines' '--triggers' '--set-gtid-purged=OFF' '--skip-add-locks' '--databases' $dbName "--result-file=$sqlFile" 2>&1 |
     Where-Object { $_ -notmatch 'password on the command line' }
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $sqlFile)) { Fail 'mysqldump 失败（看上面的输出）' }
 $sizeMb = [math]::Round((Get-Item $sqlFile).Length / 1MB, 2)
