@@ -1,0 +1,21 @@
+# 依赖与产物：容器内会重新装、重新构建
+node_modules/
+dist/
+.vite/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 版本控制与文档
+.git
+.gitignore
+*.md
+!README.md
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,25 @@
+# 构建上下文里绝不能出现密钥与站点配置
+config/
+.env
+.env.*
+!.env.example
+
+# 版本控制与本地产物
+.git
+.gitignore
+bin/
+tmp/
+data/
+*.log
+
+# 文档与共享文档链接（Junction，内容在 teyvat-docs 仓）
+*.md
+!README.md
+docs/
+shared-docs/
+
+# 本地测试用的大型游戏数据包（不是项目代码）
+TextMapCHS*.json
+ReliquaryExcelConfigData*.json
+ReliquaryAffixExcelConfigData*.json
+genshin_api_doc/

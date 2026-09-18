@@ -1,0 +1,178 @@
+# teyvat-guide 全栈编排（本地联调 / 云端单机，D1 已定：Docker + Compose）
+#
+# 起什么：AI 派蒙服务（Python）+ 主服务（Go）+ C 端前端（Nginx 静态）
+# 不起什么：数据库 —— M3 里二选一：① RDS（推荐，自带备份）② 打开文件末尾注释掉的 mysql 服务
+#
+# 用法：
+#   Copy-Item .env.example .env      # 填数据库密码与三把密钥（缺了会直接报错，**故意的**）
+#   docker compose up -d --build
+#   docker compose ps
+#   docker compose logs -f server
+#   docker compose down
+#
+# 两个 .env 的分工（别混）：
+#   ./.env                              ← 本文件用：主服务配置 + compose 变量插值
+#   ../AI派蒙服务器/ai-service/.env      ← AI 服务自己的密钥（DEEPSEEK_API_KEY 等）
+#
+# 云端（走 ACR 镜像）：先 docker login，把 SERVER_IMAGE / WEB_IMAGE / AI_IMAGE 指到 ACR 地址，
+#   docker compose pull && docker compose up -d（**不带 --build**），避免在 ECS 上编译。
+#
+# ⚠️ 国内先配镜像加速器（2026-09-18 实测）：本机对 hub.docker.com / registry-1.docker.io 均
+#   不可达（curl HTTP 000），而 registry.cn-hangzhou.aliyuncs.com 可达。不配加速器，
+#   `up --build` 会在拉基础镜像（alpine/golang/node/nginx/python）这一步就失败。
+#   做法见 06-阿里云部署方案 §5（ACR 加速）；或把基础镜像推到 ACR 再改各 Dockerfile 的 FROM。
+#
+# 安全默认（都已落实）：
+#   - 只绑回环 127.0.0.1，公网入口一律由外层 Nginx/HTTPS 接管（ai/06 §2.5）
+#   - 管理面（/api/admin、/internal）不过公网前端：web 的 nginx.conf 里直接 404
+#   - 密钥只从 .env 注入，镜像里没有任何站点配置（server/Dockerfile 不 COPY config/）
+
+name: teyvat-guide
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------- AI 派蒙服务
+  ai-service:
+    build:
+      context: ${AI_SERVICE_CONTEXT:-../AI派蒙服务器/ai-service}
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.14"
+        EXTRAS: "" # P2/P3 需要时改 "[rag]" / "[rag,graph]"
+    image: ${AI_IMAGE:-teyvat-ai:0.1.0}
+    container_name: teyvat-ai
+    restart: unless-stopped
+
+    env_file:
+      - ${AI_SERVICE_CONTEXT:-../AI派蒙服务器/ai-service}/.env
+
+    environment:
+      AI_SERVER_HOST: 0.0.0.0
+      AI_SERVER_PORT: "8090"
+      # 容器内直连主服务容器（同网络，不必绕宿主）；本地开发时它指向 127.0.0.1:8080
+      PROMPT_STORE_MODE: http
+      PROMPT_STORE_URL: http://server:8080
+
+    ports:
+      # 只绑回环：宿主上的主服务能访问，局域网/公网访问不到（AI 服务不得暴露公网）
+      - "127.0.0.1:8090:8090"
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('AI_SERVER_PORT','8090')+'/health',timeout=4).getcode()==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- 主服务（Go）
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: ${SERVER_IMAGE:-teyvat-guide-server:0.1.0}
+    container_name: teyvat-guide-server
+    restart: unless-stopped
+
+    environment:
+      TEYVAT_SERVER_PORT: "8080"
+      TEYVAT_SERVER_MODE: ${TEYVAT_SERVER_MODE:-release}
+      TEYVAT_LOG_MODE: ${TEYVAT_LOG_MODE:-json}
+      TEYVAT_LOG_LEVEL: ${TEYVAT_LOG_LEVEL:-info}
+
+      # —— 数据库（M3：RDS 或容器内 MySQL；本地验证默认指向宿主 MySQL）——
+      TEYVAT_DATABASE_DRIVER: mysql
+      TEYVAT_DATABASE_HOST: ${TEYVAT_DATABASE_HOST:-host.docker.internal}
+      TEYVAT_DATABASE_PORT: ${TEYVAT_DATABASE_PORT:-3306}
+      TEYVAT_DATABASE_USER: ${TEYVAT_DATABASE_USER:-root}
+      TEYVAT_DATABASE_PASSWORD: ${TEYVAT_DATABASE_PASSWORD:?请在 .env 设置 TEYVAT_DATABASE_PASSWORD}
+      TEYVAT_DATABASE_NAME: ${TEYVAT_DATABASE_NAME:-teyvat_guide}
+
+      # —— AI 服务（同网络，用服务名直连）——
+      TEYVAT_AI_PROVIDER: remote
+      TEYVAT_AI_BASE_URL: http://ai-service:8090
+      TEYVAT_AI_API_KEY: ${AI_SERVICE_KEY:?请在 .env 设置 AI_SERVICE_KEY（须与 AI 服务一致）}
+      TEYVAT_AI_TIMEOUT_SECONDS: "65"
+
+      # —— 鉴权：三把钥匙各自独立、强随机（缺了直接起不来，这是刻意的）——
+      TEYVAT_AUTH_JWT_SECRET: ${TEYVAT_AUTH_JWT_SECRET:?请在 .env 设置 TEYVAT_AUTH_JWT_SECRET}
+      TEYVAT_AUTH_ADMIN_KEY: ${TEYVAT_AUTH_ADMIN_KEY:?请在 .env 设置 TEYVAT_AUTH_ADMIN_KEY}
+      TEYVAT_AUTH_INTERNAL_KEY: ${TEYVAT_AUTH_INTERNAL_KEY:?请在 .env 设置 TEYVAT_AUTH_INTERNAL_KEY}
+      TEYVAT_AUTH_ALLOW_REGISTER: "false" # 不公开/邀请制：账号只能后台代建
+      TEYVAT_AUTH_SEED_USER: ${TEYVAT_AUTH_SEED_USER:-admin}
+      TEYVAT_AUTH_SEED_PASS: ${TEYVAT_AUTH_SEED_PASS:?请在 .env 设置 TEYVAT_AUTH_SEED_PASS}
+
+      # —— 配额与并发闸门（口径见 shared/05 §2）——
+      TEYVAT_QUOTA_DAILY_TOKENS_PER_USER: ${TEYVAT_QUOTA_DAILY_TOKENS_PER_USER:-100000}
+      TEYVAT_QUOTA_DAILY_TOKENS_GLOBAL: ${TEYVAT_QUOTA_DAILY_TOKENS_GLOBAL:-0}
+      TEYVAT_QUOTA_MAX_CONCURRENT_PER_USER: "2"
+
+    # 本地验证：容器访问宿主上的 MySQL（Linux 需要这一行）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    depends_on:
+      ai-service:
+        condition: service_healthy
+
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- C 端前端
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: ${WEB_IMAGE:-teyvat-guide-web:0.1.0}
+    container_name: teyvat-guide-web
+    restart: unless-stopped
+
+    ports:
+      # 本地验证用 8088（别和 Vite 的 5173 抢）；云上由外层 Nginx/HTTPS 接管 80/443
+      - "127.0.0.1:${WEB_PORT:-8088}:80"
+
+    depends_on:
+      - server
+
+    logging: *default-logging
+
+# ---------------------------------------------------------------- 数据库（M3 二选一）
+# 用 RDS 就别管这段，把 TEYVAT_DATABASE_HOST 指向 RDS 内网地址即可。
+# 要用容器内 MySQL，取消注释，并把 TEYVAT_DATABASE_HOST 设为 mysql：
+#
+#  mysql:
+#    image: mysql:8.4
+#    container_name: teyvat-guide-mysql
+#    restart: unless-stopped
+#    command:
+#      - --character-set-server=utf8mb4
+#      - --collation-server=utf8mb4_0900_ai_ci
+#    environment:
+#      MYSQL_ROOT_PASSWORD: ${TEYVAT_DATABASE_PASSWORD:?}
+#      MYSQL_DATABASE: ${TEYVAT_DATABASE_NAME:-teyvat_guide}
+#      TZ: Asia/Shanghai
+#    volumes:
+#      - mysql-data:/var/lib/mysql
+#      # 首次启动自动建表 + 灌提示词种子（AI 服务仓里的迁移脚本）
+#      - ${AI_SERVICE_CONTEXT:-../AI派蒙服务器/ai-service}/db/migrations/001_ai_prompts.sql:/docker-entrypoint-initdb.d/001_ai_prompts.sql:ro
+#    healthcheck:
+#      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${TEYVAT_DATABASE_PASSWORD}"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 10
+#    logging: *default-logging
+#
+#  volumes:
+#    mysql-data:
