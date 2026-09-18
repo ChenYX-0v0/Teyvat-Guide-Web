@@ -287,3 +287,28 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 3. 安全组开 80/443；把 `web` 容器的端口从 `127.0.0.1:8088` 改成对外映射（或让外层 Nginx 反代 `web:80`）；
 4. 页脚挂备案号（链接工信部）；
 5. 重跑 `web/11 §6` 的上线前检查清单（HTTPS/证书/到期提醒那几条）。
+
+---
+
+## 7. 密钥扫描（提交前自检）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\check-secrets.ps1        # 扫暂存区（即将提交的内容）
+powershell -ExecutionPolicy Bypass -File .\deploy\check-secrets.ps1 -All   # 扫全部被跟踪文件
+```
+
+三类检查：
+
+1. **敏感文件名被纳入**：`.env*`、`server/config/config.yaml`、`deploy/out/`、`*.pem|key|pfx`、dump（`*.sql`）；
+2. **内容里"像真密钥"的赋值**：`password|secret|api_key|admin_key|internal_key|token = <16 位以上>`，
+   自动排除占位值（`change-me`、`your-`、`<...>`、`example`、`fake`…）与代码取值（`localStorage…`）；
+3. **与已知真值精确比对**：读 `deploy/out/known-secrets.txt`（本机真值清单，**已 gitignore**；
+   由本机在用配置提取，轮换后追加新值）。正则只能猜形态，这一条能确定命中，是主要防线。
+
+命中时**只打印遮蔽片段**（前 4 位 + 长度），**退出码 1**，可直接接进 pre-commit / CI。
+想让它每次提交自动跑：自己加 `.githooks/pre-commit` 并 `git config core.hooksPath .githooks`
+（改 git 配置由你决定，部署包不代劳）。
+
+> 密钥清单、轮换手册、泄露应急流程见 `shared-docs/05-密钥与凭据管理.md`。
+> ⚠️ 脚本必须保持 **UTF-8 带 BOM**；另外两处踩过的坑写在脚本头注释里（别用 `git grep -E` 传复杂正则；
+> git 列文件必须带 `-c core.quotepath=false`，否则中文路径会被转义成非法路径）。
