@@ -273,6 +273,38 @@ curl.exe -s -X POST -H "Authorization: Bearer $tok" -H 'Content-Type: applicatio
 
 ---
 
+### 3.7 后台管理接「云上主服务」（SSH 隧道 + 项目注册表）
+
+**关键差异：业务项目的地址不在环境变量里，而在管理库里**
+—— `teyvat_admin.managed_projects.base_url`（项目注册表，见 `admin/05-中转网关项目设计.md`）；
+只有**鉴权密钥**走环境变量，键名由 code 生成：`teyvat-guide` → `PROJECT_TEYVAT_GUIDE_ADMIN_KEY`（`src/lib/projects.ts:18`）。
+所以「切本机 / 切云上」改的是**一行 SQL**，不是配置文件。
+
+```powershell
+# ① 建隧道：本机 18080 → 云上主服务 8080；本机 18090 → 云上 AI 服务 8090
+#    （刻意用 18080/18090，避免和本机容器栈的 8080/8090 抢端口）
+ssh -i <私钥路径> -N -L 18080:127.0.0.1:8080 -L 18090:127.0.0.1:8090 root@<ECS公网IP>
+```
+
+```sql
+-- ② 指向云上（经隧道）
+UPDATE managed_projects SET base_url='http://127.0.0.1:18080' WHERE code='teyvat-guide';
+UPDATE managed_projects SET base_url='http://127.0.0.1:18090' WHERE code='teyvat-ai';
+-- 回退到本机容器栈（旧值也备份在 deploy/out/admin-base-url-backup.txt）：
+-- UPDATE managed_projects SET base_url='http://127.0.0.1:8080' WHERE code='teyvat-guide';
+-- UPDATE managed_projects SET base_url='http://127.0.0.1:8090' WHERE code='teyvat-ai';
+```
+
+**验收（2026-09-20 实测通过）**：后台「资产映射」保存一次 → 提示「已保存并刷新内存，档案快照已清空」；
+云上 `docker compose logs server` 出现 `POST /api/admin/assets/reload status:200`（请求确实落在云上）。
+
+⚠️ 三个注意点：
+1. **隧道必须常开**（它只在你本机与云上之间）；不开隧道时后台会提示"内存刷新失败"。
+2. **长期方案**：域名 + HTTPS 就绪后把 `base_url` 改成 `https://<域名>`（同样一行 SQL），后台就不再依赖隧道。
+3. `managed_projects.status` 必须是 **`enabled`** —— 后台只对启用的项目发起调用（`src/lib/projects.ts:12`）。
+
+---
+
 ## 4. 验收（备案期间就能做的部分）
 
 ### 4.1 三服务状态
