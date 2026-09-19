@@ -305,7 +305,8 @@ UPDATE managed_projects SET base_url='http://127.0.0.1:18090' WHERE code='teyvat
 
 > **后续（规划中，本轮不做）**：把**后台管理自身**也做成容器放进同一台 ECS，就不需要隧道了。
 > 要点：补 `Dockerfile`（Next.js standalone）→ 只绑回环 → 外层 Nginx 按子域转发 → **管理面配访问控制**
-> （安全组白名单 / Basic Auth / VPN 三选一）→ `base_url` 改回 `http://127.0.0.1:8080`。
+> （安全组白名单 / Basic Auth / VPN 三选一）→ `base_url` 改为**容器间地址**（同一 compose 网络用服务名
+> `http://server:8080`，否则 `http://host.docker.internal:8080`；⚠️ **别写 `127.0.0.1:8080`**，容器里的它是容器自己）。
 > 完整要点见 `teyvat-docs/ai/06-阿里云部署方案.md §1.2`，排期登记在 `ai/05-开发路线图.md §8 的 O5`。
 
 ---
