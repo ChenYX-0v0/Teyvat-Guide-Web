@@ -130,8 +130,19 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.name", "teyvat_guide")
 	v.SetDefault("database.dsn", "")
 	v.SetDefault("ai.provider", "mock")
+	// ⚠️ 这一行不是"为了有个默认值"，而是必须：viper 的 Unmarshal 只回填**已知键**
+	// （config 文件里出现过的，或 SetDefault 注册过的）；只在 AutomaticEnv 里存在的键，
+	// Unmarshal **看不见**。容器里没有 config.yaml，少这一行 → TEYVAT_AI_API_KEY 静默失效
+	// → 主服务调 AI 服务不带 X-AI-Key → 401「缺少 X-AI-Key」（2026-09-19 容器实测踩到）。
+	// 新增任何配置项时，务必同样补一行 SetDefault。
+	v.SetDefault("ai.api_key", "")
 	v.SetDefault("ai.base_url", "https://api.openai.com/v1")
-	v.SetDefault("ai.model", "gpt-4o-mini")
+	// ⚠️ 默认留空 = 让 AI 服务用它自己的默认模型（当前 deepseek-flash）。
+	// 这里原本是模板遗留的 "gpt-4o-mini"：本地有 config.yaml 时无感；但容器里没有配置文件，
+	// 这个默认值会被传给 AI 服务 → 上游 DeepSeek 直接 400
+	// 「The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed gpt-4o-mini」
+	// （2026-09-19 容器实测踩到）。要换模型请在 .env 显式设 TEYVAT_AI_MODEL。
+	v.SetDefault("ai.model", "")
 	// 人格提示词归 AI 服务（存 ai_prompts 表，可按版本热更新），这里默认为空 = 不下发补充指令。
 	// 注意：一旦填了值，它会作为动态区拼在派蒙人格**之后**（persona.py 的 request_system），
 	// 等于第二套人格，与 ai_prompts 里的派蒙设定冲突——要加"每请求补充指令"请入库成新场景。
@@ -139,6 +150,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.timeout_seconds", 65) // 必须大于 AI 服务自身超时（55s）
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_ttl_hours", 72)
+	// 同 ai.api_key：不注册默认值 → 容器里 TEYVAT_AUTH_ADMIN_KEY 失效 →
+	// AdminAPIKey() 回落到 jwt_secret → 后台带自己的 admin_key 调管理接口反而 401。
+	v.SetDefault("auth.admin_key", "")
 	// 默认沿用"开放注册"的通用行为；**本项目当前部署口径是在 config.yaml 里置 false（邀请制）**
 	v.SetDefault("auth.allow_register", true)
 	v.SetDefault("auth.seed_user", "admin")
@@ -148,5 +162,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("quota.daily_tokens_per_user", 100000) // 每用户每自然日 10 万 token；0 = 不限
 	v.SetDefault("quota.daily_tokens_global", 0)        // 全站日预算（熔断）；0 = 关闭
 	v.SetDefault("quota.max_concurrent_per_user", 2)    // 同一用户同时进行中的请求数；0 = 不限
+	v.SetDefault("quota.whitelist_user_ids", []uint{})  // 同理：注册默认值，键才会被 Unmarshal 认到
 	v.SetDefault("quota.metric", "total")               // total | cached_weighted（预留，暂只实现 total）
 }

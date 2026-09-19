@@ -228,6 +228,46 @@ mysql --host=<RDS地址> --user=teyvat_ops -p --database=teyvat_admin < deploy/d
 
 ---
 
+### 3.6 本机容器化联调（2026-09-19 实测通过，上 ECS 前先跑这一遍）
+
+**为什么值得跑**：容器路径与本地 dev 有**本质差异——容器里没有 `config.yaml`，所有配置只能走环境变量**。
+本次就靠它抓出两个只在容器里暴露的 bug（见 §5 最后三行），要是直接上 ECS，会在线上才发现。
+
+```powershell
+# 0) 先让出 8080/8090（compose 会占用；后台 3000 不受影响）
+powershell -ExecutionPolicy Bypass -File scripts\stop-all.ps1
+
+# 1) 起三个容器（用本地已有镜像，不重新 build）
+docker compose up -d
+docker compose ps                     # 期望：三个都 (healthy)
+
+# 2) 生产入口路径验收（走 Nginx，等价线上）
+#    http://127.0.0.1:8088/            → 前端页面
+#    http://127.0.0.1:8088/api/health  → Nginx 反代到主服务
+$body = '{"username":"admin","password":"<你的密码>"}'
+$tok = (curl.exe -s -X POST -H 'Content-Type: application/json' -d $body http://127.0.0.1:8088/api/auth/login | ConvertFrom-Json).data.token
+curl.exe -s -X POST -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' `
+  -d '{"message":"绝缘之旗印四件套效果是什么？"}' http://127.0.0.1:8088/api/chat
+
+# 3) 停：docker compose down      回到 dev 栈：scripts\start-all.ps1
+```
+
+**实测资源占用（ECS 选规格的依据）**：
+
+| 容器 | 内存 |
+| --- | --- |
+| `teyvat-guide-server` | 7.6 MiB |
+| `teyvat-ai` | 96 MiB |
+| `teyvat-guide-web` | 12.9 MiB |
+| **合计** | **约 117 MiB**（另加 Docker 自身开销）→ **2C2G 的 ECS 足够** |
+
+**验收要点**：`docker compose logs server` 应出现 `asset maps loaded`（= 读到 RDS 的表）与
+`ai asset reference attached`（= 资料注入生效）；`logs ai-service` 应出现 `llm.completed`（含 `tokens_cached` > 0 表示提示词缓存命中）。
+
+> ⚠️ 容器栈与 dev 栈**互斥**（都占 8080/8090）：切换时先停另一套。
+
+---
+
 ## 4. 验收（备案期间就能做的部分）
 
 ### 4.1 三服务状态
@@ -293,6 +333,9 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | 导入后台库数据报外键错 | dump 按表名排序，`user_sessions` 先于 `users` | 用 `deploy/out/rds-import-admin-data.sql`（文件内已包 `SET FOREIGN_KEY_CHECKS=0`） |
 | 导入报 `ERROR 1044 Access denied ... to database`，但 `SHOW GRANTS` 明明有权限 | dump 里有 `LOCK TABLES`（`--add-locks` 默认开），而应用账号没授 `LOCK TABLES` | 导出加 `--skip-add-locks`（`db-export.ps1` 已加）；老 dump 剥掉 `LOCK TABLES`/`UNLOCK TABLES` 两行再导 |
 | 用 `rm-xxx.mysql.rds.aliyuncs.com:3306` 连不上、报错像密码错 | ① 账号名打错一个字母；② 把 `@@port`（服务器内部端口，如 3009）当成外网端口 | 外网入口用 **3306**；账号名从控制台「账号管理」原样复制；`SELECT USER(), CURRENT_USER(), @@version, @@port` 可自查 |
+| **容器里**调 AI 服务报 401「缺少 X-AI-Key」/ 管理接口 401 | viper 的 `Unmarshal` 只回填**已知键**（config 文件里出现过的，或 `SetDefault` 注册过的）；`AutomaticEnv` 单独存在的键**它看不见**。容器里没有 `config.yaml`，于是没注册默认值的项**静默失效** | `server/internal/config/config.go` 的 `setDefaults()` 必须为**每个**配置项注册默认值（2026-09-19 已补 `ai.api_key`、`auth.admin_key`、`quota.whitelist_user_ids`）。**新增配置项时务必同步补一行** |
+| **容器里**对话报 502「上游模型拒绝了请求」 | `ai.model` 的默认值曾是模板遗留的 `gpt-4o-mini`（本地有 config.yaml 时无感，容器里没有配置 → 直接把它传给 DeepSeek → 400） | 默认已改为**空**（交给 AI 服务决定模型）；要指定就设 `TEYVAT_AI_MODEL` |
+| 容器起得来、但每次提问都秒回兜底话术（"派蒙现在有点晕乎乎的…"） | 就是上两条的**共同症状**：环境变量没进到配置里 → 主服务调 AI 服务失败 | 先验变量真进了进程：`docker compose exec server sh -c "printenv TEYVAT_AI_API_KEY | wc -c"`；再看 `docker compose logs server` 的 `ai complete failed` 具体 err |
 
 ---
 
