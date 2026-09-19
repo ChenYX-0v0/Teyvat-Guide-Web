@@ -305,6 +305,23 @@ UPDATE managed_projects SET base_url='http://127.0.0.1:18090' WHERE code='teyvat
 
 ---
 
+### 3.8 云上自检（一条命令验完整链路）
+
+```bash
+# 本机：推脚本 → 远端执行
+scp -i <私钥> deploy/smoke-ecs.sh root@<ECS公网IP>:/opt/teyvat-guide/deploy/
+ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
+```
+
+覆盖 6 段：容器状态 → 三端健康检查（**经 Nginx，与线上入口同路径**）→ 登录 + 提问（端到端）
+→ 关键日志（`asset maps loaded` / `asset reference attached` / `llm.completed`）→ 资源占用 → 暴露面。
+结尾打印「通过 N 项，失败 M 项」，**M 应为 0**。属只读检查（提问会写一条 `chat_messages`，是正常业务写入）。
+
+**2026-09-20 首跑：6/6 通过** —— 三容器 healthy；`/api/health`=200；登录 + 提问正常作答（`tokens_cached=2176`、797ms）；
+资源 ≈107MB；公网仅 22 开放（其余全 `127.0.0.1`）。
+
+---
+
 ## 4. 验收（备案期间就能做的部分）
 
 ### 4.1 三服务状态
