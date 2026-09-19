@@ -10,11 +10,16 @@
 
 ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.27
+# 国内构建用：npm registry 镜像。node:22 自带的 npm 10 默认 `replace-registry-host=npmjs`，
+# 会把 lockfile 里的 registry.npmjs.org 改写成这个镜像，所以 `npm ci` 能直接命中。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 # ============================================================
 # builder —— 装依赖 + 打包静态产物
 # ============================================================
 FROM node:${NODE_VERSION}-alpine AS builder
+
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 
 WORKDIR /build
 

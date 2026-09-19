@@ -12,6 +12,10 @@
 #    + tzdata（配额按本地时区自然日重置，别用 UTC 跑偏）。
 
 ARG GO_VERSION=1.24
+# 国内构建用：Go module 代理。默认 proxy.golang.org 在国内（含阿里云 ECS）基本不可用，
+# `go mod download` 会卡住或超时 —— 所以在 ECS 上构建时必须显式指定。
+# 需要走官方源就 `docker build --build-arg GOPROXY_URL=https://proxy.golang.org,direct`
+ARG GOPROXY_URL=https://goproxy.cn,direct
 
 # ============================================================
 # builder —— 只负责编译
@@ -20,7 +24,8 @@ FROM golang:${GO_VERSION}-alpine AS builder
 
 ENV CGO_ENABLED=0 \
     GOOS=linux \
-    GOFLAGS=-trimpath
+    GOFLAGS=-trimpath \
+    GOPROXY=${GOPROXY_URL}
 
 WORKDIR /build
 
