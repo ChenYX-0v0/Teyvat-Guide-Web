@@ -1,6 +1,7 @@
 {
   "registry-mirrors": [
-    "https://<你的专属加速器地址>.mirror.aliyuncs.com"
+    "https://docker.m.daocloud.io",
+    "https://docker.1ms.run"
   ],
   "log-driver": "json-file",
   "log-opts": {

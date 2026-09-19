@@ -72,6 +72,22 @@ sudo docker login --username=<阿里云账号> registry.cn-hangzhou.aliyuncs.com
 > **为什么必须先配加速器**：2026-09-18 实测本机对 `hub.docker.com` / `registry-1.docker.io`
 > 均不可达（curl HTTP 000），不配加速器，`docker pull` 会在拉基础镜像这一步失败。
 
+### 1.3.1 镜像加速器怎么选（2026-09-19 本机实测，结论可直接搬到 ECS）
+
+| 源 | `/v2/` 探测 | 实测结果 |
+| --- | --- | --- |
+| **Docker Hub 直连** | — | ❌ `registry-1.docker.io:443` **actively refused**（被主动拒绝，不是超时） |
+| 阿里云**专属**加速器（`<id>.mirror.aliyuncs.com`） | **403** | ❌ 从本机**完全不可用**（连标准 `/v2/` 请求也拒；不是"未登录"的 401） |
+| **DaoCloud 公共镜像** `docker.m.daocloud.io` | **401** | ✅ **可用**：`docker pull alpine:3.20` **8.4 秒**完成（401 是 registry 的正常应答，客户端会自动走令牌流程） |
+| `docker.1ms.run` | — | 备用（已写入本机 mirrors 列表第二位） |
+
+**所以本机与 ECS 的 mirrors 都按这个顺序配**：`docker.m.daocloud.io` → `docker.1ms.run` → （若你的阿里云专属加速器可用再放第三个）。
+
+> ⚠️ **Docker Desktop（Windows）与 ECS（Linux）的配置文件不是同一个**：
+> - Windows Docker Desktop 4.91：Settings → Docker Engine 写的是 **`C:\Users\<你>\.docker\daemon.json`**；
+>   手写 **`C:\ProgramData\Docker\config\daemon.json` 不会生效**（2026-09-19 实测：写了它，`docker info` 里 `Mirrors` 仍为空）。
+> - ECS（Linux）：`/etc/docker/daemon.json`（`bootstrap.sh` 写的就是它 ✓）。
+
 ### 1.4 上传代码
 
 ```bash

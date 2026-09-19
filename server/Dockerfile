@@ -22,6 +22,11 @@ ARG GOPROXY_URL=https://goproxy.cn,direct
 # ============================================================
 FROM golang:${GO_VERSION}-alpine AS builder
 
+# ⚠️ 必须在这里再声明一次：`FROM` 之前声明的 ARG 只有 FROM 行能用，
+# **stage 内部看不见** —— 漏了这行，下面的 GOPROXY 会展开成空，
+# go mod download 又退回被墙的 proxy.golang.org（2026-09-19 实测踩过）。
+ARG GOPROXY_URL
+
 ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOFLAGS=-trimpath \

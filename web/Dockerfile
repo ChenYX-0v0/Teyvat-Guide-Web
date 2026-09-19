@@ -19,6 +19,9 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 # ============================================================
 FROM node:${NODE_VERSION}-alpine AS builder
 
+# ⚠️ ARG 在 FROM 之前声明时，stage 内部看不见，必须在这里再声明一次（同 server/Dockerfile 的坑）
+ARG NPM_REGISTRY
+
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 
 WORKDIR /build
