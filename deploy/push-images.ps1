@@ -64,7 +64,12 @@ Push-Location $repoRoot
 try {
     if (-not $SkipBuild) {
         Write-Host '==> 构建三个镜像（docker compose build）' -ForegroundColor Cyan
-        docker compose build
+        # ⚠️ --provenance=false --sbom=false 是必需的，不是可选项：
+        #   Docker Desktop 的 BuildKit 默认给镜像附加「来源证明（provenance）/ SBOM」清单，
+        #   而 ACR 个人版不认这种 OCI 空清单，推送最后一步会失败：
+        #     error from registry: unknown manifest class for application/vnd.oci.empty.v1+json
+        #   （2026-09-20 实测：所有层都 Pushed，唯独 manifest 报这个错）
+        docker compose build --provenance=false --sbom=false
         if ($LASTEXITCODE -ne 0) { Fail 'docker compose build 失败（看上面的输出）' }
         Ok '构建完成'
     } else {

@@ -120,6 +120,9 @@ docker compose up -d --build
 # 本地（Windows）：
 #   先在 Docker Desktop 里配好同一个镜像加速器
 .\deploy\push-images.ps1 -Registry <ACR 地址，如 crpi-xxxx.cn-hangzhou.personal.cr.aliyuncs.com> -Namespace <你的命名空间>
+#   ⚠️ 脚本内置 --provenance=false --sbom=false（必需）：不然推到 ACR 最后一步会报
+#      unknown manifest class for application/vnd.oci.empty.v1+json（详见 §5 常见坑）
+#   推送成功后会打印「要写进 ECS .env 的三行」——那三行带时间戳 tag，回滚就是改回上一个 tag
 ```
 
 ```bash
@@ -338,6 +341,7 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | **容器里**调 AI 服务报 401「缺少 X-AI-Key」/ 管理接口 401 | viper 的 `Unmarshal` 只回填**已知键**（config 文件里出现过的，或 `SetDefault` 注册过的）；`AutomaticEnv` 单独存在的键**它看不见**。容器里没有 `config.yaml`，于是没注册默认值的项**静默失效** | `server/internal/config/config.go` 的 `setDefaults()` 必须为**每个**配置项注册默认值（2026-09-19 已补 `ai.api_key`、`auth.admin_key`、`quota.whitelist_user_ids`）。**新增配置项时务必同步补一行** |
 | **容器里**对话报 502「上游模型拒绝了请求」 | `ai.model` 的默认值曾是模板遗留的 `gpt-4o-mini`（本地有 config.yaml 时无感，容器里没有配置 → 直接把它传给 DeepSeek → 400） | 默认已改为**空**（交给 AI 服务决定模型）；要指定就设 `TEYVAT_AI_MODEL` |
 | 容器起得来、但每次提问都秒回兜底话术（"派蒙现在有点晕乎乎的…"） | 就是上两条的**共同症状**：环境变量没进到配置里 → 主服务调 AI 服务失败 | 先验变量真进了进程：`docker compose exec server sh -c "printenv TEYVAT_AI_API_KEY | wc -c"`；再看 `docker compose logs server` 的 `ai complete failed` 具体 err |
+| `docker push` 到 ACR **最后一步**失败：`error from registry: unknown manifest class for application/vnd.oci.empty.v1+json` | Docker Desktop 的 BuildKit **默认给镜像附加 provenance / SBOM 证明清单**，而 ACR 个人版不认这种 OCI 空清单（现象很迷惑：**所有层都 Pushed**，只有 manifest 报错） | 构建时关掉：`docker compose build --provenance=false --sbom=false`（`deploy/push-images.ps1` 已内置该 flag）。⚠️ **已构建的镜像必须重建后再推**，只重推没用 |
 
 ---
 
