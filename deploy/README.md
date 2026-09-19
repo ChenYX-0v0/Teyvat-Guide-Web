@@ -303,6 +303,11 @@ UPDATE managed_projects SET base_url='http://127.0.0.1:18090' WHERE code='teyvat
 2. **长期方案**：域名 + HTTPS 就绪后把 `base_url` 改成 `https://<域名>`（同样一行 SQL），后台就不再依赖隧道。
 3. `managed_projects.status` 必须是 **`enabled`** —— 后台只对启用的项目发起调用（`src/lib/projects.ts:12`）。
 
+> **后续（规划中，本轮不做）**：把**后台管理自身**也做成容器放进同一台 ECS，就不需要隧道了。
+> 要点：补 `Dockerfile`（Next.js standalone）→ 只绑回环 → 外层 Nginx 按子域转发 → **管理面配访问控制**
+> （安全组白名单 / Basic Auth / VPN 三选一）→ `base_url` 改回 `http://127.0.0.1:8080`。
+> 完整要点见 `teyvat-docs/ai/06-阿里云部署方案.md §1.2`，排期登记在 `ai/05-开发路线图.md §8 的 O5`。
+
 ---
 
 ### 3.8 云上自检（一条命令验完整链路）
