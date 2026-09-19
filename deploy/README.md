@@ -342,6 +342,8 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | **容器里**对话报 502「上游模型拒绝了请求」 | `ai.model` 的默认值曾是模板遗留的 `gpt-4o-mini`（本地有 config.yaml 时无感，容器里没有配置 → 直接把它传给 DeepSeek → 400） | 默认已改为**空**（交给 AI 服务决定模型）；要指定就设 `TEYVAT_AI_MODEL` |
 | 容器起得来、但每次提问都秒回兜底话术（"派蒙现在有点晕乎乎的…"） | 就是上两条的**共同症状**：环境变量没进到配置里 → 主服务调 AI 服务失败 | 先验变量真进了进程：`docker compose exec server sh -c "printenv TEYVAT_AI_API_KEY | wc -c"`；再看 `docker compose logs server` 的 `ai complete failed` 具体 err |
 | `docker push` 到 ACR **最后一步**失败：`error from registry: unknown manifest class for application/vnd.oci.empty.v1+json` | Docker Desktop 的 BuildKit **默认给镜像附加 provenance / SBOM 证明清单**，而 ACR 个人版不认这种 OCI 空清单（现象很迷惑：**所有层都 Pushed**，只有 manifest 报错） | 构建时关掉：`docker compose build --provenance=false --sbom=false`（`deploy/push-images.ps1` 已内置该 flag）。⚠️ **已构建的镜像必须重建后再推**，只重推没用 |
+| **首次 `up -d` 时 `web` 反复重启**，日志 `nginx: [emerg] host not found in upstream "server"` | nginx 在**启动瞬间**解析 upstream 主机名，而 `server` 容器此刻还没起来 → 解析失败 nginx 直接退出（**不是 web 镜像坏了**） | **会自愈**：`restart: unless-stopped` 会一直重试，等 `server` 就绪后 web 自己起来（2026-09-20 ECS 实测）。排查时先看 `docker compose ps` 里 **server 的状态**，别被 web 的报错带偏 |
+| ECS 上 `docker compose pull` 报 `pull access denied` | ECS 没登录过 ACR（`docker login` 需要交互输密码） | 两条路：① 在 ECS 上跑一次 `docker login --username=<登录名> <ACR地址>`（之后可长期用 `pull`）；② 应急用 `docker save` → `scp` → `docker load`（**无需登录**；本次首部署就是这么做的：三个镜像 tar 仅 109MB） |
 
 ---
 
