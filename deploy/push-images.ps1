@@ -11,10 +11,11 @@
           实测 hub.docker.com 在本机不可达，见 deploy/README.md §1.3）
 
 .EXAMPLE
-    .\deploy\push-images.ps1 -Registry registry.cn-hangzhou.aliyuncs.com -Namespace my-ns
+    .\deploy\push-images.ps1 -Registry crpi-xxxx.cn-hangzhou.personal.cr.aliyuncs.com -Namespace my-ns
+    # ACR 地址照抄控制台「个人版实例 → 仓库管理 → 访问凭证」：新版是 crpi-xxxx.cn-<地域>.personal.cr.aliyuncs.com
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$Registry,          # 如 registry.cn-hangzhou.aliyuncs.com
+    [Parameter(Mandatory = $true)][string]$Registry,          # 如 crpi-xxxx.cn-hangzhou.personal.cr.aliyuncs.com（控制台「访问凭证」里照抄）
     [Parameter(Mandatory = $true)][string]$Namespace,         # ACR 命名空间
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmm'),
     [string[]]$Images = @('teyvat-ai:0.1.0', 'teyvat-guide-server:0.1.0', 'teyvat-guide-web:0.1.0'),

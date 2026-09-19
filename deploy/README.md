@@ -64,7 +64,9 @@ sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo bash deploy/bootstrap.sh
 
 # ③ 登录 ACR（拉/推私有镜像用）
-sudo docker login --username=<阿里云账号> registry.cn-hangzhou.aliyuncs.com
+#    ⚠️ 地址照抄控制台「ACR → 个人版实例 → 仓库管理 → 访问凭证」给的那行：
+#    新版实例是 crpi-xxxx.cn-<地域>.personal.cr.aliyuncs.com，旧版才是 registry.cn-<地域>.aliyuncs.com
+sudo docker login --username=<阿里云账号> <ACR 地址>
 ```
 
 > `bootstrap.sh` 做三件事：写 `/etc/docker/daemon.json`（**镜像加速器** + 日志轮转，原文件会备份）、
@@ -117,7 +119,7 @@ docker compose up -d --build
 ```powershell
 # 本地（Windows）：
 #   先在 Docker Desktop 里配好同一个镜像加速器
-.\deploy\push-images.ps1 -Registry registry.cn-hangzhou.aliyuncs.com -Namespace <你的命名空间>
+.\deploy\push-images.ps1 -Registry <ACR 地址，如 crpi-xxxx.cn-hangzhou.personal.cr.aliyuncs.com> -Namespace <你的命名空间>
 ```
 
 ```bash

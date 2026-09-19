@@ -94,7 +94,7 @@ cat <<'TIP'
     2) clone 代码到 /opt/teyvat-guide（AI 服务仓放到 compose 里 AI_SERVICE_CONTEXT 指的位置）
     3) 填 .env（三把密钥各自强随机；AI_SERVICE_KEY 与 AI 服务一致）：
          python3 -c "import secrets;print(secrets.token_urlsafe(48))"
-    4) docker login --username=<阿里云账号> registry.cn-hangzhou.aliyuncs.com
+    4) docker login --username=<阿里云账号> <ACR 地址，见控制台「仓库管理 → 访问凭证」>
     5) 按 deploy/README.md §2 起服务（推荐：本地构建 → 推 ACR → ECS 只 pull）
 TIP
 ok "初始化收尾完成"
