@@ -5,6 +5,8 @@ import type { Dict } from './types'
 const en: Partial<Dict> = {
   // Common
   'common.save': 'Save',
+  'common.expand': 'Expand',
+  'common.collapse': 'Collapse',
   'common.loading': 'Loading…',
   'common.query': 'Search',
   'common.querying': 'Querying…',

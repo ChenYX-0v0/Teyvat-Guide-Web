@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import clsx from 'clsx'
 import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
 import { genshinApi, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
@@ -15,6 +16,8 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [refresh, setRefresh] = useState(false)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
+  // 账号信息默认折叠：只留「标题 + 已绑定 UID」，刷新/解绑点开才出现（手机上把首屏留给展柜与圣遗物）
+  const [infoOpen, setInfoOpen] = useState(false)
 
   const doQuery = useCallback(async (targetUid: string, forceRefresh = false) => {
     if (!targetUid.trim()) return
@@ -73,36 +76,47 @@ export default function AccountPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-xl font-semibold text-teyvat-gold">
-            <UserRound className="h-5 w-5" />
-            {t('account.title')}
-          </h2>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-xl font-semibold text-teyvat-gold">
+          <UserRound className="h-5 w-5" />
+          {t('account.title')}
+        </h2>
 
-        {/* 已绑定：左上角小卡片（UID + 刷新 + 解绑），隐藏查询卡 */}
+        {/* 已绑定：一行摘要（UID + 展开按钮）；刷新 / 解绑在展开后出现，隐藏查询卡 */}
         {binding?.bound && (
-          <div className="flex items-center gap-2 self-start rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-1.5">
             <span className="text-xs text-teyvat-text-3">{t('account.boundLabel')}</span>
             <span className="text-sm font-semibold text-teyvat-gold">{binding.uid}</span>
+            {infoOpen && (
+              <>
+                <button
+                  onClick={() => binding.uid && doQuery(binding.uid, true)}
+                  disabled={loading}
+                  title={t('account.forceRefresh')}
+                  className="rounded-lg p-1 text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
+                >
+                  <RefreshCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={unbind}
+                  className="hover:border-err/40 hover:text-err"
+                >
+                  <Link2Off className="h-3 w-3" />
+                  {t('account.unbind')}
+                </Button>
+              </>
+            )}
             <button
-              onClick={() => binding.uid && doQuery(binding.uid, true)}
-              disabled={loading}
-              title={t('account.forceRefresh')}
-              className="rounded-lg p-1 text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
+              type="button"
+              onClick={() => setInfoOpen((v) => !v)}
+              aria-expanded={infoOpen}
+              aria-label={infoOpen ? t('common.collapse') : t('common.expand')}
+              className="rounded-lg p-1 text-teyvat-text-4 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
             >
-              <RefreshCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+              <span className={clsx('block text-[10px] leading-none', infoOpen && 'rotate-180')}>▾</span>
             </button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={unbind}
-              className="hover:border-err/40 hover:text-err"
-            >
-              <Link2Off className="h-3 w-3" />
-              {t('account.unbind')}
-            </Button>
           </div>
         )}
       </div>

@@ -4,6 +4,8 @@
 const zhCN = {
   // 通用
   'common.save': '保存',
+  'common.expand': '展开',
+  'common.collapse': '收起',
   'common.loading': '加载中…',
   'common.query': '查询',
   'common.querying': '查询中…',

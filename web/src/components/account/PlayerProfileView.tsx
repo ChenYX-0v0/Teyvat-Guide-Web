@@ -12,6 +12,8 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const selected =
     profile.characters.find((c) => c.id === selectedId) ?? profile.characters[0]
+  // 玩家头部默认折叠：只留「头像 + 昵称 + 等级 + UID」，签名与三个统计点开才看（把首屏留给展柜）
+  const [headOpen, setHeadOpen] = useState(false)
 
   const stats = [
     { label: t('profile.statsAchievements'), value: profile.achievements },
@@ -45,37 +47,56 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
 
   return (
     <div className="space-y-6">
-      {/* 玩家头部 */}
-      <Card className="flex flex-wrap items-center gap-5 p-5">
-        {profile.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt={profile.nickname}
-            className="h-16 w-16 rounded-2xl border border-teyvat-line-strong object-cover"
-          />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/10 text-xl font-semibold text-teyvat-gold">
-            {profile.nickname[0] ?? '?'}
+      {/* 玩家头部：默认折叠成一行（头像 + 昵称 + 等级 + UID），点开才看签名与三个统计 —— 
+          手机上把首屏留给展柜与圣遗物 */}
+      <Card className="p-3 sm:p-4">
+        <button
+          type="button"
+          onClick={() => setHeadOpen((v) => !v)}
+          aria-expanded={headOpen}
+          aria-label={headOpen ? t('common.collapse') : t('common.expand')}
+          className="flex w-full items-center gap-3 text-left focus-visible:shadow-glow focus-visible:outline-none"
+        >
+          {profile.avatarUrl ? (
+            <img
+              src={profile.avatarUrl}
+              alt={profile.nickname}
+              className="h-10 w-10 shrink-0 rounded-xl border border-teyvat-line-strong object-cover"
+            />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-gold/10 text-base font-semibold text-teyvat-gold">
+              {profile.nickname[0] ?? '?'}
+            </span>
+          )}
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-base font-semibold text-teyvat-text">{profile.nickname}</span>
+            <Chip tone="gold">Lv.{profile.level}</Chip>
+          </span>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="text-[11px] text-teyvat-text-3">UID {profile.uid}</span>
+            <span
+              className={clsx('block text-[10px] leading-none text-teyvat-text-4', headOpen && 'rotate-180')}
+            >
+              ▾
+            </span>
+          </span>
+        </button>
+
+        {headOpen && (
+          <div className="mt-3 space-y-3 border-t border-teyvat-line pt-3">
+            <p className="truncate text-xs text-teyvat-text-4">
+              {profile.signature || t('profile.noSignature')}
+            </p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {stats.map((s) => (
+                <div key={s.label} className="rounded-xl bg-teyvat-raised px-2 py-1.5 text-center">
+                  <p className="text-base font-semibold text-teyvat-text">{s.value}</p>
+                  <p className="mt-0.5 text-[11px] text-teyvat-text-3">{s.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-teyvat-text">{profile.nickname}</h2>
-            <Chip tone="gold">Lv.{profile.level}</Chip>
-          </div>
-          <p className="mt-1 text-xs text-teyvat-text-3">UID {profile.uid}</p>
-          <p className="mt-1 max-w-md truncate text-xs text-teyvat-text-4">
-            {profile.signature || t('profile.noSignature')}
-          </p>
-        </div>
-        <div className="ml-auto grid grid-cols-3 gap-3">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-xl bg-teyvat-raised px-4 py-2 text-center">
-              <p className="text-base font-semibold text-teyvat-text">{s.value}</p>
-              <p className="mt-0.5 text-xs text-teyvat-text-3">{s.label}</p>
-            </div>
-          ))}
-        </div>
       </Card>
 
       {/* 角色选择条 + 选中角色详情（主从布局） */}
@@ -85,44 +106,50 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
             <h3 className="mb-2 text-sm font-medium text-teyvat-text">
               {t('profile.charactersCount', { count: profile.characters.length })}
             </h3>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            {/* 只显示头像：一行能放下更多角色、纵向更省（名字/等级见下方角色概要与 title 提示） */}
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
               {profile.characters.map((c) => {
                 const accent = elementColor(c.element)
+                const isSelected = selected?.id === c.id
                 return (
                   <button
                     key={c.id}
                     onClick={() => setSelectedId(c.id)}
+                    title={`${c.name} · Lv.${c.level}`}
+                    aria-label={`${c.name} · Lv.${c.level}`}
+                    aria-pressed={isSelected}
                     className={clsx(
-                      'w-20 shrink-0 rounded-xl border p-2 text-center transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
-                      selected?.id === c.id
+                      'relative shrink-0 rounded-xl border p-0.5 transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
+                      // 未选中用透明边框（而不是去掉边框），切换时不跳动
+                      isSelected
                         ? 'border-teyvat-line-strong bg-teyvat-raised'
-                        : 'border-teyvat-line bg-teyvat-panel hover:border-teyvat-line-strong',
+                        : 'border-transparent hover:border-teyvat-line-strong',
                     )}
                   >
-                    <span className="relative mx-auto block h-12 w-12">
-                      {c.iconUrl ? (
-                        <img
-                          src={c.iconUrl}
-                          alt={c.name}
-                          loading="lazy"
-                          className="h-12 w-12 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-teyvat-raised text-lg font-semibold text-teyvat-text-3">
-                          {c.name[0]}
-                        </span>
-                      )}
-                      {/* 元素徽记：小面积点亮（视觉方案 §6.4） */}
-                      {accent && (
-                        <span
-                          className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full border border-teyvat-ink"
-                          style={{ background: accent }}
-                          title={c.element}
-                        />
-                      )}
-                    </span>
-                    <p className="mt-1 truncate text-xs text-teyvat-text-2">{c.name}</p>
-                    <p className="text-xs text-teyvat-text-3">Lv.{c.level}</p>
+                    {c.iconUrl ? (
+                      <img
+                        src={c.iconUrl}
+                        alt={c.name}
+                        loading="lazy"
+                        className="h-12 w-12 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-teyvat-raised text-lg font-semibold text-teyvat-text-3">
+                        {c.name[0]}
+                      </span>
+                    )}
+                    {/* 元素徽记：小面积点亮（视觉方案 §6.4） */}
+                    {accent && (
+                      <span
+                        className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border border-teyvat-ink"
+                        style={{ background: accent }}
+                        title={c.element}
+                      />
+                    )}
+                    {/* 选中态：头像下方一条金线（不占额外高度） */}
+                    {isSelected && (
+                      <span className="absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-teyvat-gold" />
+                    )}
                   </button>
                 )
               })}
