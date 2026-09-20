@@ -1,7 +1,8 @@
 package enka
 
 // Enka.Network 客户端：免认证查询 + 进程内缓存
-// 错误映射：400→玩家不存在/未公开；424→游戏维护；429→上游限流
+// 错误映射：400（UID 非法）/ 404（玩家不存在或未公开）→ ErrPlayerNotFound；
+// 424→游戏维护；429→上游限流；其余→通用上游错误（**细节只进日志，不回传上游原文**）。
 
 import (
 	"context"
@@ -12,6 +13,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"teyvat-guide/server/internal/pkg/logger"
 )
 
 const baseURL = "https://enka.network"
@@ -108,11 +111,18 @@ func (c *Client) FetchProfile(ctx context.Context, uid string) (*Profile, error)
 }
 
 func (c *Client) fetch(ctx context.Context, uid string) (*Profile, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/uid/"+uid+"/", nil)
+	// 路径末尾**不加**斜杠：Enka 对带斜杠的路径会先回 308 跳到无斜杠版本（2026-09-21 实测），
+	// 多一个来回。
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/uid/"+uid, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "teyvat-guide/0.1")
+	// ⚠️ 必须显式声明 Accept：不带此头时，Enka 对「不存在的玩家」返回的是 **HTML 错误页**
+	// （`<title>This player does not exist.</title>`）而不是 JSON，会被当成响应体读进来，
+	// 一旦状态码没被下面的 switch 覆盖，就会把这段 HTML 原样拼进给终端用户的错误信息
+	// （2026-09-21 线上实测踩到）。带上后 404 稳定返回 {"message":"..."}，便于判别。
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -128,14 +138,20 @@ func (c *Client) fetch(ctx context.Context, uid string) (*Profile, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 		// 正常
-	case http.StatusBadRequest:
+	case http.StatusBadRequest, http.StatusNotFound:
+		// 400 = UID 格式非法；404 = 玩家不存在，或未在游戏内开启「展示角色详情」。
+		// ⚠️ Enka 用的就是 **404**（不是 400）。此前只判 400，导致 404 掉进 default 分支，
+		// 把上游的 HTML 错误页透给了终端用户（2026-09-21 实测踩到）。
 		return nil, ErrPlayerNotFound
 	case http.StatusFailedDependency: // 424 游戏维护
 		return nil, ErrGameMaintenance
 	case http.StatusTooManyRequests:
 		return nil, ErrUpstreamLimited
 	default:
-		return nil, fmt.Errorf("Enka HTTP %d: %s", resp.StatusCode, truncate(raw, 200))
+		// 上游异常：原始响应（可能是 HTML）只记日志，**不回传给终端用户**
+		logger.L().Warnw("enka unexpected response",
+			"uid", uid, "status", resp.StatusCode, "body", truncate(raw, 200))
+		return nil, fmt.Errorf("上游返回异常状态 %d，请稍后再试", resp.StatusCode)
 	}
 
 	var out Profile

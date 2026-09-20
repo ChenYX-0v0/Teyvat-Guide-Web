@@ -1,7 +1,7 @@
 package service
 
 // PlayerService 玩家查询编排：Enka 拉取 → 映射翻译 → 结构化输出
-// 查询成功后异步将档案快照（JSON）落库至 player_profiles 表
+// 查询成功后异步将档案快照（JSON）落库至 player_profile_snapshots 表
 
 import (
 	"context"
@@ -81,7 +81,7 @@ func NewPlayerService(db *gorm.DB) *PlayerService {
 }
 
 // Query 查询玩家档案
-// 默认先查本地快照（player_profiles 表），命中直接返回；未命中或 forceRefresh 时才调 Enka API
+// 默认先查本地快照（player_profile_snapshots 表），命中直接返回；未命中或 forceRefresh 时才调 Enka API
 // 查询成功后异步保存快照
 func (s *PlayerService) Query(ctx context.Context, uid string, forceRefresh bool) (*dto.PlayerProfile, error) {
 	if !forceRefresh {
