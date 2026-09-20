@@ -121,6 +121,7 @@ const zhCN = {
   'character.refine': '精{n}',
   'character.fetter': '好感 Lv.{n}',
   'character.relicsCount': '圣遗物 {n} 件',
+  'character.effectiveRolls': '有效词条 {n} 条',
   'character.enhanceTimes': '强化 {n} 次',
   'character.recommendTitle': '推荐强化词条',
   'character.mainStatsLabel': '主词条推荐',

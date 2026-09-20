@@ -124,6 +124,7 @@ const en: Partial<Dict> = {
   'character.refine': 'R{n}',
   'character.fetter': 'Fetter Lv.{n}',
   'character.relicsCount': '{n} Artifacts',
+  'character.effectiveRolls': '{n} effective rolls',
   'character.enhanceTimes': 'Enhanced {n}x',
   'character.recommendTitle': 'Recommended Substats',
   'character.mainStatsLabel': 'Recommended main stats',

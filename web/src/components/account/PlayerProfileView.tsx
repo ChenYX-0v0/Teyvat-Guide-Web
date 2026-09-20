@@ -19,6 +19,30 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
     { label: t('profile.statsAvatars'), value: profile.characters.length },
   ]
 
+  // ── 圣遗物一览（参考"提瓦特小助手"的套装 / 词条统计）──
+  // 套装构成：按出现顺序分组，如 黄金剧团 ×4 · 昔日宗室之仪 ×1
+  const relicSets: { name: string; count: number }[] = []
+  for (const r of selected?.relics ?? []) {
+    const key = r.set || r.name
+    const hit = relicSets.find((g) => g.name === key)
+    if (hit) hit.count += 1
+    else relicSets.push({ name: key, count: 1 })
+  }
+  // 有效词条：只统计"命中角色推荐词条（statWeights）"的词条强化次数（含初始获得，即"条"数），
+  // 也就是这套圣遗物有多少条词条加在了对的属性上 —— 数值越大说明副词条越不歪
+  const rollsByStat = (selected?.statWeights?.subStats ?? [])
+    .map((w) => ({
+      name: w.name,
+      count: (selected?.relics ?? []).reduce(
+        (sum, r) =>
+          sum + (r.subStats ?? []).filter((s) => s.name === w.name).reduce((a, s) => a + s.count, 0),
+        0,
+      ),
+    }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+  const totalRolls = rollsByStat.reduce((a, x) => a + x.count, 0)
+
   return (
     <div className="space-y-6">
       {/* 玩家头部 */}
@@ -177,10 +201,39 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
               {/* 圣遗物详情 */}
               {selected.relics && selected.relics.length > 0 && (
                 <div>
-                  <h4 className="mb-2 text-sm font-medium text-teyvat-text">
+                  <h4 className="mb-1.5 text-sm font-medium text-teyvat-text">
                     {t('character.relicsCount', { n: selected.relics.length })}
                   </h4>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+                  {/* 一览：套装构成 + 有效词条（参考提瓦特小助手，让"配置"第一眼就读得到） */}
+                  <div className="mb-2 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {relicSets.map((g) => (
+                        // 满 4 件用金色：4 件套是该套装的生效阈值
+                        <Chip key={g.name} tone={g.count >= 4 ? 'gold' : undefined}>
+                          {g.name} ×{g.count}
+                        </Chip>
+                      ))}
+                    </div>
+                    {totalRolls > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-teyvat-text-4">
+                          {t('character.effectiveRolls', { n: totalRolls })}
+                        </span>
+                        {rollsByStat.slice(0, 4).map((x) => (
+                          <span
+                            key={x.name}
+                            className="rounded-full border border-teyvat-line bg-white/[0.03] px-2 py-0.5 text-[11px] leading-tight text-teyvat-text-2"
+                          >
+                            {x.name} {x.count}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 移动端两列（5 件约 3 行、一屏看全）；lg 一行 5 件，与游戏内圣遗物界面观感一致 */}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5">
                     {selected.relics.map((r) => (
                       <RelicDetailCard key={r.pos} relic={r} />
                     ))}

@@ -156,13 +156,20 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 					}
 				}
 
+				// 部位图标：Enka 的 flat.icon 形如 UI_RelicIcon_15005_4，与角色头像同一图床
+				iconURL := ""
+				if eq.Flat.Icon != "" {
+					iconURL = enkaUIBase + eq.Flat.Icon + ".png"
+				}
+
 				relic := dto.RelicInfo{
-					Name:   firstNonEmpty(itemName, setName),
-					Set:    setName,
-					Slot:   tr.assets.RelicSlotName(eq.Flat.EquipType),
-					Rarity: eq.Flat.RankLevel,
-					Level:  relicDisplayLevel,
-					Pos:    eq.Flat.EquipType,
+					Name:    firstNonEmpty(itemName, setName),
+					Set:     setName,
+					Slot:    tr.assets.RelicSlotName(eq.Flat.EquipType),
+					Rarity:  eq.Flat.RankLevel,
+					Level:   relicDisplayLevel,
+					Pos:     eq.Flat.EquipType,
+					IconURL: iconURL,
 				}
 
 				// 主词条 + 副词条（附强化次数与属性分级）

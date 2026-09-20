@@ -79,6 +79,8 @@ type RelicInfo struct {
 	MainStat     string         `json:"mainStat,omitempty"`
 	MainStatTier string         `json:"mainStatTier,omitempty"` // 主词条分级：primary/secondary/空
 	SubStats     []RelicSubStat `json:"subStats,omitempty"`
+	// 部位图标：Enka 图床地址（如 .../ui/UI_RelicIcon_15005_4.png），供紧凑卡片展示部位
+	IconURL      string         `json:"iconUrl,omitempty"`
 }
 
 // RelicSubStat 副词条（含强化次数）

@@ -65,6 +65,7 @@ export interface RelicInfo {
   mainStat?: string // 主词条（已翻译，如 "生命值 +4780"）
   mainStatTier?: StatTier // 主词条分级
   subStats?: RelicSubStat[]
+  iconUrl?: string // 部位图标（Enka 图床；2026-09-21 起后端返回，旧快照无此字段）
 }
 
 export interface RelicSubStat {
