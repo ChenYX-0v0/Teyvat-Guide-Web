@@ -54,6 +54,7 @@ const en: Partial<Dict> = {
   'home.feature3Title': 'Route Planning',
   'home.feature3Desc': 'Generate farming routes by target, travel efficiently.',
   'home.startChat': 'Start Chatting',
+  'home.viewWiki': 'Browse Wiki',
   'home.backendStatus': 'Backend: ',
   'home.statusUp': 'Up',
   'home.statusDown': 'Offline (please start the Go server)',
@@ -65,6 +66,11 @@ const en: Partial<Dict> = {
   'chat.emptyHint': 'No messages yet. Try asking "How should a new player start?"',
   'chat.inputPlaceholder': 'Ask Paimon: e.g. "Is Kazuha worth pulling?"',
   'chat.loadEarlier': 'Load earlier messages',
+  'chat.send': 'Send',
+  // Empty-state sample questions (click to ask)
+  'chat.emptySample1': 'How should a new player start?',
+  'chat.emptySample2': 'Is Kazuha worth pulling?',
+  'chat.emptySample3': 'Build a team for Furina',
 
   // Sessions (signed-in users only)
   'chat.sessions': 'History',

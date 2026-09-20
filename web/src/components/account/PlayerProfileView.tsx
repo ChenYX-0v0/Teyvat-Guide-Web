@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import RelicDetailCard from './RelicDetailCard'
+import Card from '@/components/common/Card'
+import Chip from '@/components/common/Chip'
+import { elementColor } from '@/utils/elementColor'
 import { t } from '@/i18n'
 import type { PlayerProfile } from '@/types/genshin'
 
@@ -19,75 +22,86 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
   return (
     <div className="space-y-6">
       {/* 玩家头部 */}
-      <div className="flex flex-wrap items-center gap-5 rounded-2xl border border-white/10 bg-teyvat-panel/60 p-5">
+      <Card className="flex flex-wrap items-center gap-5 p-5">
         {profile.avatarUrl ? (
           <img
             src={profile.avatarUrl}
             alt={profile.nickname}
-            className="h-16 w-16 rounded-2xl border border-teyvat-gold/30 object-cover"
+            className="h-16 w-16 rounded-2xl border border-teyvat-line-strong object-cover"
           />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-teyvat-gold/30 bg-teyvat-gold/10 text-xl font-semibold text-teyvat-gold">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/10 text-xl font-semibold text-teyvat-gold">
             {profile.nickname[0] ?? '?'}
           </div>
         )}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-white">{profile.nickname}</h2>
-            <span className="rounded-md bg-teyvat-gold/15 px-2 py-0.5 text-xs text-teyvat-gold">
-              Lv.{profile.level}
-            </span>
+            <h2 className="text-lg font-semibold text-teyvat-text">{profile.nickname}</h2>
+            <Chip tone="gold">Lv.{profile.level}</Chip>
           </div>
-          <p className="mt-1 text-xs text-white/45">UID {profile.uid}</p>
-          <p className="mt-1 max-w-md truncate text-xs text-white/40">
+          <p className="mt-1 text-xs text-teyvat-text-3">UID {profile.uid}</p>
+          <p className="mt-1 max-w-md truncate text-xs text-teyvat-text-4">
             {profile.signature || t('profile.noSignature')}
           </p>
         </div>
         <div className="ml-auto grid grid-cols-3 gap-3">
           {stats.map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/5 px-4 py-2 text-center">
-              <p className="text-base font-semibold text-white">{s.value}</p>
-              <p className="mt-0.5 text-xs text-white/45">{s.label}</p>
+            <div key={s.label} className="rounded-xl bg-teyvat-raised px-4 py-2 text-center">
+              <p className="text-base font-semibold text-teyvat-text">{s.value}</p>
+              <p className="mt-0.5 text-xs text-teyvat-text-3">{s.label}</p>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* 角色选择条 + 选中角色详情（主从布局） */}
       {profile.characters.length > 0 ? (
         <div className="space-y-5">
           <div>
-            <h3 className="mb-2 text-sm font-medium text-white">
+            <h3 className="mb-2 text-sm font-medium text-teyvat-text">
               {t('profile.charactersCount', { count: profile.characters.length })}
             </h3>
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {profile.characters.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedId(c.id)}
-                  className={clsx(
-                    'w-20 shrink-0 rounded-xl border p-2 text-center transition',
-                    selected?.id === c.id
-                      ? 'border-teyvat-gold bg-teyvat-gold/10'
-                      : 'border-white/10 bg-teyvat-panel/60 hover:border-white/30',
-                  )}
-                >
-                  {c.iconUrl ? (
-                    <img
-                      src={c.iconUrl}
-                      alt={c.name}
-                      loading="lazy"
-                      className="mx-auto h-12 w-12 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-white/10 text-lg font-semibold text-white/40">
-                      {c.name[0]}
-                    </div>
-                  )}
-                  <p className="mt-1 truncate text-xs text-white/70">{c.name}</p>
-                  <p className="text-xs text-white/40">Lv.{c.level}</p>
-                </button>
-              ))}
+              {profile.characters.map((c) => {
+                const accent = elementColor(c.element)
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedId(c.id)}
+                    className={clsx(
+                      'w-20 shrink-0 rounded-xl border p-2 text-center transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
+                      selected?.id === c.id
+                        ? 'border-teyvat-line-strong bg-teyvat-raised'
+                        : 'border-teyvat-line bg-teyvat-panel hover:border-teyvat-line-strong',
+                    )}
+                  >
+                    <span className="relative mx-auto block h-12 w-12">
+                      {c.iconUrl ? (
+                        <img
+                          src={c.iconUrl}
+                          alt={c.name}
+                          loading="lazy"
+                          className="h-12 w-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-teyvat-raised text-lg font-semibold text-teyvat-text-3">
+                          {c.name[0]}
+                        </span>
+                      )}
+                      {/* 元素徽记：小面积点亮（视觉方案 §6.4） */}
+                      {accent && (
+                        <span
+                          className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full border border-teyvat-ink"
+                          style={{ background: accent }}
+                          title={c.element}
+                        />
+                      )}
+                    </span>
+                    <p className="mt-1 truncate text-xs text-teyvat-text-2">{c.name}</p>
+                    <p className="text-xs text-teyvat-text-3">Lv.{c.level}</p>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -95,20 +109,20 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
           {selected && (
             <div className="space-y-5">
               {/* 角色概要 */}
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-teyvat-gold/20 bg-teyvat-gold/5 px-5 py-4">
-                <div>
-                  <p className="text-sm font-semibold text-white">{selected.name}</p>
-                  <p className="text-xs text-white/45">{selected.element}</p>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/5 px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-teyvat-text">{selected.name}</p>
+                  <Chip dot={elementColor(selected.element)}>{selected.element}</Chip>
                 </div>
-                <p className="text-xs text-white/60">
+                <p className="text-xs text-teyvat-text-2">
                   Lv.{selected.level} ·{' '}
                   {t('character.constellation', { n: selected.constellation })}
                 </p>
-                <p className="text-xs text-white/60">
+                <p className="text-xs text-teyvat-text-2">
                   {t('character.fetter', { n: selected.fetter })}
                 </p>
                 {selected.weapon && (
-                  <p className="text-xs text-white/60">
+                  <p className="text-xs text-teyvat-text-2">
                     {t('character.weaponLabel')}: {selected.weapon.name} · Lv.
                     {selected.weapon.level}
                     {selected.weapon.affix > 0 &&
@@ -120,12 +134,12 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
               {/* 面板属性 */}
               {selected.stats && selected.stats.length > 0 && (
                 <div>
-                  <h4 className="mb-2 text-sm font-medium text-white">
+                  <h4 className="mb-2 text-sm font-medium text-teyvat-text">
                     {t('profile.statsTitle')}
                   </h4>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {selected.stats.map((s) => {
-                      // 主/次属性金色，未分级灰色
+                      // 主/次属性金色，未分级弱化
                       const highlighted = s.tier === 'primary' || s.tier === 'secondary'
                       return (
                         <div
@@ -133,14 +147,14 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
                           className={clsx(
                             'flex items-center justify-between rounded-xl border px-3 py-2',
                             highlighted
-                              ? 'border-teyvat-gold/25 bg-teyvat-gold/5'
-                              : 'border-white/10 bg-teyvat-panel/60',
+                              ? 'border-teyvat-line-strong bg-teyvat-gold/5'
+                              : 'border-teyvat-line bg-teyvat-panel',
                           )}
                         >
                           <span
                             className={clsx(
                               'text-xs',
-                              highlighted ? 'text-teyvat-gold/80' : 'text-white/40',
+                              highlighted ? 'text-teyvat-gold/85' : 'text-teyvat-text-4',
                             )}
                           >
                             {s.name}
@@ -148,7 +162,7 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
                           <span
                             className={clsx(
                               'text-sm font-semibold',
-                              highlighted ? 'text-teyvat-gold' : 'text-white/40',
+                              highlighted ? 'text-teyvat-gold' : 'text-teyvat-text-3',
                             )}
                           >
                             {s.value}
@@ -163,7 +177,7 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
               {/* 圣遗物详情 */}
               {selected.relics && selected.relics.length > 0 && (
                 <div>
-                  <h4 className="mb-2 text-sm font-medium text-white">
+                  <h4 className="mb-2 text-sm font-medium text-teyvat-text">
                     {t('character.relicsCount', { n: selected.relics.length })}
                   </h4>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -177,9 +191,9 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
           )}
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/10 bg-teyvat-panel/60 p-8 text-center text-sm text-white/40">
+        <Card className="p-8 text-center text-sm text-teyvat-text-3">
           {t('account.emptyShowcase')}
-        </div>
+        </Card>
       )}
     </div>
   )

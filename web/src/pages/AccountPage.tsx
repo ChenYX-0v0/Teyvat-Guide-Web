@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
 import { genshinApi, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
+import Card from '@/components/common/Card'
+import Button from '@/components/common/Button'
 import { t } from '@/i18n'
 import type { PlayerProfile } from '@/types/genshin'
 
@@ -81,79 +83,75 @@ export default function AccountPage() {
 
         {/* 已绑定：左上角小卡片（UID + 刷新 + 解绑），隐藏查询卡 */}
         {binding?.bound && (
-          <div className="flex items-center gap-2 self-start rounded-xl border border-teyvat-gold/25 bg-teyvat-gold/5 px-3 py-2">
-            <span className="text-xs text-white/55">{t('account.boundLabel')}</span>
+          <div className="flex items-center gap-2 self-start rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2">
+            <span className="text-xs text-teyvat-text-3">{t('account.boundLabel')}</span>
             <span className="text-sm font-semibold text-teyvat-gold">{binding.uid}</span>
             <button
               onClick={() => binding.uid && doQuery(binding.uid, true)}
               disabled={loading}
               title={t('account.forceRefresh')}
-              className="rounded-lg p-1 text-white/50 transition hover:text-teyvat-gold disabled:opacity-40"
+              className="rounded-lg p-1 text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
             >
               <RefreshCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
             </button>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={unbind}
-              className="flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1 text-xs text-white/50 transition hover:border-red-400/40 hover:text-red-300"
+              className="hover:border-err/40 hover:text-err"
             >
               <Link2Off className="h-3 w-3" />
               {t('account.unbind')}
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {/* 未绑定：显示查询卡（查询成功后可绑定） */}
       {!binding?.bound && (
-        <section className="rounded-2xl border border-white/10 bg-teyvat-panel/60 p-5">
-          <h3 className="text-sm font-medium text-white">{t('account.queryTitle')}</h3>
+        <Card className="p-5">
+          <h3 className="text-sm font-medium text-teyvat-text">{t('account.queryTitle')}</h3>
           <div className="mt-3 flex gap-2">
             <input
               value={uid}
               onChange={(e) => setUid(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && query()}
               placeholder={t('account.queryPlaceholder')}
-              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition placeholder:text-white/25 focus:border-teyvat-gold/50"
+              className="flex-1 rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-sm text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow"
             />
-            <button
-              onClick={query}
-              disabled={loading || !uid.trim()}
-              className="flex items-center gap-1.5 rounded-xl bg-teyvat-gold px-5 py-2.5 text-sm font-medium text-teyvat-ink transition hover:bg-teyvat-gold-deep disabled:cursor-not-allowed disabled:opacity-40"
-            >
+            <Button variant="primary" onClick={query} disabled={loading || !uid.trim()}>
               <Search className="h-4 w-4" />
               {loading ? t('common.querying') : t('common.query')}
-            </button>
+            </Button>
           </div>
-          <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs text-white/45 select-none">
+          <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs text-teyvat-text-3 select-none">
             <input
               type="checkbox"
               checked={refresh}
               onChange={(e) => setRefresh(e.target.checked)}
-              className="h-3.5 w-3.5 accent-[#d3bc8e]"
+              className="h-3.5 w-3.5 accent-teyvat-gold"
             />
             {t('account.forceRefresh')}
           </label>
           {uid.trim() && profile && (
             <button
               onClick={bind}
-              className="mt-2 text-xs text-teyvat-gold transition hover:text-teyvat-gold-deep"
+              className="mt-2 text-xs text-teyvat-gold transition duration-150 hover:text-teyvat-gold-hi focus-visible:shadow-glow focus-visible:outline-none"
             >
               {t('account.bind', { uid: uid.trim() })}
             </button>
           )}
-        </section>
+        </Card>
       )}
 
       {notice && (
-        <div className="rounded-2xl border border-teyvat-gold/25 bg-teyvat-gold/5 p-4 text-sm text-teyvat-gold">
+        <div className="rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/5 p-4 text-sm text-teyvat-gold-hi">
           {notice}
         </div>
       )}
 
       {error && (
-        <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300">
-          {error}
-        </div>
+        <div className="rounded-2xl border border-err/30 bg-err/10 p-4 text-sm text-err">{error}</div>
       )}
 
       {profile && <PlayerProfileView profile={profile} />}

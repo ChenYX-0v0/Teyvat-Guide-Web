@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronDown, Lock } from 'lucide-react'
 import clsx from 'clsx'
 import { useChatStore } from '@/store/useChatStore'
+import { buttonClass } from '@/utils/buttonStyles'
 import { t } from '@/i18n'
 
 /**
@@ -23,14 +24,14 @@ export default function PresetQaPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
-        <p className="text-xs leading-relaxed text-white/40">{t('chat.presetHint')}</p>
+        <p className="text-xs leading-relaxed text-teyvat-text-3">{t('chat.presetHint')}</p>
 
         {presetsLoading && presets.length === 0 && (
-          <p className="py-8 text-center text-sm text-white/35">{t('chat.presetTitle')}…</p>
+          <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetTitle')}…</p>
         )}
 
         {!presetsLoading && presets.length === 0 && (
-          <p className="py-8 text-center text-sm text-white/35">{t('chat.presetEmpty')}</p>
+          <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetEmpty')}</p>
         )}
 
         {presets.map((item) => {
@@ -38,23 +39,23 @@ export default function PresetQaPanel() {
           return (
             <div
               key={item.id}
-              className="overflow-hidden rounded-xl border border-white/10 bg-white/5"
+              className="overflow-hidden rounded-2xl border border-teyvat-line bg-teyvat-panel shadow-panel"
             >
               <button
                 type="button"
                 onClick={() => setOpenId(open ? null : item.id)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-white/80 transition hover:bg-white/5"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-teyvat-text transition duration-150 hover:bg-white/[0.04] focus-visible:shadow-glow focus-visible:outline-none"
               >
                 <span className="min-w-0 truncate">{item.question}</span>
                 <ChevronDown
                   className={clsx(
-                    'h-4 w-4 shrink-0 text-white/40 transition',
+                    'h-4 w-4 shrink-0 text-teyvat-text-3 transition',
                     open && 'rotate-180',
                   )}
                 />
               </button>
               {open && (
-                <div className="whitespace-pre-wrap border-t border-white/10 px-4 py-3 text-sm leading-relaxed text-white/70">
+                <div className="whitespace-pre-wrap border-t border-teyvat-line px-4 py-3 text-sm leading-relaxed text-teyvat-text-2">
                   {item.answer}
                 </div>
               )}
@@ -64,16 +65,13 @@ export default function PresetQaPanel() {
       </div>
 
       {/* 底部输入区：匿名不可用，只做登录引导（不让用户打完字才吃 401） */}
-      <div className="border-t border-white/10 bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="border-t border-teyvat-line bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="flex items-center gap-3">
-          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-base text-white/30 sm:text-sm">
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-teyvat-line bg-white/[0.04] px-4 text-base text-teyvat-text-4 sm:text-sm">
             <Lock className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t('chat.loginRequired')}</span>
           </div>
-          <Link
-            to="/login"
-            className="shrink-0 rounded-xl bg-teyvat-gold px-4 py-2.5 text-sm font-medium text-teyvat-ink transition hover:bg-teyvat-gold-deep"
-          >
+          <Link to="/login" className={buttonClass({ variant: 'primary' })}>
             {t('chat.presetLogin')}
           </Link>
         </div>

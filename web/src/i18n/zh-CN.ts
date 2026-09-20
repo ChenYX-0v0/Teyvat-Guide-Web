@@ -53,6 +53,7 @@ const zhCN = {
   'home.feature3Title': '路线规划',
   'home.feature3Desc': '按目标生成采集路线，省时高效跑图。',
   'home.startChat': '开始对话',
+  'home.viewWiki': '查看图鉴',
   'home.backendStatus': '后端状态：',
   'home.statusUp': '正常',
   'home.statusDown': '未连接（请先启动 Go 服务）',
@@ -64,6 +65,11 @@ const zhCN = {
   'chat.emptyHint': '还没有对话，试着问一句「新手开局怎么玩？」',
   'chat.inputPlaceholder': '问问派蒙吧：比如「万叶值得抽吗？」',
   'chat.loadEarlier': '加载更早的消息',
+  'chat.send': '发送',
+  // 空态示例问题（点一下即问）
+  'chat.emptySample1': '新手开局怎么玩？',
+  'chat.emptySample2': '万叶值得抽吗？',
+  'chat.emptySample3': '给芙宁娜配队',
 
   // 历史会话（仅登录用户可见）
   'chat.sessions': '历史会话',

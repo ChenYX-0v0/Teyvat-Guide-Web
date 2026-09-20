@@ -1,11 +1,54 @@
 @import 'tailwindcss';
 
+/* ════════════════════════════════════════════════════════════════
+   设计 token —— 视觉方案 2026-09-20（见 docs/12-C端UI优化方案.md §6）
+   原则：① 颜色只来自 token；② 纵深 4 级；③ 文字 4 级；
+        ④ 金色只做强调（主按钮 / 选中 / 焦点）；⑤ 元素色只做小面积标识
+   ════════════════════════════════════════════════════════════════ */
 @theme {
+  /* —— 金色 3 档（唯一强调色）—— */
   --color-teyvat-gold: #d3bc8e;
   --color-teyvat-gold-deep: #b89b63;
-  --color-teyvat-ink: #0f1720;
-  --color-teyvat-panel: #16222e;
-  --color-teyvat-panel-soft: #1d2b39;
+  --color-teyvat-gold-hi: #f0e0bb;
+
+  /* —— 纵深 4 级（越靠前越亮）—— */
+  --color-teyvat-ink: #0f1720; /* L0 页面底 */
+  --color-teyvat-panel: #16222e; /* L1 卡片 */
+  --color-teyvat-panel-soft: #1d2b39; /* L2 浮层 / 抽屉 */
+  --color-teyvat-raised: #243545; /* L3 悬停 / 选中 */
+
+  /* —— 文字 4 级（替代散落的 white/xx）—— */
+  --color-teyvat-text: #f5f1e8; /* 主：暖白（比纯白更贴提瓦特） */
+  --color-teyvat-text-2: rgba(245, 241, 232, 0.72);
+  --color-teyvat-text-3: rgba(245, 241, 232, 0.48);
+  --color-teyvat-text-4: rgba(245, 241, 232, 0.3);
+
+  /* —— 边界 2 级 —— */
+  --color-teyvat-line: rgba(255, 255, 255, 0.08);
+  --color-teyvat-line-strong: rgba(211, 188, 142, 0.28);
+
+  /* —— 元素色（只做小面积：徽记 / 标签 / 指示条）—— */
+  --color-el-anemo: #74c2a8;
+  --color-el-geo: #d9a441;
+  --color-el-electro: #b08ee6;
+  --color-el-dendro: #7ec236;
+  --color-el-hydro: #4cc2f1;
+  --color-el-pyro: #ef7a35;
+  --color-el-cryo: #9fd6e3;
+
+  /* —— 状态色 —— */
+  --color-ok: #7ec236;
+  --color-warn: #e6b455;
+  --color-err: #e5646c;
+
+  /* —— 稀有度（沿用原神约定：5★金 / 4★紫 / 3★蓝）—— */
+  --color-rarity-5: #d3bc8e;
+  --color-rarity-4: #b08ee6;
+  --color-rarity-3: #4cc2f1;
+
+  /* —— 材质与发光（"物件感"的来源）—— */
+  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-glow: 0 0 0 1px rgba(211, 188, 142, 0.35), 0 6px 20px rgba(211, 188, 142, 0.18);
 }
 
 :root {
@@ -22,10 +65,43 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 20% -10%, rgba(211, 188, 142, 0.14), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(93, 149, 194, 0.12), transparent 55%),
-    #0f1720;
-  color: #e8eef5;
+    radial-gradient(1200px 520px at 50% -10%, rgba(211, 188, 142, 0.1), transparent 60%),
+    radial-gradient(900px 480px at 8% 108%, rgba(76, 194, 241, 0.06), transparent 60%),
+    var(--color-teyvat-ink);
+  color: var(--color-teyvat-text);
+}
+
+/* 极淡星尘噪点：全局氛围（不拦截点击，且在弹层之下） */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* 流式生成的呼吸光标（金色，对话页生成中使用） */
+@keyframes teyvat-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.caret-breathe {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  margin-left: 3px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: var(--color-teyvat-gold);
+  animation: teyvat-breathe 1.1s ease-in-out infinite;
 }
 
 ::-webkit-scrollbar {

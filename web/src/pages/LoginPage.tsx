@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Compass } from 'lucide-react'
-import clsx from 'clsx'
+import Card from '@/components/common/Card'
+import Button from '@/components/common/Button'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
@@ -39,18 +40,28 @@ export default function LoginPage() {
 
   // 输入框字号移动端 ≥16px：iOS 聚焦更小字号会自动放大页面（sm 起回到 text-sm）
   const inputClass =
-    'w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-base outline-none transition placeholder:text-white/25 focus:border-teyvat-gold/50 sm:text-sm'
+    'w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
 
   return (
     <div className="flex h-full items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-teyvat-panel/60 p-7 shadow-2xl">
+      <Card className="relative w-full max-w-sm overflow-hidden p-7">
+        {/* 顶部金色微光：给登录卡一点"仪式感"，不做花哨装饰 */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teyvat-gold/60 to-transparent"
+        />
+
         <div className="flex flex-col items-center gap-2 text-center">
-          <Compass className="h-9 w-9 text-teyvat-gold" />
-          <h1 className="text-lg font-semibold text-teyvat-gold">{t('header.title')}</h1>
-          <p className="text-xs text-white/40">{t('login.welcome')}</p>
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/10">
+            <Compass className="h-6 w-6 text-teyvat-gold" />
+          </span>
+          <h1 className="text-lg font-semibold tracking-wide text-teyvat-gold">
+            {t('header.title')}
+          </h1>
+          <p className="text-xs text-teyvat-text-3">{t('login.welcome')}</p>
         </div>
 
-        <p className="mt-4 rounded-xl border border-teyvat-gold/20 bg-teyvat-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-white/55">
+        <p className="mt-4 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
           {t('login.inviteOnly')}
           <br />
           {t('login.inviteHint')}
@@ -73,23 +84,21 @@ export default function LoginPage() {
           />
 
           {error && (
-            <p className="rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-300">
+            <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
               {error}
             </p>
           )}
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            className="w-full"
             disabled={busy || !username.trim() || !password}
-            className={clsx(
-              'w-full rounded-xl bg-teyvat-gold py-2.5 text-sm font-medium text-teyvat-ink transition',
-              'hover:bg-teyvat-gold-deep disabled:cursor-not-allowed disabled:opacity-40',
-            )}
           >
             {busy ? t('common.loading') : t('login.submit')}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   )
 }

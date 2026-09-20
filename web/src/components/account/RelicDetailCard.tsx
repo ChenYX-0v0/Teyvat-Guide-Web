@@ -2,25 +2,44 @@ import clsx from 'clsx'
 import { t } from '@/i18n'
 import { relicPosNames, type RelicInfo } from '@/types/genshin'
 
+/** 稀有度：边框与件名配色（原神约定 5★金 / 4★紫 / 3★蓝） */
+const rarityBorder: Record<number, string> = {
+  5: 'border-rarity-5/45',
+  4: 'border-rarity-4/45',
+  3: 'border-rarity-3/40',
+}
+const rarityText: Record<number, string> = {
+  5: 'text-teyvat-gold',
+  4: 'text-rarity-4',
+  3: 'text-rarity-3',
+}
+
 export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
+  const rarity = relic.rarity && relic.rarity >= 3 ? relic.rarity : 5
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-teyvat-panel/60 p-4">
+    <div
+      className={clsx(
+        'rounded-2xl border bg-teyvat-panel p-4 shadow-panel',
+        rarityBorder[rarity] ?? rarityBorder[5],
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/70">
+        <span className="rounded-md border border-teyvat-line bg-white/[0.03] px-2 py-0.5 text-xs text-teyvat-text-2">
           {relicPosNames[relic.pos] ?? relic.pos}
         </span>
-        <span className="text-xs text-white/40">+{relic.level}</span>
+        <span className="text-xs text-teyvat-text-3">+{relic.level}</span>
       </div>
 
       {/* 件名（缺）时用套装名 */}
-      <p className="mt-2 truncate text-sm font-medium text-teyvat-gold">
+      <p className={clsx('mt-2 truncate text-sm font-medium', rarityText[rarity] ?? rarityText[5])}>
         {relic.name}
       </p>
       {relic.set && relic.set !== relic.name && (
-        <p className="truncate text-xs text-white/40">{relic.set}</p>
+        <p className="truncate text-xs text-teyvat-text-3">{relic.set}</p>
       )}
 
-      {/* 主词条：主要属性金色 / 次要白色 / 其他灰色 */}
+      {/* 主词条：主要属性金色 / 次要暖白 / 其他弱化 */}
       {relic.mainStat && (
         <p
           className={clsx(
@@ -28,8 +47,8 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
             relic.mainStatTier === 'primary'
               ? 'text-teyvat-gold'
               : relic.mainStatTier === 'secondary'
-                ? 'text-white'
-                : 'text-white/50',
+                ? 'text-teyvat-text'
+                : 'text-teyvat-text-3',
           )}
         >
           {relic.mainStat}
@@ -37,7 +56,7 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
       )}
 
       {relic.subStats && relic.subStats.length > 0 && (
-        <div className="mt-2 space-y-0.5 border-t border-white/10 pt-2">
+        <div className="mt-2 space-y-0.5 border-t border-teyvat-line pt-2">
           {relic.subStats.map((s) => (
             <p
               key={s.name}
@@ -46,8 +65,8 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
                 s.tier === 'primary'
                   ? 'text-teyvat-gold'
                   : s.tier === 'secondary'
-                    ? 'text-white/90'
-                    : 'text-white/40',
+                    ? 'text-teyvat-text-2'
+                    : 'text-teyvat-text-3',
               )}
             >
               {s.name} +{s.value}
@@ -55,10 +74,10 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
               {s.count > 1 && (s.tier === 'primary' || s.tier === 'secondary') && (
                 <span
                   className={clsx(
-                    'ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full border align-middle text-[10px] font-medium leading-none',
+                    'ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full border align-middle text-[10px] leading-none font-medium',
                     s.tier === 'primary'
-                      ? 'border-teyvat-gold/60 bg-teyvat-gold/15 text-teyvat-gold'
-                      : 'border-white/50 bg-white/10 text-white',
+                      ? 'border-teyvat-line-strong bg-teyvat-gold/15 text-teyvat-gold'
+                      : 'border-teyvat-line bg-white/[0.04] text-teyvat-text-2',
                   )}
                   title={t('character.enhanceTimes', { n: s.count - 1 })}
                 >

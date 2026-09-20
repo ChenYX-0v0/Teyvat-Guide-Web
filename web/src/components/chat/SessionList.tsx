@@ -84,13 +84,13 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
 
   const rootClass =
     variant === 'sidebar'
-      ? 'hidden w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 md:flex'
-      : 'flex h-full w-72 max-w-[85vw] flex-col border-r border-white/10 bg-teyvat-ink'
+      ? 'hidden w-64 shrink-0 flex-col border-r border-teyvat-line bg-black/20 md:flex'
+      : 'flex h-full w-72 max-w-[85vw] flex-col border-r border-teyvat-line bg-teyvat-panel-soft'
 
   return (
     <aside className={rootClass}>
       <div className="flex items-center justify-between px-3 py-3">
-        <span className="text-xs font-medium text-white/50">{t('chat.sessions')}</span>
+        <span className="text-xs font-medium text-teyvat-text-3">{t('chat.sessions')}</span>
         {token && (
           <button
             onClick={() => {
@@ -98,7 +98,7 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
               onNavigate?.()
             }}
             title={t('chat.new')}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-white/50 transition hover:bg-white/5 hover:text-teyvat-gold"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-teyvat-text-3 transition duration-150 hover:bg-white/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
           >
             <MessageSquarePlus className="h-4 w-4" />
           </button>
@@ -106,14 +106,14 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
       </div>
 
       {!token ? (
-        <p className="px-4 py-4 text-xs leading-relaxed text-white/35">{t('chat.loginHint')}</p>
+        <p className="px-4 py-4 text-xs leading-relaxed text-teyvat-text-4">{t('chat.loginHint')}</p>
       ) : (
         <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-3">
           {sessionsLoading && sessions.length === 0 && (
-            <p className="px-2 py-1 text-xs text-white/30">{t('common.loading')}</p>
+            <p className="px-2 py-1 text-xs text-teyvat-text-4">{t('common.loading')}</p>
           )}
           {!sessionsLoading && sessions.length === 0 && (
-            <p className="px-2 py-1 text-xs text-white/30">{t('chat.sessionsEmpty')}</p>
+            <p className="px-2 py-1 text-xs text-teyvat-text-4">{t('chat.sessionsEmpty')}</p>
           )}
 
           {sessions.map((item) => {
@@ -122,28 +122,28 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
               <div
                 key={item.sessionId}
                 className={clsx(
-                  'group flex items-center gap-1 rounded-lg px-2 py-2 transition',
+                  'group flex items-center gap-1 rounded-xl px-2 py-2 transition duration-150',
                   active
-                    ? 'bg-teyvat-gold/15 text-teyvat-gold'
-                    : 'text-white/65 hover:bg-white/5 hover:text-white',
+                    ? 'bg-teyvat-raised font-medium text-teyvat-text'
+                    : 'text-teyvat-text-2 hover:bg-white/5 hover:text-teyvat-text',
                 )}
               >
                 {confirmingId === item.sessionId ? (
                   <>
-                    <span className="min-w-0 flex-1 truncate text-xs text-red-300">
+                    <span className="min-w-0 flex-1 truncate text-xs text-err">
                       {t('chat.deleteConfirm')}
                     </span>
                     <button
                       onClick={() => void submitDelete(item.sessionId)}
                       title={t('chat.delete')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-red-300 transition hover:text-red-200"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-err transition hover:text-err/80"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => setConfirmingId(undefined)}
                       title={t('chat.renameCancel')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-white/50 transition hover:text-white"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-text"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -159,19 +159,19 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                         if (e.key === 'Enter') void submitRename()
                         if (e.key === 'Escape') cancelRename()
                       }}
-                      className="min-w-0 flex-1 rounded border border-teyvat-gold/40 bg-white/5 px-1.5 py-1 text-xs text-white outline-none"
+                      className="min-w-0 flex-1 rounded border border-teyvat-line-strong bg-white/[0.04] px-1.5 py-1 text-xs text-teyvat-text outline-none focus:shadow-glow"
                     />
                     <button
                       onClick={() => void submitRename()}
                       title={t('chat.renameSave')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-white/50 transition hover:text-teyvat-gold"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-gold"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={cancelRename}
                       title={t('chat.renameCancel')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-white/50 transition hover:text-red-300"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-err"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -184,21 +184,21 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                         onNavigate?.()
                       }}
                       title={item.title}
-                      className="min-w-0 flex-1 truncate text-left text-xs"
+                      className="min-w-0 flex-1 truncate text-left text-xs focus-visible:text-teyvat-gold focus-visible:outline-none"
                     >
                       {item.title || t('chat.untitled')}
                     </button>
                     <button
                       onClick={() => beginRename(item.sessionId, item.title)}
                       title={t('chat.rename')}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-white/40 transition group-hover:flex hover:text-teyvat-gold"
+                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-teyvat-gold"
                     >
                       <Pencil className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => beginDelete(item.sessionId)}
                       title={t('chat.delete')}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-white/40 transition group-hover:flex hover:text-red-300"
+                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-err"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -208,7 +208,7 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
             )
           })}
 
-          {error && <p className="px-2 py-1 text-xs text-amber-300/80">{error}</p>}
+          {error && <p className="px-2 py-1 text-xs text-warn/90">{error}</p>}
         </div>
       )}
     </aside>
