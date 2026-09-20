@@ -328,6 +328,37 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 ---
 
+### 3.9 生产当前版本（每次发版后更新本节）
+
+> 换机器 / 交接 / 回滚时，「线上跑的是哪一版」只看这里。
+> 云上对应的是 `/opt/teyvat-guide/.env` 里三行 `*_IMAGE` 的 tag（2026-09-21 核对）。
+
+| 服务 | 当前生产 tag | 内容要点 |
+| --- | --- | --- |
+| `teyvat-guide-server` | **`20260921-0029`** | Enka 404/HTML 修复 + 圣遗物 `iconUrl`（已推 ACR，`sha256:e99e69fb…`） |
+| `teyvat-guide-web` | `20260920-0220` | 首次部署版 ⚠️ **之后的前端改动（视觉改造 3 批、移动端圣遗物重做、账号页折叠）尚未发布** |
+| `teyvat-ai` | `20260920-0220` | 首次部署版（未改动） |
+
+**发一版（三种方式，任选）**：
+
+```bash
+# ① 常规：ECS 已 docker login 过 ACR 时最省事
+cd /opt/teyvat-guide
+sed -i 's|\(SERVER_IMAGE=.*:\).*|\1<新 tag>|' .env
+docker compose pull && docker compose up -d
+
+# ② ECS 未登录 ACR：本地 save → scp → load（2026-09-21 两次发版用的都是这条）
+docker save -o svr.tar <镜像>:<tag>
+scp svr.tar root@<ECS>:/tmp/
+ssh root@<ECS> 'docker load -i /tmp/svr.tar && cd /opt/teyvat-guide && docker compose up -d --no-build server'
+
+# ③ 回滚：把 .env 的 tag 改回上一个版本再 up -d（旧镜像仍留在 ECS 上，可直接切回）
+```
+
+⚠️ 两个前提：**改完 tag 必须 `docker compose up -d`**（只 `pull` 不会换容器）；**必须带 `--no-build`** —— 否则 compose 找不到构建上下文会回退去 build，报 `unable to prepare context: path "/opt/teyvat-guide/server" not found`。
+
+---
+
 ## 4. 验收（备案期间就能做的部分）
 
 ### 4.1 三服务状态
