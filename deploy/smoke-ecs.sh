@@ -31,10 +31,17 @@ c3=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8088/
 if [ "$c3" = "200" ]; then ok "C 端前端首页 = 200"; else bad "C 端前端首页 = $c3"; fi
 
 echo "=== 3) 端到端：登录 + 提问 ==="
+# 口令来源：环境变量 SMOKE_PASS 优先，其次 .env 里的 TEYVAT_AUTH_SEED_PASS，最后退回 admin123。
+# ⚠️ 线上口令改过之后，前两者都可能不是当前口令 —— 此时这一步会 FAIL，用 SMOKE_PASS=<当前密码> 再跑。
+smoke_pass="${SMOKE_PASS:-}"
+if [ -z "$smoke_pass" ] && [ -f /opt/teyvat-guide/.env ]; then
+  smoke_pass=$(sed -n 's/^TEYVAT_AUTH_SEED_PASS=//p' /opt/teyvat-guide/.env | head -1)
+fi
+[ -n "$smoke_pass" ] || smoke_pass='admin123'
 tok=$(curl -s --max-time 20 -X POST -H 'Content-Type: application/json' \
-      -d '{"username":"admin","password":"admin123"}' \
+      -d "{\"username\":\"${SMOKE_USER:-admin}\",\"password\":\"$smoke_pass\"}" \
       http://127.0.0.1:8088/api/auth/login | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-if [ -n "${tok:-}" ]; then ok "登录成功（token 长度 ${#tok}）"; else bad "登录失败（看 server 日志）"; fi
+if [ -n "${tok:-}" ]; then ok "登录成功（token 长度 ${#tok}）"; else bad "登录失败（口令不对？用 SMOKE_PASS=<当前密码> 重跑；或看 server 日志）"; fi
 if [ -n "${tok:-}" ]; then
   rep=$(curl -s --max-time 90 -X POST -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' \
         -d '{"message":"绝缘之旗印四件套效果是什么？"}' http://127.0.0.1:8088/api/chat)

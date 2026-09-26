@@ -335,9 +335,12 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260926-1733`** | Enka 修复 + `iconUrl` + **埋点上报 `POST /api/events`** + **按天聚合 `usage_daily`** + 看板内网接口 `/internal/v1/admin/usage/*`（已推 ACR，`sha256:176b9e74…`） |
-| `teyvat-guide-web` | **`20260926-1727`** | 视觉改造 3 批 + 移动端圣遗物重做 + 账号页折叠 + **完整埋点接入（14 个事件）**（已推 ACR，`sha256:9c8549d0…`） |
+| `teyvat-guide-server` | **`20260927-0017`** | 词条名同名冲突守卫（`propIDByName` 优先保留有数字枚举者）+ 元素伤害加成枚举校正（详见 `teyvat-docs/ai/07` A3）<br>⚠️ 本次走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
+| `teyvat-guide-web` | **`20260926-1756`** | 视觉改造 3 批 + 移动端圣遗物重做 + 账号页折叠 + 完整埋点接入（14 个事件） |
 | `teyvat-ai` | `20260920-0220` | 首次部署版（未改动） |
+
+> **回滚**：`20260926-1839` 是上一版 server（旧镜像仍在 ECS 上）。
+> 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` 改回上一版 tag + `docker compose up -d --no-build server`。
 
 **发一版（三种方式，任选）**：
 
