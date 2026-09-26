@@ -5,8 +5,9 @@ package service
 // 两条注入链路：
 //   V1 玩家档案（私有数据，需登录 + 绑定 UID）
 //     - 所有展柜角色都给「概览」：名字 / 等级 / 命座 / 天赋 / 武器
-//     - 只有「提问中点名的角色」或「养成类意图」才展开圣遗物明细（含主词条）
-//     - 超出预算时整条丢弃末尾角色，并在 summary 注明省略数量（不给半个角色条目）
+//     - 「提问中点名的角色」一定展开圣遗物明细（含主词条）**并置顶**；
+//       **没有点名**时才按养成/配队意图给所有角色展开明细
+//     - 超出预算时从末尾整条丢弃，并在 summary 注明省略数量（不给半个角色条目）
 //   V2 资产资料（公开数据，与登录态无关）
 //     - 提问命中角色名时，把库里的权威推荐词条渲染进 summary，让数值类问题不靠模型记忆
 //
@@ -70,12 +71,30 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 	needDetail := isBuildingIntent(goal)
 	mentioned := mentionedNames(question, profile.Characters)
 
+	// 点名角色**置顶**：上下文按 1500 token 裁剪、超预算时从末尾整条丢弃，
+	// 而展柜顺序由玩家自己摆放，被点名的角色常常排在后面 —— 不置顶就会出现
+	// 模型回答「档案里没有这个角色」（2026-09-26 线上实测：问展柜最后一位的八重神子命中该问题，
+	// 前端「悬浮体检」也因此会分析错人）。
+	ordered := make([]dto.CharacterCard, 0, len(profile.Characters))
+	for _, c := range profile.Characters {
+		if mentioned[c.Name] {
+			ordered = append(ordered, c)
+		}
+	}
+	for _, c := range profile.Characters {
+		if !mentioned[c.Name] {
+			ordered = append(ordered, c)
+		}
+	}
+
 	chars := make([]map[string]any, 0, len(profile.Characters))
 	used := 0
 	omitted := 0
-	for _, c := range profile.Characters {
-		// 点名角色或养成/配队意图 → 展开圣遗物明细
-		detail := needDetail || mentioned[c.Name]
+	for _, c := range ordered {
+		// 明细展开规则（2026-09-26 收紧）：点名角色一定展开；**只有没有点名角色时**，
+		// 才按养成/配队意图给所有人展开 —— 否则「养成」这类宽泛提问会让每个角色都带上
+		// 圣遗物明细，预算瞬间打满、排在后面的角色被整条丢掉。
+		detail := mentioned[c.Name] || (needDetail && len(mentioned) == 0)
 		entry := characterEntry(c, detail)
 
 		cost := roughTokens(entry)
