@@ -117,16 +117,30 @@ func (s *Service) Load() error {
 		textMap[tx.Hash] = tx.Text
 	}
 	propMap := make(map[string]PropMap, len(props))
-	propIDByName := make(map[string]string, len(props))
-	for _, p := range props {
-		propMap[p.PropID] = p
-		propIDByName[p.Name] = p.PropID
-	}
 	fightByNum := make(map[string]string, len(fightProps))
 	numByFight := make(map[string]string, len(fightProps))
 	for _, f := range fightProps {
 		fightByNum[f.NumID] = f.PropID
 		numByFight[f.PropID] = f.NumID
+	}
+	propIDByName := make(map[string]string, len(props))
+	for _, p := range props {
+		propMap[p.PropID] = p
+		// 词条名 → PropID：**同名冲突时优先保留"有数字枚举"的那个**。
+		// 反例（2026-09-26 踩到）：FIGHT_PROP_FIRE_ADD 与 FIGHT_PROP_FIRE_ADD_HURT 都叫「火元素伤害加成」
+		// —— 面板属性行要用数字枚举回查数值，若选中没有枚举的 _ADD_HURT，整行会被跳过，
+		// 表现为「角色面板里 元素伤害加成 整项消失」。顺序敏感：所以先建 numByFight 再建本表。
+		old, exists := propIDByName[p.Name]
+		if !exists {
+			propIDByName[p.Name] = p.PropID
+			continue
+		}
+		if _, oldHasNum := numByFight[old]; oldHasNum {
+			continue // 已选中的那个有枚举，保持不动（先到先得）
+		}
+		if _, hasNum := numByFight[p.PropID]; hasNum {
+			propIDByName[p.Name] = p.PropID // 当前这个才有枚举，换成它
+		}
 	}
 	slotMap := make(map[string]string, len(relicSlots))
 	for _, sl := range relicSlots {

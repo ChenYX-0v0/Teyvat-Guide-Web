@@ -1,4 +1,5 @@
 {
+  "_readme": "数字枚举 ↔ PropID。面板属性行按数字枚举回查 fightPropMap 取值，所以映射错了就会显示 0（2026-09-26 实测校正）。元素伤害加成族的枚举号（40..46 = 火/雷/水/草/风/岩/冰，30 = 物理）是用真实档案反推的：火伤杯角色（玛薇卡/杜林）的 40=46.6%、冰伤杯（丝柯克）的 46=61.6%、风伤杯（温迪）的 44=46.6%；旧表整体错位（把 46 当火），导致面板里的 元素伤害加成 恒为 0.0%。",
   "fightProps": [
     { "numId": "2000", "propId": "FIGHT_PROP_HP" },
     { "numId": "2001", "propId": "FIGHT_PROP_ATTACK" },
@@ -7,13 +8,13 @@
     { "numId": "20", "propId": "FIGHT_PROP_CRITICAL" },
     { "numId": "22", "propId": "FIGHT_PROP_CRITICAL_HURT" },
     { "numId": "23", "propId": "FIGHT_PROP_CHARGE_EFFICIENCY" },
-    { "numId": "30", "propId": "FIGHT_PROP_PHYSICAL_ADD" },
-    { "numId": "41", "propId": "FIGHT_PROP_WIND_ADD" },
-    { "numId": "42", "propId": "FIGHT_PROP_ROCK_ADD" },
-    { "numId": "43", "propId": "FIGHT_PROP_ELEC_ADD" },
-    { "numId": "44", "propId": "FIGHT_PROP_GRASS_ADD" },
-    { "numId": "45", "propId": "FIGHT_PROP_WATER_ADD" },
-    { "numId": "46", "propId": "FIGHT_PROP_FIRE_ADD" },
-    { "numId": "47", "propId": "FIGHT_PROP_ICE_ADD" }
+    { "numId": "30", "propId": "FIGHT_PROP_PHYSICAL_ADD_HURT" },
+    { "numId": "40", "propId": "FIGHT_PROP_FIRE_ADD_HURT" },
+    { "numId": "41", "propId": "FIGHT_PROP_ELEC_ADD_HURT" },
+    { "numId": "42", "propId": "FIGHT_PROP_WATER_ADD_HURT" },
+    { "numId": "43", "propId": "FIGHT_PROP_GRASS_ADD_HURT" },
+    { "numId": "44", "propId": "FIGHT_PROP_WIND_ADD_HURT" },
+    { "numId": "45", "propId": "FIGHT_PROP_ROCK_ADD_HURT" },
+    { "numId": "46", "propId": "FIGHT_PROP_ICE_ADD_HURT" }
   ]
 }
