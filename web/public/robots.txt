@@ -1,0 +1,9 @@
+# Private site: not intended for search engine indexing.
+# Decision recorded 2026-09-27: invite-only site, do not list in search results.
+# This works together with:
+#   1) web/index.html   -> <meta name="robots" content="noindex, nofollow, noarchive">
+#   2) web/nginx.conf   -> add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+# To open the site for search engines later: delete this file, remove the three settings,
+# then register the site at the search engine webmaster tools and submit a sitemap.
+User-agent: *
+Disallow: /

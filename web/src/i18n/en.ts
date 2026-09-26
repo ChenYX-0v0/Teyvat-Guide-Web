@@ -45,10 +45,21 @@ const en: Partial<Dict> = {
   'login.hasAccount': 'Already have an account?',
   'login.switchToLogin': 'Sign in',
 
+  // Terms & disclaimer — the declaration itself is Chinese-only by design
+  // (legal text: the Chinese version prevails); version source of truth is the server.
+  'terms.title': 'Terms & Disclaimer',
+  'terms.footerLink': 'Terms',
+  'terms.back': 'Back',
+  'terms.agree': 'I have read and agree',
+  'terms.agreeCountdown': 'Please read ({seconds}s)',
+  'terms.waitSeconds': 'Please read carefully — you can confirm in {seconds}s',
+  'terms.readyHint': 'Confirming means you have read and agree to all terms above',
+  'terms.decline': 'Decline and sign out',
+  // AI-generated content label (compliance: every AI answer must be marked as such)
+  'chat.aiGenerated': 'AI-generated content, for reference only',
+
   // Home
   'home.welcome': 'Welcome to Teyvat, Traveler',
-  'home.intro':
-    'Teyvat Guide is an AI assistant skeleton powered by React + Go, helping you build your own Genshin toolbox.',
   'home.feature1Title': 'Smart Q&A',
   'home.feature1Desc': 'Team building, artifact advice and leveling plans in one question.',
   'home.feature2Title': 'Profile Lookup',

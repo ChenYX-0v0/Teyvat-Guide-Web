@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 刻意不参与搜索收录（2026-09-27 决策：邀请制站点，只给受邀用户使用）。
+         要开放收录：删掉本行 + web/public/robots.txt + web/nginx.conf 的 X-Robots-Tag 三处，
+         再到搜索引擎站长平台登记并提交 sitemap。详见 deploy/README.md §6。 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <title>AI 提瓦特向导 · Teyvat Guide</title>
   </head>
   <body>

@@ -3,11 +3,16 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
 import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
+import SiteFooter from './SiteFooter'
+import TermsModal from '@/components/legal/TermsModal'
 import { useAuthStore } from '@/store/useAuthStore'
 import { trackRouteChange } from '@/lib/track'
 
 export default function AppLayout() {
   const verify = useAuthStore((s) => s.verify)
+  const termsAcceptedVersion = useAuthStore((s) => s.termsAcceptedVersion)
+  const termsCurrentVersion = useAuthStore((s) => s.termsCurrentVersion)
+  const termsLoaded = useAuthStore((s) => s.termsLoaded)
   const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
 
@@ -21,6 +26,13 @@ export default function AppLayout() {
     void verify()
   }, [verify])
 
+  // 用户须知强制确认：版本与已同意版本不一致时**不渲染任何页面内容**，
+  // 只渲染阻断式弹窗（合规要求"每个用户都必须阅读"；版本真源在主服务 service/terms.go）。
+  // termsLoaded 为 false 时不弹：避免启动瞬间拿旧状态误弹一下。
+  const needTerms =
+    termsLoaded && termsCurrentVersion !== '' && termsAcceptedVersion !== termsCurrentVersion
+  if (needTerms) return <TermsModal version={termsCurrentVersion} />
+
   return (
     // h-dvh：移动端浏览器地址栏收起/展开时按动态视口取高，避免 h-full 导致的高度跳动与底部裁切
     <div className="flex h-dvh flex-col">
@@ -31,6 +43,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+      {/* 备案号（合规必需，见组件内注释与 web/11 §6.4）；放在滚动区之外 → 任何页面都常显 */}
+      <SiteFooter />
       {/* 抽屉放在 Header 之外：Header 的 backdrop-blur 会成为 fixed 后代的包含块 */}
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} />
     </div>

@@ -29,6 +29,8 @@ export const EVENTS = {
   accountAnalysisRerun: 'account_analysis_rerun',
   accountAnalysisEnd: 'account_analysis_end',
   authLogin: 'auth_login',
+  termsShown: 'terms_shown',
+  termsAccepted: 'terms_accepted',
   webError: 'web_error',
 } as const
 

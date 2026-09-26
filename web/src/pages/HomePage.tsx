@@ -47,7 +47,6 @@ export default function HomePage() {
       <h2 className="mt-3 text-2xl font-bold tracking-wide text-teyvat-gold sm:text-3xl">
         {t('home.welcome')}
       </h2>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-teyvat-text-2">{t('home.intro')}</p>
 
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Link

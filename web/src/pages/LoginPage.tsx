@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Compass } from 'lucide-react'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
+import SiteFooter from '@/components/layout/SiteFooter'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
@@ -43,7 +44,8 @@ export default function LoginPage() {
     'w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
 
   return (
-    <div className="flex h-full items-center justify-center px-4">
+    // pb-10：给底部固定的备案号页脚留位，避免短屏时卡片与页脚重叠
+    <div className="flex h-full items-center justify-center px-4 pb-10">
       <Card className="relative w-full max-w-sm overflow-hidden p-7">
         {/* 顶部金色微光：给登录卡一点"仪式感"，不做花哨装饰 */}
         <span
@@ -99,6 +101,8 @@ export default function LoginPage() {
           </Button>
         </form>
       </Card>
+      {/* 登录页在 AppLayout 之外：备案号必须自带（公安审核的第一屏很可能就是这里，见 web/11 §6.5） */}
+      <SiteFooter className="fixed inset-x-0 bottom-0" />
     </div>
   )
 }

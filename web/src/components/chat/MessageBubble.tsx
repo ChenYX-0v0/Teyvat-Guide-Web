@@ -1,6 +1,7 @@
 import { Bot, User } from 'lucide-react'
 import clsx from 'clsx'
 import type { ChatMessage } from '@/types'
+import { t } from '@/i18n'
 
 interface Props {
   message: ChatMessage
@@ -50,6 +51,16 @@ export default function MessageBubble({ message, caret }: Props) {
             {message.error && (
               <p className={clsx('text-xs text-warn/90', message.content && 'mt-1.5')}>
                 {message.error}
+              </p>
+            )}
+            {/*
+              AI 生成内容标识（合规要求，见 teyvat-docs/web/11 §7.4）：
+              每个助手回答末尾都有一条，明示"机器生成、仅供参考"。
+              用户消息不加；生成中（pending）不加。
+            */}
+            {!isUser && message.content && (
+              <p className="mt-1.5 text-[10px] leading-none text-teyvat-text-4">
+                {t('chat.aiGenerated')}
               </p>
             )}
           </>

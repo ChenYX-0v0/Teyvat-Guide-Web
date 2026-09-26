@@ -5,6 +5,7 @@ import HomePage from '@/pages/HomePage'
 import ChatPage from '@/pages/ChatPage'
 import AccountPage from '@/pages/AccountPage'
 import WikiPage from '@/pages/WikiPage'
+import TermsPage from '@/pages/TermsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { useAuthStore } from '@/store/useAuthStore'
 
@@ -19,6 +20,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  // 用户须知：**公开**（不登录也能读）——审核人员/新用户先看到条款，且页脚有常驻入口
+  { path: '/terms', element: <TermsPage /> },
   {
     path: '/',
     element: (

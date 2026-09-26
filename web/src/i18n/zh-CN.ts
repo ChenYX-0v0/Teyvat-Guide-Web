@@ -44,10 +44,21 @@ const zhCN = {
   'login.hasAccount': '已有账号？',
   'login.switchToLogin': '登录',
 
+  // 用户须知（免责声明）——正文见 components/legal/TermsContent.tsx，
+  // 版本号真源在主服务 server/internal/service/terms.go（改文案要同步递增版本）
+  'terms.title': '用户须知与免责声明',
+  'terms.footerLink': '用户须知',
+  'terms.back': '返回',
+  'terms.agree': '我已阅读并同意',
+  'terms.agreeCountdown': '请阅读（{seconds}s）',
+  'terms.waitSeconds': '请仔细阅读，{seconds} 秒后可确认',
+  'terms.readyHint': '点击确认即表示你已阅读并同意上述全部条款',
+  'terms.decline': '不同意并退出登录',
+  // AI 生成内容标识（合规要求：每个 AI 回答末尾明示"机器生成、仅供参考"）
+  'chat.aiGenerated': '内容由 AI 生成，仅供参考',
+
   // 首页
   'home.welcome': '欢迎来到提瓦特，旅行者',
-  'home.intro':
-    'AI 提瓦特向导是一个由 React + Go 驱动的智能助手骨架，帮你快速搭建属于自己的原神工具站。',
   'home.feature1Title': '智能问答',
   'home.feature1Desc': '角色配队、圣遗物推荐、养成规划，一句话问清楚。',
   'home.feature2Title': '档案查询',

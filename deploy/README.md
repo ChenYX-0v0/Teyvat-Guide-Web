@@ -335,8 +335,8 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260927-0017`** | 词条名同名冲突守卫（`propIDByName` 优先保留有数字枚举者）+ 元素伤害加成枚举校正（详见 `teyvat-docs/ai/07` A3）<br>⚠️ 本次走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
-| `teyvat-guide-web` | **`20260926-1756`** | 视觉改造 3 批 + 移动端圣遗物重做 + 账号页折叠 + 完整埋点接入（14 个事件） |
+| `teyvat-guide-server` | **`20260927-0224`** | 用户须知（免责声明）接口：`/api/auth/me` 下发版本状态 + `POST /api/auth/terms`（服务端校验版本、写 `users.terms_version`）+ 事件白名单新增 `terms_shown` / `terms_accepted`（见 `teyvat-docs/web/15`）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
+| `teyvat-guide-web` | **`20260927-0224`** | **用户须知强制确认弹窗**（登录后版本不一致即阻断、强制阅读 5 秒、同意/退出）+ **公开条款页 `/terms`** + **AI 生成内容标识**（每条 AI 回答）+ 备案号页脚 + 不参与搜索收录 |
 | `teyvat-ai` | `20260920-0220` | 首次部署版（未改动） |
 
 > **回滚**：`20260926-1839` 是上一版 server（旧镜像仍在 ECS 上）。
@@ -443,6 +443,35 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 3. 安全组开 80/443；把 `web` 容器的端口从 `127.0.0.1:8088` 改成对外映射（或让外层 Nginx 反代 `web:80`）；
 4. 页脚挂备案号（链接工信部）；
 5. 重跑 `web/11 §6` 的上线前检查清单（HTTPS/证书/到期提醒那几条）。
+
+### 6.1 刻意不参与搜索收录（2026-09-27 决策）
+
+**目标**：邀请制站点，只给受邀用户用 —— **不主动获取自然搜索流量**（不是"隐藏存在"，见下面的边界）。
+
+三处开关（**默认关闭收录**，都已在仓库里）：
+
+| 位置 | 内容 |
+| --- | --- |
+| `web/public/robots.txt` | `User-agent: *` / `Disallow: /`（Vite 原样拷进 `dist/`，站点根的 `/robots.txt`） |
+| `web/index.html` | `<meta name="robots" content="noindex, nofollow, noarchive" />` |
+| `web/nginx.conf` | `add_header X-Robots-Tag "noindex, nofollow, noarchive" always;`（server 级 + `/assets/`、`= /index.html` 两处各补一行 —— **nginx 的 `add_header` 不继承进自带 `add_header` 的 location**，改时别漏） |
+
+**要开放收录**：删掉上面三处 → 在搜索引擎站长平台（百度：`ziyuan.baidu.com`）验证站点 → 提交 sitemap。
+
+**已收录怎么撤**：先用站长平台的"移除 URL"工具，或让 noindex 生效后等它自动掉（百度通常 1~4 周）。
+⚠️ 注意一个经典悖论：**`robots.txt` 的 `Disallow` 只阻止抓取，不保证 URL 不出现在结果里**（有外链时可能以"无摘要"形式出现）；
+而一旦 `Disallow`，爬虫就**看不到** `noindex` 了 ✗。所以要"彻底不被收录"时，正确顺序是：**先允许抓取（临时放开 Disallow）→ 让 noindex 生效 → 再恢复 Disallow**。
+
+**两条边界（别误解这套措施）**：
+
+1. **备案会留下公开记录**：备案通过后域名与主体在**工信部备案系统公开可查**，阿里云也要求页脚挂备案号（法规要求，不能省）。
+   所以"没人知道这个域名"做不到 ✗；能做到的是"**搜索引擎搜不到**" ✓。若要连备案公示都没有，唯一办法是**不用境内服务器**（香港/海外 + 域名不备案），代价是国内访问慢、合规风险。
+2. **noindex ≠ 访问控制**：它只约束守规矩的搜索引擎。要真正限制访问，靠的是现有的**邀请制**（`TEYVAT_AUTH_ALLOW_REGISTER=false` + 邀请码 + 配额白名单），必要时再加外层 Basic Auth / 安全组白名单。
+
+**配套（不用改代码）**：不要把链接贴到公开渠道（贴吧/B站简介/公开仓库 README）—— **外链是搜索引擎发现新站的主要途径**；也不要在站长平台提交 sitemap。
+
+> 📌 **状态：已改完、尚未发版**（2026-09-27）。登记在 `teyvat-docs/web/06-开发路线图.md` 的「待发版」清单里，
+> 与"首页文案删除"一起发同一个 `teyvat-guide-web` 镜像即可。
 
 ---
 
