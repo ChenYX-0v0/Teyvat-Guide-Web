@@ -139,6 +139,9 @@ func New(cfg *config.Config) *gin.Engine {
 			authGroup.POST("/register", auth.Register)
 			authGroup.POST("/login", auth.Login)
 			authGroup.GET("/me", middleware.JWTAuth(cfg.Auth, checkBanned), auth.Me)
+			// 用户须知（免责声明）同意留痕：版本号由主服务校验（只接受 CurrentTermsVersion），
+			// 前端"强制阅读 5 秒 → 同意"后调用；服务端存列，作为"已告知"的证据（见 service/terms.go）。
+			authGroup.POST("/terms", middleware.JWTAuth(cfg.Auth, checkBanned), auth.AcceptTerms)
 		}
 
 		// 管理接口（X-Admin-Key 保护）：资产映射导入 / 缺漏 / 重载

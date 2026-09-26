@@ -48,6 +48,11 @@ var usageEventProps = map[string][]string{
 	"account_analysis_auto":  {"character_id", "is_first_char"},
 	"account_analysis_rerun": {"character_id"},
 	"account_analysis_end":   {"result", "elapsed_ms", "tokens"},
+
+	// 用户须知（免责声明，v1.2 随合规落地）——只记版本号，不记任何用户输入内容。
+	// ⚠️ 事件字典三处必须同步：此处 + 前端 web/src/lib/track.ts 的 EVENTS + 后台 EVENT_LABELS（shared/07 §5）。
+	"terms_shown":    {"version"},
+	"terms_accepted": {"version"},
 }
 
 // 页面 / 平台取值白名单（不在这里的一律置空，避免自由文本把维度打散）

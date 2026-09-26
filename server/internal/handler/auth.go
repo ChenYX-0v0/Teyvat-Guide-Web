@@ -76,14 +76,74 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.OK(c, gin.H{"token": token, "displayName": displayName})
 }
 
-// Me GET /api/auth/me —— 当前登录用户（需 Bearer Token）
+// Me GET /api/auth/me —— 当前登录用户 + 用户须知状态（需 Bearer Token）
+//
+// 前端据 `terms.currentVersion` 与 `terms.acceptedVersion` 是否一致决定要不要弹
+// 「用户须知」强制阅读弹窗（版本号真源在主服务，见 service/terms.go）。
 func (h *AuthHandler) Me(c *gin.Context) {
 	uid := c.GetUint("uid")
-	username := c.GetString("username")
 	if uid == 0 {
 		response.Fail(c, http.StatusUnauthorized, 401, "未登录")
 		return
 	}
-	logger.L().Debugw("me", "uid", uid, "username", username)
-	response.OK(c, gin.H{"id": uid, "username": username})
+	u, err := h.svc.Profile(uid)
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			response.Fail(c, http.StatusUnauthorized, 401, "账号不存在")
+			return
+		}
+		logger.L().Errorw("me failed", "uid", uid, "err", err)
+		response.Internal(c, "查询用户失败")
+		return
+	}
+	terms, err := h.svc.TermsState(uid)
+	if err != nil {
+		logger.L().Warnw("terms state failed", "uid", uid, "err", err)
+	}
+	payload := gin.H{
+		"id":          u.ID,
+		"username":    u.Username,
+		"displayName": u.DisplayName,
+		"genshinUid":  u.GenshinUID,
+	}
+	if terms != nil {
+		payload["terms"] = gin.H{
+			"acceptedVersion": terms.AcceptedVersion,
+			"acceptedAt":      terms.AcceptedAt,
+			"currentVersion":  terms.CurrentVersion,
+		}
+	}
+	response.OK(c, payload)
+}
+
+// AcceptTerms POST /api/auth/terms —— 记录用户已同意的用户须知版本（需 Bearer Token）
+//
+// 只接受服务端当前生效版本（`service.CurrentTermsVersion`）：旧页面/伪造请求会被 400 拒绝。
+func (h *AuthHandler) AcceptTerms(c *gin.Context) {
+	uid := c.GetUint("uid")
+	if uid == 0 {
+		response.Fail(c, http.StatusUnauthorized, 401, "未登录")
+		return
+	}
+	var req struct {
+		Version string `json:"version" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误："+err.Error())
+		return
+	}
+	if err := h.svc.AcceptTerms(uid, req.Version); err != nil {
+		switch {
+		case errors.Is(err, service.ErrTermsVersionInvalid):
+			response.BadRequest(c, err.Error())
+		case errors.Is(err, service.ErrUserNotFound):
+			response.Fail(c, http.StatusUnauthorized, 401, "账号不存在")
+		default:
+			logger.L().Errorw("accept terms failed", "uid", uid, "err", err)
+			response.Internal(c, "保存失败，请重试")
+		}
+		return
+	}
+	logger.L().Infow("terms accepted", "uid", uid, "version", service.CurrentTermsVersion)
+	response.OK(c, gin.H{"version": service.CurrentTermsVersion})
 }

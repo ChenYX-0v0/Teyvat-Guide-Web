@@ -141,3 +141,12 @@ func (r *UserRepository) UpdateBinding(userID uint, uid, server string) error {
 	return r.db().Model(&model.User{}).Where("id = ?", userID).
 		Updates(map[string]any{"genshin_uid": uid, "genshin_server": server}).Error
 }
+
+// UpdateTerms 记录用户已同意的用户须知版本与时间（幂等：重复同意只更新版本与时间）
+func (r *UserRepository) UpdateTerms(userID uint, version string, at time.Time) error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Model(&model.User{}).Where("id = ?", userID).
+		Updates(map[string]any{"terms_version": version, "terms_accepted_at": at}).Error
+}

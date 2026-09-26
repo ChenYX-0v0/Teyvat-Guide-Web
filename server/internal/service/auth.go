@@ -26,6 +26,7 @@ var (
 	ErrUserInvalid = errors.New("账号参数不合法")
 	// ErrRegisterClosed 公开注册已关闭（不公开 / 邀请制部署）：账号改由后台「新增用户」创建
 	ErrRegisterClosed = errors.New("本站为不公开邀请制，已关闭注册；请联系管理员开通账号")
+	// 注：ErrUserNotFound（用户不存在）定义在 admin_users.go，同一包内复用
 )
 
 // createUserWithPassword 校验 + bcrypt 哈希 + 落库。
@@ -147,6 +148,22 @@ func (s *AuthService) Login(username, password string) (token, displayName strin
 		return "", "", err
 	}
 	return signed, u.DisplayName, nil
+}
+
+// Profile 按 ID 取用户（`/api/auth/me` 用：返回昵称、绑定 UID 与用户须知状态）。
+// 与 Login 的区别：这里不校验密码，只做"Token 有效 → 用户仍在"的确认。
+func (s *AuthService) Profile(userID uint) (*model.User, error) {
+	if userID == 0 {
+		return nil, ErrUserNotFound
+	}
+	u, err := s.repo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, ErrUserNotFound
+	}
+	return u, nil
 }
 
 // ParseUserID 从 JWT 中解析用户 ID（JWTAuth 中间件已校验签名）
