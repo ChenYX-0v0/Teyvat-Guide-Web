@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { chatApi } from '@/api/chat'
 import { getAuthToken } from '@/store/useAuthStore'
 import { t } from '@/i18n'
+import { EVENTS, track } from '@/lib/track'
 import type { ChatMessage, ChatSessionItem, ChatSessionMessage, PresetQAItem } from '@/types'
 
 // 会话管理（需登录；契约见 docs/04-API接口文档.md §3）
@@ -110,6 +111,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: undefined,
     }))
 
+    // 埋点：提问已发出（不记问题内容——合规 §8 明确不采集对话正文）
+    const startedAt = Date.now()
+    track(EVENTS.chatMessageSent, { is_first_in_session: !session })
+
     /** 把增量文本追加到正在生成的这条消息上，并结束"等待中"状态 */
     const appendDelta = (delta: string) => {
       set((s) => ({
@@ -143,6 +148,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       // 中断时已生成的内容保留在气泡里，错误文案另起一行提示
       const message = err instanceof Error ? err.message : t('errors.paimonDistracted')
+      // 埋点：失败原因粗分（后端也靠这个判断"卡在哪一类失败"）
+      track(EVENTS.chatStreamFailed, {
+        reason: /超时|timeout/i.test(message)
+          ? 'timeout'
+          : /晕乎乎/.test(message)
+            ? 'fallback'
+            : 'network',
+        elapsed_ms: Date.now() - startedAt,
+      })
       set((s) => ({
         loading: false,
         error: message,

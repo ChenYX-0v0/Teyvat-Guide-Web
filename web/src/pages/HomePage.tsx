@@ -5,6 +5,7 @@ import { chatApi } from '@/api/chat'
 import { t } from '@/i18n'
 import Card from '@/components/common/Card'
 import { buttonClass } from '@/utils/buttonStyles'
+import { EVENTS, track } from '@/lib/track'
 import type { HealthData } from '@/types'
 
 /** 功能卡：图标徽记用元素色点一下（小面积，不做大面积铺色） */
@@ -49,11 +50,19 @@ export default function HomePage() {
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-teyvat-text-2">{t('home.intro')}</p>
 
       <div className="mt-8 flex flex-wrap items-center gap-3">
-        <Link to="/chat" className={buttonClass({ variant: 'primary' })}>
+        <Link
+          to="/chat"
+          onClick={() => track(EVENTS.homeCtaClick, { target: 'chat' })}
+          className={buttonClass({ variant: 'primary' })}
+        >
           {t('home.startChat')}
           <ArrowRight className="h-4 w-4" />
         </Link>
-        <Link to="/wiki" className={buttonClass({ variant: 'ghost' })}>
+        <Link
+          to="/wiki"
+          onClick={() => track(EVENTS.homeCtaClick, { target: 'wiki' })}
+          className={buttonClass({ variant: 'ghost' })}
+        >
           {t('home.viewWiki')}
         </Link>
       </div>

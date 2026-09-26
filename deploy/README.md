@@ -335,8 +335,8 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260921-0029`** | Enka 404/HTML 修复 + 圣遗物 `iconUrl`（已推 ACR，`sha256:e99e69fb…`） |
-| `teyvat-guide-web` | **`20260921-0048`** | 视觉改造 3 批 + 移动端圣遗物重做 + 账号页折叠（已推 ACR，`sha256:a1755513…`） |
+| `teyvat-guide-server` | **`20260926-1706`** | Enka 404/HTML 修复 + 圣遗物 `iconUrl` + **埋点上报 `POST /api/events`**（已推 ACR，`sha256:119053d7…`） |
+| `teyvat-guide-web` | **`20260921-0048`** | 视觉改造 3 批 + 移动端圣遗物重做 + 账号页折叠（已推 ACR，`sha256:a1755513…`）⚠️ **前端埋点接入（`lib/track.ts` + 8 事件）尚未发布** |
 | `teyvat-ai` | `20260920-0220` | 首次部署版（未改动） |
 
 **发一版（三种方式，任选）**：

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { authApi } from '@/api/auth'
+import { EVENTS, track } from '@/lib/track'
 
 const TOKEN_KEY = 'auth-token'
 const NAME_KEY = 'auth-name'
@@ -26,9 +27,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   verified: false,
 
   async login(username, password) {
-    const { token, displayName } = await authApi.login(username, password)
-    persist(token, displayName)
-    set({ token, displayName })
+    try {
+      const { token, displayName } = await authApi.login(username, password)
+      persist(token, displayName)
+      set({ token, displayName })
+      track(EVENTS.authLogin, { result: 'ok' })
+    } catch (e) {
+      track(EVENTS.authLogin, { result: 'failed' })
+      throw e
+    }
   },
 
   async register(username, password, displayName) {

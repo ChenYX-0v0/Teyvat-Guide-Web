@@ -17,6 +17,25 @@ type Config struct {
 	AI       AIConfig       `mapstructure:"ai"`
 	Auth     AuthConfig     `mapstructure:"auth"`
 	Quota    QuotaConfig    `mapstructure:"quota"`
+	Usage    UsageConfig    `mapstructure:"usage"`
+}
+
+// UsageConfig 埋点采集（口径真源：shared-docs/07-前端埋点与使用统计.md）
+//
+// D1（2026-09-26 定）：**不采集匿名标识** —— 匿名行为只有次数，没有 UV。
+// D2（2026-09-26 定）：**采集停留时长**（page_leave 的 dwell_ms，上报前上下截断）。
+type UsageConfig struct {
+	// Enabled 总开关；false 时 /api/events 一律 accepted=0（不落库、不报错）
+	Enabled bool `mapstructure:"enabled"`
+	// RetentionDays 明细保留天数；0 = 不清理（聚合表永久保留）
+	RetentionDays int `mapstructure:"retention_days"`
+	// MaxBatch 单请求最多条数（与 DTO 的 max 保持一致）
+	MaxBatch int `mapstructure:"max_batch"`
+	// MaxPropsBytes 单条 props 序列化后的上限，超限丢弃
+	MaxPropsBytes int `mapstructure:"max_props_bytes"`
+	// IPPerMinute / UserPerMinute 限流：每分钟上限，超限静默丢弃（0 = 不限）
+	IPPerMinute   int `mapstructure:"ip_per_minute"`
+	UserPerMinute int `mapstructure:"user_per_minute"`
 }
 
 // QuotaConfig 用量配额与并发闸门（口径真源：shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2）
@@ -164,4 +183,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("quota.max_concurrent_per_user", 2)    // 同一用户同时进行中的请求数；0 = 不限
 	v.SetDefault("quota.whitelist_user_ids", []uint{})  // 同理：注册默认值，键才会被 Unmarshal 认到
 	v.SetDefault("quota.metric", "total")               // total | cached_weighted（预留，暂只实现 total）
+	// 埋点（shared-docs/07）。⚠️ 同 ai.api_key：每个新配置项都必须 SetDefault，
+	// 否则容器里（无 config.yaml）该项会被 Unmarshal 静默忽略。
+	v.SetDefault("usage.enabled", true)
+	v.SetDefault("usage.retention_days", 90)    // 明细保留天数；0 = 不清理
+	v.SetDefault("usage.max_batch", 20)         // 单请求最多条数
+	v.SetDefault("usage.max_props_bytes", 2048) // 单条 props 上限，超限丢弃
+	v.SetDefault("usage.ip_per_minute", 60)     // 每 IP 每分钟上限，超限静默丢弃
+	v.SetDefault("usage.user_per_minute", 300)  // 每登录用户每分钟上限
 }

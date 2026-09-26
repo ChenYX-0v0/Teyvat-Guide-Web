@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
 import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
 import { useAuthStore } from '@/store/useAuthStore'
+import { trackRouteChange } from '@/lib/track'
 
 export default function AppLayout() {
   const verify = useAuthStore((s) => s.verify)
   const [navOpen, setNavOpen] = useState(false)
+  const location = useLocation()
+
+  // 埋点：路由变化 → 上一次的 page_leave（含停留时长）+ 本次 page_view
+  useEffect(() => {
+    trackRouteChange(location.pathname)
+  }, [location.pathname])
 
   // 启动时校验本地 Token：过期/失效则清凭据回登录页，避免"以为登录了其实在匿名聊天"
   useEffect(() => {

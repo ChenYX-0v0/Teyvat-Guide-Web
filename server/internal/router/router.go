@@ -74,6 +74,9 @@ func New(cfg *config.Config) *gin.Engine {
 	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc, quotaSvc))
 	// 预设问答（免登录）：匿名用户在对话页看到的内容
 	preset := handler.NewPresetHandler(service.NewPresetQAService())
+	// 埋点采集（shared-docs/07-前端埋点与使用统计.md）：只收"服务端看不见"的前端行为，
+	// 匿名可上报但不带任何匿名标识（D1）；失败一律静默，绝不影响主流程
+	usage := handler.NewUsageHandler(service.NewUsageService(cfg.Usage))
 	// 会话管理（C 端，需登录）：列表 / 明细 / 重命名
 	chatSession := handler.NewChatSessionHandler(service.NewChatSessionService())
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
@@ -99,6 +102,10 @@ func New(cfg *config.Config) *gin.Engine {
 		// 预设问答：**无需登录**——匿名用户在对话页看到的内容，不调模型、不消耗 token
 		// （匿名禁用 AI 后的替代体验，见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §1）
 		api.GET("/preset-qa", preset.List)
+
+		// 埋点上报：**匿名可访问**（不带任何匿名标识，D1 定案）；带 Token 时记 user_id。
+		// 契约见 shared-docs/07 §4.1 —— 任何情况都返回 200（accepted 只用于观测）
+		api.POST("/events", middleware.JWTAuthOptional(cfg.Auth, checkBanned), usage.Ingest)
 
 		// 对话：**强制登录**（2026-09-14 变更）。匿名不再具备 AI 对话能力——
 		// 额度无归属、不可审计，也没有任何配额手段；/api/genshin/* 等只读接口仍匿名可用。
@@ -189,6 +196,7 @@ func autoMigrate() {
 		&model.PlayerProfileSnapshot{},
 		&model.User{},
 		&model.AIPrompt{},
+		&model.UsageEvent{}, // 埋点明细（shared-docs/07；聚合表 usage_daily 属 P1）
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},

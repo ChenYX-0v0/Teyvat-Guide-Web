@@ -6,6 +6,7 @@ import PlayerProfileView from '@/components/account/PlayerProfileView'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
 import { t } from '@/i18n'
+import { EVENTS, track } from '@/lib/track'
 import type { PlayerProfile } from '@/types/genshin'
 
 export default function AccountPage() {
@@ -26,9 +27,16 @@ export default function AccountPage() {
     setNotice('')
     setProfile(null)
     try {
-      setProfile(await genshinApi.player(targetUid.trim(), forceRefresh))
+      const p = await genshinApi.player(targetUid.trim(), forceRefresh)
+      setProfile(p)
+      // 埋点：只记结果与是否强制刷新，**不记 UID 原值**（合规 §8）
+      track(EVENTS.accountUidQuery, {
+        result: p.characters.length > 0 ? 'ok' : 'empty',
+        force_refresh: forceRefresh,
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
+      track(EVENTS.accountUidQuery, { result: 'failed', force_refresh: forceRefresh })
     } finally {
       setLoading(false)
     }
@@ -55,6 +63,7 @@ export default function AccountPage() {
       const b = await genshinApi.bindUID(uid.trim())
       setBinding(b)
       setNotice(t('account.bindSuccess', { uid: b.uid ?? uid.trim() }))
+      track(EVENTS.accountUidBind)
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
     }
@@ -69,6 +78,7 @@ export default function AccountPage() {
       setProfile(null)
       setUid('')
       setNotice(t('account.unbindSuccess'))
+      track(EVENTS.accountUnbind)
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
     }
