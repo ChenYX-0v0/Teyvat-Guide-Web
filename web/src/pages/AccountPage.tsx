@@ -3,10 +3,12 @@ import clsx from 'clsx'
 import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
 import { genshinApi, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
+import AnalysisFab from '@/components/account/AnalysisFab'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
 import { t } from '@/i18n'
 import { EVENTS, track } from '@/lib/track'
+import { resetAnalyzed } from '@/lib/analysisGate'
 import type { PlayerProfile } from '@/types/genshin'
 
 export default function AccountPage() {
@@ -15,6 +17,8 @@ export default function AccountPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
+  // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [refresh, setRefresh] = useState(false)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
   // 账号信息默认折叠：只留「标题 + 已绑定 UID」，刷新/解绑点开才出现（手机上把首屏留给展柜与圣遗物）
@@ -29,6 +33,8 @@ export default function AccountPage() {
     try {
       const p = await genshinApi.player(targetUid.trim(), forceRefresh)
       setProfile(p)
+      // 强制刷新 = 用户拿到的是远端最新档案 → 清掉"已自动体检"记录，允许重新体检一次（设计 §4.4）
+      if (forceRefresh) resetAnalyzed(targetUid.trim())
       // 埋点：只记结果与是否强制刷新，**不记 UID 原值**（合规 §8）
       track(EVENTS.accountUidQuery, {
         result: p.characters.length > 0 ? 'ok' : 'empty',
@@ -74,6 +80,8 @@ export default function AccountPage() {
     setNotice('')
     try {
       await genshinApi.unbindUID()
+      // 解绑 = 换了账号：体检记账随之清空（设计 §4.4）
+      if (binding?.uid) resetAnalyzed(binding.uid)
       setBinding({ bound: false })
       setProfile(null)
       setUid('')
@@ -82,10 +90,11 @@ export default function AccountPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
     }
-  }, [])
+  }, [binding])
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
+    // 底部留出悬浮体检按钮的位置，避免它压住最后一排圣遗物
+    <div className="mx-auto max-w-5xl space-y-6 px-6 pt-8 pb-24 sm:pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-xl font-semibold text-teyvat-gold">
           <UserRound className="h-5 w-5" />
@@ -178,7 +187,16 @@ export default function AccountPage() {
         <div className="rounded-2xl border border-err/30 bg-err/10 p-4 text-sm text-err">{error}</div>
       )}
 
-      {profile && <PlayerProfileView profile={profile} />}
+      {profile && (
+        <PlayerProfileView profile={profile} selectedId={selectedId} onSelect={setSelectedId} />
+      )}
+
+      {/* 悬浮体检入口：未绑定 UID 时置灰而不是隐藏（用户需要看到"为什么不能问"） */}
+      <AnalysisFab
+        uid={binding?.uid ?? ''}
+        characters={profile?.characters ?? []}
+        character={profile?.characters.find((c) => c.id === selectedId) ?? profile?.characters[0]}
+      />
     </div>
   )
 }

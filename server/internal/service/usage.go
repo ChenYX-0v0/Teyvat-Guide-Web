@@ -41,6 +41,13 @@ var usageEventProps = map[string][]string{
 	"account_unbind":       {},
 	"auth_login":           {"result"},
 	"web_error":            {"message_hash"}, // 只存哈希，不存原文
+
+	// 账号页悬浮 AI 体检（v1.1，随 web/13 落地）——
+	// character_id 是游戏数据、不是身份标识；end 只记结果/耗时/用量，**不记结论正文**。
+	"account_analysis_open":  {},
+	"account_analysis_auto":  {"character_id", "is_first_char"},
+	"account_analysis_rerun": {"character_id"},
+	"account_analysis_end":   {"result", "elapsed_ms", "tokens"},
 }
 
 // 页面 / 平台取值白名单（不在这里的一律置空，避免自由文本把维度打散）

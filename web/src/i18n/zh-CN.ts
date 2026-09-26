@@ -106,6 +106,22 @@ const zhCN = {
   'account.boundLabel': '已绑定 UID',
   'account.emptyShowcase': '该玩家未摆放角色展柜，或未公开详细信息',
 
+  // 账号页悬浮 AI 体检（角色养成度，见 web/13）
+  'analysis.fab': '打开派蒙的养成度体检',
+  'analysis.title': '角色养成度体检',
+  'analysis.needLogin': '体检需要先登录',
+  'analysis.needBinding': '先绑定游戏 UID，派蒙才能看到你的角色面板',
+  'analysis.question':
+    '帮我看看{name}现在的养成度怎么样：圣遗物词条对不对、武器和天赋还差什么，按优先级告诉我该先改什么。',
+  'analysis.running': '正在分析 {name}…',
+  'analysis.reportTitle': '{name} 的体检报告',
+  'analysis.rerun': '重新分析',
+  'analysis.restoring': '正在读取上次的分析…',
+  'analysis.empty': '问点什么吧 —— 比如「这套圣遗物还能怎么提」',
+  'analysis.retry': '重试',
+  'analysis.dailyLimit': '今天的自动体检次数已用完，明天再试；下面仍可直接追问',
+  'analysis.footnote': '体检会消耗你的 AI 额度 · 结论仅供参考，以最新档案为准',
+
   // 玩家档案
   'profile.signature': '签名',
   'profile.statsActiveDays': '活跃天数',

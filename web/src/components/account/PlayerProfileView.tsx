@@ -7,11 +7,16 @@ import { elementColor } from '@/utils/elementColor'
 import { t } from '@/i18n'
 import type { PlayerProfile } from '@/types/genshin'
 
-export default function PlayerProfileView({ profile }: { profile: PlayerProfile }) {
-  // 选中角色：重新查询后回落到第一个
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const selected =
-    profile.characters.find((c) => c.id === selectedId) ?? profile.characters[0]
+interface Props {
+  profile: PlayerProfile
+  /** 受控选中角色：由 AccountPage 持有，悬浮体检面板据此知道"当前在看谁"（设计 §7.5） */
+  selectedId: number | null
+  onSelect: (id: number) => void
+}
+
+export default function PlayerProfileView({ profile, selectedId, onSelect }: Props) {
+  // 选中角色：重新查询后回落到第一个（旧 id 不在新档案里时自动兜底）
+  const selected = profile.characters.find((c) => c.id === selectedId) ?? profile.characters[0]
   // 玩家头部默认折叠：只留「头像 + 昵称 + 等级 + UID」，签名与三个统计点开才看（把首屏留给展柜）
   const [headOpen, setHeadOpen] = useState(false)
 
@@ -114,7 +119,7 @@ export default function PlayerProfileView({ profile }: { profile: PlayerProfile 
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => onSelect(c.id)}
                     title={`${c.name} · Lv.${c.level}`}
                     aria-label={`${c.name} · Lv.${c.level}`}
                     aria-pressed={isSelected}

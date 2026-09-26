@@ -24,6 +24,10 @@ export const EVENTS = {
   accountUidQuery: 'account_uid_query',
   accountUidBind: 'account_uid_bind',
   accountUnbind: 'account_unbind',
+  accountAnalysisOpen: 'account_analysis_open',
+  accountAnalysisAuto: 'account_analysis_auto',
+  accountAnalysisRerun: 'account_analysis_rerun',
+  accountAnalysisEnd: 'account_analysis_end',
   authLogin: 'auth_login',
   webError: 'web_error',
 } as const

@@ -109,6 +109,23 @@ const en: Partial<Dict> = {
   'account.boundLabel': 'Bound UID',
   'account.emptyShowcase': 'This player has no characters on display, or their info is private',
 
+  // Account-page floating AI build check (see web/13)
+  'analysis.fab': 'Open Paimon build check',
+  'analysis.title': 'Build check',
+  'analysis.needLogin': 'Please sign in to run a build check',
+  'analysis.needBinding': 'Bind your game UID first so Paimon can see your characters',
+  'analysis.question':
+    'How is my {name} build doing? Check the artifact stats, weapon and talents, and tell me what to improve first, in priority order.',
+  'analysis.running': 'Analyzing {name}…',
+  'analysis.reportTitle': 'Build report for {name}',
+  'analysis.rerun': 'Re-analyze',
+  'analysis.restoring': 'Loading the last analysis…',
+  'analysis.empty': 'Ask anything — e.g. "How can I improve these artifacts?"',
+  'analysis.retry': 'Retry',
+  'analysis.dailyLimit': 'Daily auto-check limit reached; try again tomorrow (you can still ask below)',
+  'analysis.footnote':
+    'Checks use your AI quota · Suggestions are for reference only, based on the latest profile',
+
   // Player profile
   'profile.signature': 'Signature',
   'profile.statsActiveDays': 'Active Days',
