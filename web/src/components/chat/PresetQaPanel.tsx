@@ -4,6 +4,7 @@ import { ChevronDown, Lock } from 'lucide-react'
 import clsx from 'clsx'
 import { useChatStore } from '@/store/useChatStore'
 import { buttonClass } from '@/utils/buttonStyles'
+import { EVENTS, track } from '@/lib/track'
 import { t } from '@/i18n'
 
 /**
@@ -34,7 +35,7 @@ export default function PresetQaPanel() {
           <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetEmpty')}</p>
         )}
 
-        {presets.map((item) => {
+        {presets.map((item, index) => {
           const open = openId === item.id
           return (
             <div
@@ -43,7 +44,11 @@ export default function PresetQaPanel() {
             >
               <button
                 type="button"
-                onClick={() => setOpenId(open ? null : item.id)}
+                onClick={() => {
+                  // 埋点：匿名用户点开了第几条预设问答（不记问题与答案内容）
+                  if (!open) track(EVENTS.chatPresetExpanded, { index })
+                  setOpenId(open ? null : item.id)
+                }}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-teyvat-text transition duration-150 hover:bg-white/[0.04] focus-visible:shadow-glow focus-visible:outline-none"
               >
                 <span className="min-w-0 truncate">{item.question}</span>

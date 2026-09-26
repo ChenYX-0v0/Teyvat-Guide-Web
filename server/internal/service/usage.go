@@ -80,6 +80,7 @@ func NewUsageService(cfg config.UsageConfig) *UsageService {
 		go s.worker()
 		go s.cleanupLoop()
 		go s.statsLoop()
+		go s.aggLoop() // 按天聚合（每小时重建今天+昨天，见 usage_stats.go）
 		logger.L().Infow("usage ingest enabled",
 			"retention_days", cfg.RetentionDays, "max_batch", cfg.MaxBatch)
 	} else {

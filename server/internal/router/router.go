@@ -76,7 +76,10 @@ func New(cfg *config.Config) *gin.Engine {
 	preset := handler.NewPresetHandler(service.NewPresetQAService())
 	// 埋点采集（shared-docs/07-前端埋点与使用统计.md）：只收"服务端看不见"的前端行为，
 	// 匿名可上报但不带任何匿名标识（D1）；失败一律静默，绝不影响主流程
-	usage := handler.NewUsageHandler(service.NewUsageService(cfg.Usage))
+	usageSvc := service.NewUsageService(cfg.Usage)
+	usage := handler.NewUsageHandler(usageSvc)
+	// 后台「使用统计」看板（内网接口，契约见 shared-docs/07 §6）
+	usageAdmin := handler.NewUsageAdminHandler(usageSvc)
 	// 会话管理（C 端，需登录）：列表 / 明细 / 重命名
 	chatSession := handler.NewChatSessionHandler(service.NewChatSessionService())
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
@@ -161,6 +164,12 @@ func New(cfg *config.Config) *gin.Engine {
 			// 后台代建账号（邀请制下的唯一开户入口）：公开注册关闭时（auth.allow_register=false）
 			// 账号只能在这里创建——`CreateUser` 刻意不受该开关限制
 			internal.POST("/users", internalUser.CreateUser)
+			// 使用统计看板（只读）：概览 / 功能排行榜 / 趋势 / 漏斗 / 导出
+			internal.GET("/usage/overview", usageAdmin.Overview)
+			internal.GET("/usage/events", usageAdmin.Events)
+			internal.GET("/usage/series", usageAdmin.Series)
+			internal.GET("/usage/funnel", usageAdmin.Funnel)
+			internal.GET("/usage/export", usageAdmin.Export)
 			// 对话记录查看（只读，无修改/删除能力）
 			internal.GET("/chat/sessions", internalChat.ListChatSessions)
 			internal.GET("/chat/sessions/:sessionId/messages", internalChat.ListChatMessages)
@@ -196,7 +205,8 @@ func autoMigrate() {
 		&model.PlayerProfileSnapshot{},
 		&model.User{},
 		&model.AIPrompt{},
-		&model.UsageEvent{}, // 埋点明细（shared-docs/07；聚合表 usage_daily 属 P1）
+		&model.UsageEvent{}, // 埋点明细（shared-docs/07）
+		&model.UsageDaily{}, // 埋点按天聚合（看板读它）
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},

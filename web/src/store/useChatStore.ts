@@ -176,6 +176,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       hasEarlier: false,
       earliestId: undefined,
     })
+    track(EVENTS.chatNewSession)
   },
 
   async loadSessions() {
@@ -213,6 +214,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         loading: false,
       })
       persistSession(data.sessionId)
+      // 埋点：记它被点开时在列表里的位置（不记标题/内容）
+      track(EVENTS.chatSessionOpened, {
+        index: Math.max(0, get().sessions.findIndex((s) => s.sessionId === sessionId)),
+      })
     } catch {
       // 会话不存在/不属于自己/网络异常：回到新对话（只清本地指针，服务端数据不动）
       persistSession(undefined)
@@ -261,6 +266,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   async deleteSession(sessionId) {
     // 服务端是软删除（数据保留供后台审计），C 端只需把它从自己的列表移除
     await chatApi.deleteSession(sessionId)
+    track(EVENTS.chatSessionDeleted)
     set((s) => ({ sessions: s.sessions.filter((it) => it.sessionId !== sessionId) }))
 
     if (get().sessionId === sessionId) {
