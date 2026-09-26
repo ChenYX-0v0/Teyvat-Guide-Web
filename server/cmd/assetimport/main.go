@@ -59,9 +59,13 @@ var elementMap = map[string]string{
 }
 
 // QualityType → 星级
+// 未命中会落到默认值 0（= 无星级），所以新出现的 QualityType 必须及时补：
+// QUALITY_ORANGE_SP 是联动/特殊形态用的 5★（埃洛伊、奇偶形态等），2026-09-26 补 ——
+// 此前它落到 0，导出了 3 行 rarity=0 的脏数据（见 ai/07 TODO-05 §3）。
 var qualityMap = map[string]int{
 	"QUALITY_ORANGE":    5,
 	"QUALITY_ORANGE_MC": 5,
+	"QUALITY_ORANGE_SP": 5,
 	"QUALITY_PURPLE":    4,
 }
 
@@ -81,7 +85,19 @@ func main() {
 	statWeightsFile := flag.String("stat-weights-file", "", "仅导入角色推荐词条（{\"statWeights\":[...]}）")
 	fightPropsFile := flag.String("fight-props-file", "", "仅导入数字枚举映射（{\"fightProps\":[{\"numId\",\"propId\"}]}）")
 	importFile := flag.String("import-file", "", "通用导入：任意 ImportPayload 子集（如 relicSlots / propMap / fightProps）")
+	dumpJSON := flag.String("dump-json", "", "只生成导入 payload 到指定文件、**不连数据库**（供 POST /api/admin/assets/import 远程导入；目前需与 -dir 同用）")
 	flag.Parse()
+
+	// 只生成 payload：本地连不上云上 RDS 时，用它产出 JSON，再走内网管理接口导入
+	if *dumpJSON != "" {
+		if *dir == "" {
+			fmt.Fprintln(os.Stderr, "-dump-json 目前只支持与 -dir 一起使用")
+			os.Exit(1)
+		}
+		writeJSON(*dumpJSON, buildDirPayload(*dir))
+		fmt.Println("已生成 payload：" + *dumpJSON)
+		return
+	}
 
 	cfg := config.Load()
 	if err := database.Init(cfg.Database); err != nil {
@@ -213,8 +229,21 @@ func main() {
 	}
 
 	// 1. 多语言文本
+	payload := buildDirPayload(*dir)
+
+	// 6. 入库
+	if err := svc.Import(payload); err != nil {
+		fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("导入完成，内存映射已刷新")
+}
+
+// buildDirPayload 解析 EnkaGameAssets 的 store/gi 目录，组装导入载荷（**不碰数据库**）：
+// 拆出来是为了支持 -dump-json —— 本地连不上云上 RDS 时，先产出 JSON 再走内网管理接口导入。
+func buildDirPayload(dir string) asset.ImportPayload {
 	var locs locsFile
-	readJSON(filepath.Join(*dir, "locs.json"), &locs)
+	readJSON(filepath.Join(dir, "locs.json"), &locs)
 	locale, ok := locs["zh-cn"]
 	if !ok {
 		fmt.Fprintln(os.Stderr, "locs.json 中没有 zh-cn 语言包")
@@ -222,9 +251,8 @@ func main() {
 	}
 	fmt.Printf("locs zh-cn: %d 条\n", len(locale))
 
-	// 2. 角色
 	var avatars map[string]avatarEntry
-	readJSON(filepath.Join(*dir, "avatars.json"), &avatars)
+	readJSON(filepath.Join(dir, "avatars.json"), &avatars)
 	characters := make([]asset.Character, 0, len(avatars))
 	for idStr, a := range avatars {
 		var id int64
@@ -243,9 +271,8 @@ func main() {
 	}
 	fmt.Printf("characters: %d 个\n", len(characters))
 
-	// 3. 武器
 	var weapons map[string]weaponEntry
-	readJSON(filepath.Join(*dir, "weapons.json"), &weapons)
+	readJSON(filepath.Join(dir, "weapons.json"), &weapons)
 	weaponList := make([]asset.Weapon, 0, len(weapons))
 	for idStr, w := range weapons {
 		var id int64
@@ -264,9 +291,8 @@ func main() {
 	}
 	fmt.Printf("weapons: %d 个\n", len(weaponList))
 
-	// 4. 圣遗物套装
 	var relics relicsFile
-	readJSON(filepath.Join(*dir, "relics.json"), &relics)
+	readJSON(filepath.Join(dir, "relics.json"), &relics)
 	sets := make([]asset.RelicSet, 0, len(relics.Sets))
 	for idStr, s := range relics.Sets {
 		var setID int
@@ -282,7 +308,6 @@ func main() {
 	}
 	fmt.Printf("relicSets: %d 个\n", len(sets))
 
-	// 5. 文本映射（zh-cn 全量）
 	texts := make([]asset.TextMapEntry, 0, len(locale))
 	for hashStr, text := range locale {
 		var hash int64
@@ -293,18 +318,28 @@ func main() {
 	}
 	fmt.Printf("textMap: %d 条\n", len(texts))
 
-	// 6. 入库
-	payload := asset.ImportPayload{
+	return asset.ImportPayload{
 		Characters: characters,
 		Weapons:    weaponList,
 		RelicSets:  sets,
 		TextMap:    texts,
 	}
-	if err := svc.Import(payload); err != nil {
-		fmt.Fprintf(os.Stderr, "导入失败: %v\n", err)
+}
+
+// writeJSON 把任意载荷写成 UTF-8 JSON（不转义 HTML，便于直接 POST 给内网接口）
+func writeJSON(path string, v any) {
+	f, err := os.Create(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "创建 %s 失败: %v\n", path, err)
 		os.Exit(1)
 	}
-	fmt.Println("导入完成，内存映射已刷新")
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		fmt.Fprintf(os.Stderr, "写出 %s 失败: %v\n", path, err)
+		os.Exit(1)
+	}
 }
 
 // readJSON 读取并解析 JSON 文件（UTF-8）
