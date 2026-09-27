@@ -69,7 +69,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async register({ phone, code, password, displayName }) {
     await authApi.register(phone, code, password, displayName)
     // 注册成功后直接登录：用户名就是手机号（后端约定 ✓）
-    await this.login(phone, password)
+    //
+    // ⚠️ 必须用 `get().login(...)`，**不能**写 `this.login(...)` ✗ ——
+    // 组件里的用法是 `const register = useAuthStore((s) => s.register)` 然后 `register({...})`
+    // = **裸调用**，`this` 会丢（严格模式下是 undefined）⇒ 运行时崩在
+    // 「Cannot read properties of undefined (reading 'login')」✗
+    // （2026-09-28 用户真机注册时踩到：账号已建好 ✓，却没能自动登录 ✓，须知也没同意 ✓）。
+    await get().login(phone, password)
   },
 
   /**
