@@ -124,7 +124,7 @@ const en: Partial<Dict> = {
   'account.title': 'Account',
   'account.queryTitle': 'Look Up Player Profile',
   'account.queryPlaceholder': 'Enter a 9-digit game UID, e.g. 197794747',
-  'account.forceRefresh': 'Force refresh (bypass local cache, query upstream)',
+  // 'account.forceRefresh' removed 2026-09-28 (profiles always use the server snapshot; no bypass switch in the UI)
   'account.bind': 'Bind {uid} to my account',
   'account.bindSuccess': 'Bound! UID {uid} is now linked to your account and loads automatically.',
   'account.unbind': 'Unbind',

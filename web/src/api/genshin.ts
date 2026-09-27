@@ -8,11 +8,16 @@ export interface UIDBinding {
 }
 
 export const genshinApi = {
-  /** 查询玩家档案（Enka 数据源；默认优先返回本地缓存） */
-  player(uid: string, refresh = false) {
-    return unwrap<PlayerProfile>(
-      http.get('/genshin/player', { params: { uid, refresh } }),
-    )
+  /**
+   * 查询玩家档案（Enka 数据源；服务端优先返回本地快照 ✓）。
+   *
+   * ⚠️ 2026-09-28：**前端不再传 `refresh`** —— 账号页去掉了「强制刷新（绕过本地缓存）」入口 ✓。
+   * 服务端参数**照旧保留** ✓，原因有二：① 运维核对资产时要用
+   * `GET /api/genshin/player?uid=…&refresh=true`（见 `web/14` 的配方）；
+   * ② 用户浏览器里可能缓存着**旧 bundle**，它仍在发这个参数 ⇒ 不能删后端支持 ✗。
+   */
+  player(uid: string) {
+    return unwrap<PlayerProfile>(http.get('/genshin/player', { params: { uid } }))
   },
 
   /** 查询当前登录用户绑定的 UID（未绑定时 bound=false） */

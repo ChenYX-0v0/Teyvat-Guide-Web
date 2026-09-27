@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
+import { Link2Off, Search, UserRound } from 'lucide-react'
 import { genshinApi, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
 import AnalysisFab from '@/components/account/AnalysisFab'
@@ -19,30 +19,30 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [refresh, setRefresh] = useState(false)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
-  // 账号信息默认折叠：只留「标题 + 已绑定 UID」，刷新/解绑点开才出现（手机上把首屏留给展柜与圣遗物）
+  // 账号信息默认折叠：只留「标题 + 已绑定 UID」，解绑点开才出现（手机上把首屏留给展柜与圣遗物）
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const doQuery = useCallback(async (targetUid: string, forceRefresh = false) => {
+  // 2026-09-28：**去掉「强制刷新（绕过本地缓存）」入口** ✓ ——
+  // 档案一律走服务端快照（TTL 10 分钟 / 资产 reload 时清），用户侧不需要绕过缓存的开关；
+  // 该能力只留给运维排障：`GET /api/genshin/player?uid=…&refresh=true`（见 web/14 的资产核对配方）。
+  const doQuery = useCallback(async (targetUid: string) => {
     if (!targetUid.trim()) return
     setLoading(true)
     setError('')
     setNotice('')
     setProfile(null)
     try {
-      const p = await genshinApi.player(targetUid.trim(), forceRefresh)
+      const p = await genshinApi.player(targetUid.trim())
       setProfile(p)
-      // 强制刷新 = 用户拿到的是远端最新档案 → 清掉"已自动体检"记录，允许重新体检一次（设计 §4.4）
-      if (forceRefresh) resetAnalyzed(targetUid.trim())
-      // 埋点：只记结果与是否强制刷新，**不记 UID 原值**（合规 §8）
+      // 埋点：只记结果，**不记 UID 原值**（合规 §8）
+      // （原 force_refresh 字段随本功能一起去掉 ✓）
       track(EVENTS.accountUidQuery, {
         result: p.characters.length > 0 ? 'ok' : 'empty',
-        force_refresh: forceRefresh,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
-      track(EVENTS.accountUidQuery, { result: 'failed', force_refresh: forceRefresh })
+      track(EVENTS.accountUidQuery, { result: 'failed' })
     } finally {
       setLoading(false)
     }
@@ -60,7 +60,7 @@ export default function AccountPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const query = useCallback(() => doQuery(uid, refresh), [doQuery, uid, refresh])
+  const query = useCallback(() => doQuery(uid), [doQuery, uid])
 
   const bind = useCallback(async () => {
     setError('')
@@ -101,21 +101,13 @@ export default function AccountPage() {
           {t('account.title')}
         </h2>
 
-        {/* 已绑定：一行摘要（UID + 展开按钮）；刷新 / 解绑在展开后出现，隐藏查询卡 */}
+        {/* 已绑定：一行摘要（UID + 展开按钮）；解绑在展开后出现，隐藏查询卡 */}
         {binding?.bound && (
           <div className="flex items-center gap-2 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-1.5">
             <span className="text-xs text-teyvat-text-3">{t('account.boundLabel')}</span>
             <span className="text-sm font-semibold text-teyvat-gold">{binding.uid}</span>
             {infoOpen && (
               <>
-                <button
-                  onClick={() => binding.uid && doQuery(binding.uid, true)}
-                  disabled={loading}
-                  title={t('account.forceRefresh')}
-                  className="rounded-lg p-1 text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
-                >
-                  <RefreshCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-                </button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -157,15 +149,6 @@ export default function AccountPage() {
               {loading ? t('common.querying') : t('common.query')}
             </Button>
           </div>
-          <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs text-teyvat-text-3 select-none">
-            <input
-              type="checkbox"
-              checked={refresh}
-              onChange={(e) => setRefresh(e.target.checked)}
-              className="h-3.5 w-3.5 accent-teyvat-gold"
-            />
-            {t('account.forceRefresh')}
-          </label>
           {uid.trim() && profile && (
             <button
               onClick={bind}

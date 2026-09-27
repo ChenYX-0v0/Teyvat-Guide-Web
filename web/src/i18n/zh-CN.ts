@@ -120,7 +120,7 @@ const zhCN = {
   'account.title': '账号信息',
   'account.queryTitle': '查询玩家档案',
   'account.queryPlaceholder': '输入 9 位游戏 UID，如 197794747',
-  'account.forceRefresh': '强制刷新（绕过本地缓存，直接查询上游）',
+  // 'account.forceRefresh' 已于 2026-09-28 移除（档案一律走服务端快照，前端不再暴露绕过缓存的开关 ✓）
   'account.bind': '绑定 {uid} 到我的账号',
   'account.bindSuccess': '绑定成功，UID {uid} 已与账号一对一关联，下次进入自动加载。',
   'account.unbind': '解绑',
