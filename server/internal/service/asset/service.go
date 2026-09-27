@@ -48,7 +48,9 @@ type Service struct {
 	// 圣遗物评分权重（V3，2026-09-27）：与 statRecs 语义不同，见 model.go 注释
 	relicWeights map[int64]CharacterRelicWeight
 	relicRules   map[int64][]CharacterRelicWeightRule
-	setEffects   map[int][]RelicSetEffect // 套装 ID → 2/4 件效果（按件数升序）
+	// 小助手口径权重（7 维，主键 = (角色, 元素)）——与 miao 那套并存，口径见 relic_score_mp.go
+	mpWeights  map[mpWeightKey]CharacterRelicWeightMP
+	setEffects map[int][]RelicSetEffect // 套装 ID → 2/4 件效果（按件数升序）
 }
 
 // New 创建服务；db 为 nil 时降级为空映射（翻译全部走 fallback）
@@ -108,6 +110,10 @@ func (s *Service) Load() error {
 	}
 	var relicRuleRows []CharacterRelicWeightRule
 	if err := s.db.Find(&relicRuleRows).Error; err != nil {
+		return err
+	}
+	var mpWeightRows []CharacterRelicWeightMP
+	if err := s.db.Find(&mpWeightRows).Error; err != nil {
 		return err
 	}
 
@@ -180,6 +186,11 @@ func (s *Service) Load() error {
 	for _, rr := range relicRuleRows {
 		relicRuleMap[rr.CharacterID] = append(relicRuleMap[rr.CharacterID], rr)
 	}
+	// 小助手口径权重：主键 (角色, 元素)；非旅行者 element 为空串
+	mpWeightMap := make(map[mpWeightKey]CharacterRelicWeightMP, len(mpWeightRows))
+	for _, mw := range mpWeightRows {
+		mpWeightMap[mpWeightKey{ID: mw.CharacterID, Element: mw.Element}] = mw
+	}
 	// 规则顺序要稳定（map/DB 返回顺序不保证；同一角色多条规则可叠加，展示标签也要可复现）
 	for id, list := range relicRuleMap {
 		sort.Slice(list, func(i, j int) bool {
@@ -201,6 +212,7 @@ func (s *Service) Load() error {
 	s.weapons = weaponMap
 	s.relicSets = setMap
 	s.texts = textMap
+	s.mpWeights = mpWeightMap
 	s.props = propMap
 	s.propIDByName = propIDByName
 	s.fightProps = fightByNum
@@ -332,6 +344,23 @@ func (s *Service) RelicWeight(characterID int64) (CharacterRelicWeight, bool) {
 	defer s.mu.RUnlock()
 	w, ok := s.relicWeights[characterID]
 	return w, ok
+}
+
+// MPWeight 取小助手口径权重（7 维）：先按 (角色, 元素) 查 DB，再退回该角色的通用行；
+// 两者都没有时退回**包内嵌种子**（桥接兜底：DB 尚未导入任何东西时口径仍然可用）。
+func (s *Service) MPWeight(characterID int64, element string) (CharacterRelicWeightMP, bool) {
+	s.mu.RLock()
+	m := s.mpWeights
+	s.mu.RUnlock()
+	if element != "" {
+		if w, ok := m[mpWeightKey{ID: characterID, Element: element}]; ok {
+			return w, true
+		}
+	}
+	if w, ok := m[mpWeightKey{ID: characterID}]; ok {
+		return w, true
+	}
+	return mpEmbeddedWeight(characterID, element)
 }
 
 // RelicWeightRules 按角色取评分权重覆盖规则（返回副本，避免与 reload 竞争）

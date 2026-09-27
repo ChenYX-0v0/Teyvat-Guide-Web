@@ -116,6 +116,7 @@ func main() {
 		&asset.Character{}, &asset.Weapon{}, &asset.RelicSet{}, &asset.RelicSetEffect{},
 		&asset.TextMapEntry{}, &asset.PropMap{}, &asset.FightProp{}, &asset.RelicSlot{}, &asset.Affix{}, &asset.Missing{},
 		&asset.CharacterStatWeights{}, &asset.CharacterRelicWeight{}, &asset.CharacterRelicWeightRule{},
+		&asset.CharacterRelicWeightMP{},
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "建表失败: %v\n", err)
 		os.Exit(1)

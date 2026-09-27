@@ -66,7 +66,7 @@ func TestRelicWeightsSeedImportAndScore(t *testing.T) {
 	if err := db.AutoMigrate(
 		&Character{}, &Weapon{}, &RelicSet{}, &RelicSetEffect{}, &TextMapEntry{},
 		&PropMap{}, &FightProp{}, &RelicSlot{}, &Affix{}, &CharacterStatWeights{},
-		&CharacterRelicWeight{}, &CharacterRelicWeightRule{}, &Missing{},
+		&CharacterRelicWeight{}, &CharacterRelicWeightRule{}, &CharacterRelicWeightMP{}, &Missing{},
 	); err != nil {
 		t.Fatalf("迁移失败：%v", err)
 	}

@@ -33,6 +33,8 @@ type ImportPayload struct {
 	// 来源 miao-plugin（MIT），见 ai/08；与 StatWeights（推荐词条）语义不同，不要混用
 	RelicWeights     []CharacterRelicWeight     `json:"relicWeights"`
 	RelicWeightRules []CharacterRelicWeightRule `json:"relicWeightRules"`
+	// MPWeights 小助手口径权重（7 维，主键 = (characterId, element)；element 仅旅行者有值）
+	MPWeights []CharacterRelicWeightMP `json:"mpWeights"`
 }
 
 const upsertBatchSize = 500
@@ -88,6 +90,10 @@ func (s *Service) Import(p ImportPayload) error {
 			return err
 		}
 		if err := upsertRelicWeightRules(tx, p.RelicWeightRules); err != nil {
+			return err
+		}
+		// 小助手口径权重：复合主键 (character_id, element)，OnConflict UpdateAll 天然幂等
+		if err := upsertBatch(tx, p.MPWeights, upsertBatchSize); err != nil {
 			return err
 		}
 		return nil

@@ -66,8 +66,9 @@ func loadMPWeights() map[mpWeightKey]CharacterRelicWeightMP {
 	return mpWeights
 }
 
-// MPWeight 取小助手口径权重：先按 (角色, 元素)，取不到再退回该角色的通用行（element = ""）。
-func MPWeight(characterID int64, element string) (CharacterRelicWeightMP, bool) {
+// mpEmbeddedWeight 从**包内嵌种子**取小助手口径权重（DB 未导入时的兜底；
+// 正常路径是 asset.Service.MPWeight 先查 DB）。
+func mpEmbeddedWeight(characterID int64, element string) (CharacterRelicWeightMP, bool) {
 	m := loadMPWeights()
 	if element != "" {
 		if w, ok := m[mpWeightKey{ID: characterID, Element: element}]; ok {

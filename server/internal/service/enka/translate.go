@@ -326,7 +326,7 @@ func (tr *Translator) scoreRelics(card *dto.CharacterCard, inputs []asset.RelicS
 		// 口径分支（2026-09-27）：默认走小助手口径（RELIC_SCORE_MODE=mp），
 		// 设成 miao 即回到原实现（改容器环境变量 + 重启即可回滚，不用发版）。
 		if asset.RelicScoreMode() == "mp" {
-			if w, ok := asset.MPWeight(card.ID, travelerElement(card)); ok {
+			if w, ok := tr.assets.MPWeight(card.ID, travelerElement(card)); ok {
 				mp, _ := asset.ScoreRelicMP(*in, w)
 				r := &card.Relics[i]
 				r.Score = mp.Score
