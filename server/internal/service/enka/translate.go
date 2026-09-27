@@ -284,10 +284,12 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// travelerAvatarIDs 旅行者系：空(10000005) / 荧(10000006) / 男旅行者(10000007) /
-// 奇偶·男性(10000117) / 奇偶·女性(10000118)。
+// travelerAvatarIDs 旅行者系：空(10000005) / 荧(10000007) / 奇偶·男性(10000117) / 奇偶·女性(10000118)。
+//
+// ⚠️ 10000006 **不是旅行者，是丽莎** ✗ —— 2026-09-27 一度误加进去（已纠正）：
+// gi.yatta.moe/api/v2/CHS/avatar/10000006 → 丽莎 / Electric，而荧是 10000007（PlayerGirl ✓）。
 var travelerAvatarIDs = map[int64]bool{
-	10000005: true, 10000006: true, 10000007: true, 10000117: true, 10000118: true,
+	10000005: true, 10000007: true, 10000117: true, 10000118: true,
 }
 
 // travelerElementOverride 应按 skillDepotId 修正的元素；非旅行者、或 depot 不可信时返回 ""
@@ -300,33 +302,32 @@ func travelerElementOverride(avatarID int64, depotID int) string {
 	return elementFromSkillDepot(depotID)
 }
 
-// elementFromSkillDepot 旅行者当前元素 —— **真源是 Enka 返回的 skillDepotId**。
+// travelerDepotElements 旅行者套件号 → 元素。**只登记有实测锚点的格子** ✓。
 //
-// 为什么必须用它：角色表里旅行者只能写死**一个**元素 ✗ ——玩家切成草主/水主后，
-// 元素伤害加成、面板着色、(角色,元素) 的小助手权重会全错 ✗（2026-09-27 接上）。
-// 取值来自游戏 AvatarSkillDepotExcelConfigData，按各元素上线顺序排布：
+// 没锚点的套件号一律返回 ""（= 不覆盖角色表的值，保持既有行为 ✓）。
 //
-//	男（空）501~507、女（荧）701~707 = 风 / 岩 / 雷 / 草 / 水 / 火 / 冰 ✓
+// ⚠️ 为什么不把七格一次写全（2026-09-27 的教训）：
+// 我最初按"元素上线顺序 风/岩/雷/草/水/火/冰"把 501~507 与 701~707 全表写死 ✗，
+// 上线后用户指出自己是**冰主**，而 Enka 对同一账号报的正是 **705** ✗ —— 说明那套顺序是错的 ✗。
+// 猜错的代价是**静默**改错别人（尤其水主/风主）的元素 ✗，比留空大得多，所以**不猜** ✓。
 //
-// 非旅行者恒返回 ""（其它角色的 skillDepotId 不落在这个区间）。
+// 已验证：
+//
+//	705 = 冰 ✓（UID 197794747：用户自述冰主；Enka 缓存过期后重拉两次均为 skillDepotId=705）
+//
+// 已知规律（可用于补全，但**本表尚未实测** ✗）：
+//
+//	普通角色套件号 = (avatarId 末四位)×100+1 —— 实测 10000022→2201、10000058→5801、10000120→12001 ✓；
+//	旅行者则是 500+槽位 / 700+槽位（10000007 → 7xx）
+//
+// 待补：501/701 等其余六格（需真实账号实测，见 teyvat-docs ai/07 TODO-13）。
+var travelerDepotElements = map[int]string{
+	705: "冰",
+}
+
+// elementFromSkillDepot 套件号 → 元素；未登记（= 没有实测锚点）返回 "" ✓
 func elementFromSkillDepot(depotID int) string {
-	switch depotID {
-	case 501, 701:
-		return "风"
-	case 502, 702:
-		return "岩"
-	case 503, 703:
-		return "雷"
-	case 504, 704:
-		return "草"
-	case 505, 705:
-		return "水"
-	case 506, 706:
-		return "火"
-	case 507, 707:
-		return "冰"
-	}
-	return ""
+	return travelerDepotElements[depotID]
 }
 
 // travelerElement 旅行者当前元素（小助手口径的权重按 (角色, 元素) 取）。
