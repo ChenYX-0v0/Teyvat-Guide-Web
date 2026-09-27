@@ -45,6 +45,9 @@ type Service struct {
 	relicSlots   map[string]string // 部位枚举 → 中文部位名
 	affixes      map[int64]Affix
 	statRecs     map[int64]StatRecommendation
+	// 圣遗物评分权重（V3，2026-09-27）：与 statRecs 语义不同，见 model.go 注释
+	relicWeights map[int64]CharacterRelicWeight
+	relicRules   map[int64][]CharacterRelicWeightRule
 	setEffects   map[int][]RelicSetEffect // 套装 ID → 2/4 件效果（按件数升序）
 }
 
@@ -97,6 +100,14 @@ func (s *Service) Load() error {
 	}
 	var statRecRows []CharacterStatWeights
 	if err := s.db.Find(&statRecRows).Error; err != nil {
+		return err
+	}
+	var relicWeightRows []CharacterRelicWeight
+	if err := s.db.Find(&relicWeightRows).Error; err != nil {
+		return err
+	}
+	var relicRuleRows []CharacterRelicWeightRule
+	if err := s.db.Find(&relicRuleRows).Error; err != nil {
 		return err
 	}
 
@@ -161,6 +172,24 @@ func (s *Service) Load() error {
 	for _, e := range setEffects {
 		setEffectMap[e.SetID] = append(setEffectMap[e.SetID], e)
 	}
+	relicWeightMap := make(map[int64]CharacterRelicWeight, len(relicWeightRows))
+	for _, rw := range relicWeightRows {
+		relicWeightMap[rw.CharacterID] = rw
+	}
+	relicRuleMap := make(map[int64][]CharacterRelicWeightRule, len(relicRuleRows))
+	for _, rr := range relicRuleRows {
+		relicRuleMap[rr.CharacterID] = append(relicRuleMap[rr.CharacterID], rr)
+	}
+	// 规则顺序要稳定（map/DB 返回顺序不保证；同一角色多条规则可叠加，展示标签也要可复现）
+	for id, list := range relicRuleMap {
+		sort.Slice(list, func(i, j int) bool {
+			if list[i].CondType != list[j].CondType {
+				return list[i].CondType < list[j].CondType
+			}
+			return list[i].StatKey < list[j].StatKey
+		})
+		relicRuleMap[id] = list
+	}
 	// 按件数升序：渲染出的资料文本要可复现（map 遍历无序，DB 返回顺序也不保证）
 	for id, list := range setEffectMap {
 		sort.Slice(list, func(i, j int) bool { return list[i].Piece < list[j].Piece })
@@ -179,6 +208,8 @@ func (s *Service) Load() error {
 	s.relicSlots = slotMap
 	s.affixes = affixMap
 	s.statRecs = recMap
+	s.relicWeights = relicWeightMap
+	s.relicRules = relicRuleMap
 	s.setEffects = setEffectMap
 	s.mu.Unlock()
 
@@ -186,7 +217,8 @@ func (s *Service) Load() error {
 		"characters", len(chars), "weapons", len(weapons),
 		"relicSets", len(sets), "relicSetEffects", len(setEffects),
 		"texts", len(texts), "props", len(props),
-		"fightProps", len(fightProps), "affixes", len(affixes), "statRecs", len(recMap))
+		"fightProps", len(fightProps), "affixes", len(affixes), "statRecs", len(recMap),
+		"relicWeights", len(relicWeightMap), "relicRules", len(relicRuleRows))
 	return nil
 }
 
@@ -292,6 +324,27 @@ func (s *Service) StatRecommendation(characterID int64) (StatRecommendation, boo
 	defer s.mu.RUnlock()
 	rec, ok := s.statRecs[characterID]
 	return rec, ok
+}
+
+// RelicWeight 按角色查圣遗物评分权重（V3）。未配置时返回 false，算分侧会走默认权重。
+func (s *Service) RelicWeight(characterID int64) (CharacterRelicWeight, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	w, ok := s.relicWeights[characterID]
+	return w, ok
+}
+
+// RelicWeightRules 按角色取评分权重覆盖规则（返回副本，避免与 reload 竞争）
+func (s *Service) RelicWeightRules(characterID int64) []CharacterRelicWeightRule {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	list := s.relicRules[characterID]
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]CharacterRelicWeightRule, len(list))
+	copy(out, list)
+	return out
 }
 
 // CharactersMentioned 返回提问中「名字被提到」的角色（V2 结构化查表用）。

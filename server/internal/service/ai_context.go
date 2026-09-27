@@ -14,6 +14,7 @@ package service
 // 约定：数据只在本次请求内存中存在，AI 服务不落库。
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -113,6 +114,30 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 		"worldLevel": profile.WorldLevel,
 		"characters": chars,
 	}
+	// 终局玩法概要（2026-09-27 新增，Enka playerInfo 直读）：深渊 / 剧诗 / 危战**只有概要**，
+	// 没有每间队伍与怪物阵容。缺失时写成一句话而**不是省略字段**——省略会让模型看空，
+	// 进而凭记忆编造（与 V2.3「库里没有就显式说没有」同一个教训）。
+	if profile.Abyss != nil {
+		player["abyss"] = map[string]any{
+			"floor": profile.Abyss.Floor, "room": profile.Abyss.Room, "stars": profile.Abyss.Stars,
+		}
+	} else {
+		player["abyss"] = "档案中未提供（玩家可能未公开战绩）"
+	}
+	if profile.Theater != nil {
+		player["theater"] = map[string]any{
+			"act": profile.Theater.Act, "mode": profile.Theater.Mode, "stars": profile.Theater.Stars,
+		}
+	} else {
+		player["theater"] = "档案中未提供（玩家可能未公开战绩）"
+	}
+	if profile.Stygian != nil {
+		player["stygian"] = map[string]any{
+			"index": profile.Stygian.Index, "seconds": profile.Stygian.Seconds, "id": profile.Stygian.ID,
+		}
+	} else {
+		player["stygian"] = "档案中未提供（玩家可能未公开战绩）"
+	}
 	rc := &RequestContext{Goal: goal, Player: player}
 	if omitted > 0 {
 		rc.Summary = "其余 " + strconv.Itoa(omitted) + " 个展柜角色因体积预算已省略"
@@ -155,6 +180,23 @@ func characterEntry(c dto.CharacterCard, detail bool) map[string]any {
 	}
 	if arts := artifactPayload(c.Relics, detail); len(arts) > 0 {
 		entry["artifacts"] = arts
+	}
+	// 圣遗物评分摘要（V3，2026-09-27）：给"毕业了吗/先强化哪件"这类问题一个数值锚点。
+	// 口径是社区参考标准（非官方），prompt 层负责让 AI 如实转述并说明口径。
+	if c.RelicScoreTotal > 0 {
+		round1 := func(v float64) float64 { return math.Round(v*10) / 10 }
+		score := map[string]any{
+			"total": round1(c.RelicScoreTotal),
+			"avg":   round1(c.RelicScoreAvg),
+			"class": c.RelicScoreClass,
+			"words": round1(c.RelicWordCount),
+			"crit":  round1(c.RelicCritScore),
+			"note":  "社区参考评分（单件满分66，按5件平均分档：D/C/B/A/S/SS/SSS/ACE/MAX）",
+		}
+		if detail {
+			score["pieces"] = len(c.Relics)
+		}
+		entry["relicScore"] = score
 	}
 	return entry
 }

@@ -24,6 +24,23 @@ type PlayerInfo struct {
 	ProfilePicture       struct {
 		ID int `json:"id"`
 	} `json:"profilePicture"`
+
+	// 终局玩法概要（2026-09-27 实测：Enka playerInfo 直读）。
+	// ⚠️ 一律用**指针**：玩家隐藏战绩时 Enka **不下发**这些字段，
+	// 用值类型会把"没有"和"0"混为一谈（0 层 / 0 星是合法值）。
+	//
+	// 深境螺旋：层 / 间 / 星（实测 UID 197794747 → 12-3、36 星）
+	TowerFloorIndex *int `json:"towerFloorIndex"`
+	TowerLevelIndex *int `json:"towerLevelIndex"`
+	TowerStarIndex  *int `json:"towerStarIndex"`
+	// 幻想真境剧诗：幕 / 模式 id / 星
+	TheaterActIndex  *int `json:"theaterActIndex"`
+	TheaterModeIndex *int `json:"theaterModeIndex"`
+	TheaterStarIndex *int `json:"theaterStarIndex"`
+	// 幽境危战：难度/期序号 / 用时（秒）/ 关卡 id
+	StygianIndex   *int `json:"stygianIndex"`
+	StygianSeconds *int `json:"stygianSeconds"`
+	StygianID      *int `json:"stygianId"`
 }
 
 type AvatarInfo struct {

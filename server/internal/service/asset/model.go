@@ -101,6 +101,81 @@ type CharacterStatWeights struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// CharacterRelicWeight 圣遗物评分权重（V3，2026-09-27 新增；表名 character_relic_weights）
+//
+// ⚠️ 与 CharacterStatWeights（角色推荐词条）**语义不同、不可混用**：
+//   - CharacterStatWeights：10 分制、5 类词条，用途是"给用户/提示词的推荐"；
+//   - 本表：0~100 十维（含 生命/防御/精通/增伤/物伤/治疗），用途是"给圣遗物打分"。
+//
+// 数据来源 miao-plugin（MIT License, Copyright (c) 2023 Yoimiya），
+// 详见 teyvat-docs/ai/08-圣遗物评分设计与落地.md；种子由 cmd/assetimport/gen-relic-weights.ps1 生成。
+type CharacterRelicWeight struct {
+	CharacterID int64  `gorm:"primaryKey;autoIncrement:false" json:"characterId"`
+	Name        string `gorm:"size:32" json:"name,omitempty"`
+	HP          int    `gorm:"not null;default:0" json:"hp"`
+	ATK         int    `gorm:"not null;default:0" json:"atk"`
+	DEF         int    `gorm:"not null;default:0" json:"def"`
+	CPct        int    `gorm:"column:cpct;not null;default:0" json:"cpct"`
+	CDmg        int    `gorm:"column:cdmg;not null;default:0" json:"cdmg"`
+	Mastery     int    `gorm:"not null;default:0" json:"mastery"`
+	Dmg         int    `gorm:"not null;default:0" json:"dmg"`
+	Phy         int    `gorm:"not null;default:0" json:"phy"`
+	Recharge    int    `gorm:"not null;default:0" json:"recharge"`
+	Heal        int    `gorm:"not null;default:0" json:"heal"`
+	// 来源与版本锚点：上游持续变动，必须能复现（AI/08 §9 风险 1）
+	Source    string    `gorm:"size:64" json:"source,omitempty"`
+	SourceRef string    `gorm:"size:96" json:"sourceRef,omitempty"`
+	FetchedAt string    `gorm:"size:16" json:"fetchedAt,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Dim 按维度 key 取权重（hp/atk/def/cpct/cdmg/mastery/dmg/phy/recharge/heal）
+func (w CharacterRelicWeight) Dim(key string) int {
+	switch key {
+	case "hp":
+		return w.HP
+	case "atk":
+		return w.ATK
+	case "def":
+		return w.DEF
+	case "cpct":
+		return w.CPct
+	case "cdmg":
+		return w.CDmg
+	case "mastery":
+		return w.Mastery
+	case "dmg":
+		return w.Dmg
+	case "phy":
+		return w.Phy
+	case "recharge":
+		return w.Recharge
+	case "heal":
+		return w.Heal
+	}
+	return 0
+}
+
+// CharacterRelicWeightRule 评分权重的角色级覆盖规则（表名 character_relic_weight_rules）
+//
+// 把 miao-plugin 的 character/<角色>/artis.js 逻辑数据化，运营可在后台维护：
+// 例：菲林斯 + 武器「血染荒城」→ 充能权重 -5；哥伦比娅 + 命座 ≥4 → 充能权重 -15（可叠加）。
+type CharacterRelicWeightRule struct {
+	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	CharacterID   int64     `gorm:"uniqueIndex:idx_relic_rule;not null" json:"characterId"`
+	CharacterName string    `gorm:"size:32" json:"characterName,omitempty"`
+	CondType      string    `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"condType"` // weapon | cons
+	CondOp        string    `gorm:"size:8;not null" json:"condOp"`                               // = | >=
+	CondValue     string    `gorm:"uniqueIndex:idx_relic_rule;size:32;not null" json:"condValue"`
+	StatKey       string    `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"statKey"` // 维度 key，如 recharge
+	Delta         int       `gorm:"not null;default:0" json:"delta"`
+	Note          string    `gorm:"size:32" json:"note,omitempty"` // 标签：专武 / 高命
+	Source        string    `gorm:"size:64" json:"source,omitempty"`
+	SourceRef     string    `gorm:"size:96" json:"sourceRef,omitempty"`
+	FetchedAt     string    `gorm:"size:16" json:"fetchedAt,omitempty"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
 // Missing 翻译缺漏收集（补录依据，不阻塞查询）
 type Missing struct {
 	Kind      string    `gorm:"primaryKey;size:16" json:"kind"` // character|weapon|relic_set|text|prop|affix

@@ -29,6 +29,10 @@ type ImportPayload struct {
 	RelicSlots      []RelicSlot        `json:"relicSlots"`
 	Affixes         []Affix            `json:"affixes"`
 	StatWeights     []StatWeightImport `json:"statWeights"`
+	// RelicWeights / RelicWeightRules 圣遗物评分权重（V3，2026-09-27 新增）：
+	// 来源 miao-plugin（MIT），见 ai/08；与 StatWeights（推荐词条）语义不同，不要混用
+	RelicWeights     []CharacterRelicWeight     `json:"relicWeights"`
+	RelicWeightRules []CharacterRelicWeightRule `json:"relicWeightRules"`
 }
 
 const upsertBatchSize = 500
@@ -79,12 +83,35 @@ func (s *Service) Import(p ImportPayload) error {
 				return err
 			}
 		}
+		// 评分权重：主键即 character_id，OnConflict UpdateAll 天然幂等
+		if err := upsertBatch(tx, p.RelicWeights, upsertBatchSize); err != nil {
+			return err
+		}
+		if err := upsertRelicWeightRules(tx, p.RelicWeightRules); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 	return s.Load() // 导入成功立即刷新内存
+}
+
+// upsertRelicWeightRules 覆盖规则幂等写入。
+// 规则是自增主键，直接用 UpdateAll 会在重复导入时堆重复行 ⇒ 按业务唯一键冲突更新。
+func upsertRelicWeightRules(tx *gorm.DB, rows []CharacterRelicWeightRule) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	return tx.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "character_id"}, {Name: "cond_type"}, {Name: "cond_value"}, {Name: "stat_key"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"character_name", "cond_op", "delta", "note", "source", "source_ref", "fetched_at", "updated_at",
+		}),
+	}).Create(&rows).Error
 }
 
 func upsertBatch[T any](tx *gorm.DB, rows []T, size int) error {

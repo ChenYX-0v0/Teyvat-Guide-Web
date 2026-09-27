@@ -42,6 +42,51 @@ func (tr *Translator) TranslateStatRecommendation(rec asset.StatRecommendation) 
 	return &dto.StatRecommendation{SubStats: entries, MainStats: rec.MainStats}
 }
 
+// deref 指针取值；nil → 0（这三个字段是"同生共死"的一组，任一枚非空即算有数据）
+func deref(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// abyssSummary 深境螺旋概要：**以 towerFloorIndex 是否存在**为"有没有数据"的判据；
+// 玩家隐藏战绩时字段整体缺失 → 返回 nil（前端与 AI 上下文据此区分"0 层"与"没有"）。
+func abyssSummary(pi PlayerInfo) *dto.AbyssSummary {
+	if pi.TowerFloorIndex == nil {
+		return nil
+	}
+	return &dto.AbyssSummary{
+		Floor: deref(pi.TowerFloorIndex),
+		Room:  deref(pi.TowerLevelIndex),
+		Stars: deref(pi.TowerStarIndex),
+	}
+}
+
+// theaterSummary 幻想真境剧诗概要（判据同上）
+func theaterSummary(pi PlayerInfo) *dto.TheaterSummary {
+	if pi.TheaterActIndex == nil {
+		return nil
+	}
+	return &dto.TheaterSummary{
+		Act:   deref(pi.TheaterActIndex),
+		Mode:  deref(pi.TheaterModeIndex),
+		Stars: deref(pi.TheaterStarIndex),
+	}
+}
+
+// stygianSummary 幽境危战概要（判据同上）
+func stygianSummary(pi PlayerInfo) *dto.StygianSummary {
+	if pi.StygianIndex == nil {
+		return nil
+	}
+	return &dto.StygianSummary{
+		Index:   deref(pi.StygianIndex),
+		Seconds: deref(pi.StygianSeconds),
+		ID:      deref(pi.StygianID),
+	}
+}
+
 // TranslateProfile 翻译玩家档案
 func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 	profile := &dto.PlayerProfile{
@@ -53,6 +98,9 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 		WorldLevel:   p.PlayerInfo.WorldLevel,
 		Achievements: p.PlayerInfo.FinishAchievementNum,
 		Characters:   make([]dto.CharacterCard, 0, len(p.AvatarInfoList)),
+		Abyss:        abyssSummary(p.PlayerInfo),
+		Theater:      theaterSummary(p.PlayerInfo),
+		Stygian:      stygianSummary(p.PlayerInfo),
 	}
 
 	if ch, ok := tr.assets.Character(int64(p.PlayerInfo.ProfilePicture.ID)); ok {
@@ -105,6 +153,10 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 		}
 
 		card.Stats = tr.panelStats(a.FightPropMap, card.Element, tierByName)
+
+		// 圣遗物评分入参（V3）：与 card.Relics 同序，装备循环结束后统一算分
+		// —— 套装件数（绝缘4）与武器名要等圣遗物/武器收集齐才可判
+		scoreInputs := make([]asset.RelicScoreInput, 0, 5)
 
 		for _, eq := range a.EquipList {
 			switch eq.Flat.ItemType {
@@ -173,6 +225,8 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 				}
 
 				// 主词条 + 副词条（附强化次数与属性分级）
+				// 评分入参在此处取**原始 float**（StatValue），dto 层的字符串是 %g 格式化结果、有精度损失（ai/08 附2 踩坑 5）
+				scoreIn := asset.RelicScoreInput{Slot: eq.Flat.EquipType}
 				if eq.Flat.ReliquaryMainstat.MainPropID != "" {
 					name, value := tr.statDetail(
 						eq.Flat.ReliquaryMainstat.MainPropID,
@@ -180,6 +234,8 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 					)
 					relic.MainStat = fmt.Sprintf("%s +%s", name, value)
 					relic.MainStatTier = tierByName[name]
+					scoreIn.MainStatName = name
+					scoreIn.MainStatValue = eq.Flat.ReliquaryMainstat.StatValue
 				}
 				for _, sub := range eq.Flat.ReliquarySubstats {
 					name, value := tr.statDetail(sub.AppendPropID, sub.StatValue)
@@ -189,11 +245,18 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 						Count: enhanceCount[sub.AppendPropID],
 						Tier:  tierByName[name],
 					})
+					scoreIn.SubStats = append(scoreIn.SubStats, asset.RelicStatInput{
+						Name:  name,
+						Value: sub.StatValue,
+					})
 				}
 
 				card.Relics = append(card.Relics, relic)
+				scoreInputs = append(scoreInputs, scoreIn)
 			}
 		}
+
+		tr.scoreRelics(&card, scoreInputs)
 
 		profile.Characters = append(profile.Characters, card)
 	}
@@ -212,6 +275,60 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// scoreRelics 给角色卡打圣遗物评分（V3，2026-09-27；口径见 teyvat-docs/ai/08）。
+// 输入是 translate 层收集的原始 float（非 dto 字符串反解）；该角色未配置权重时
+// ScoreRelic 会走默认权重，评分恒可用 —— 但旧库未导入权重表时分数会偏"通用"，可接受。
+func (tr *Translator) scoreRelics(card *dto.CharacterCard, inputs []asset.RelicScoreInput) {
+	if len(inputs) == 0 || len(card.Relics) != len(inputs) {
+		return
+	}
+	// 套装件数（绝缘4 规则要全量件数）
+	setCount := map[string]int{}
+	for _, r := range card.Relics {
+		if set := firstNonEmpty(r.Set, r.Name); set != "" {
+			setCount[set]++
+		}
+	}
+	var total, words, crit float64
+	scored := 0
+	for i := range inputs {
+		in := &inputs[i]
+		in.CharacterID = card.ID
+		in.Constellation = card.Constellation
+		if card.Weapon != nil {
+			in.WeaponName = card.Weapon.Name
+			in.WeaponAffix = card.Weapon.Affix
+		}
+		if set := firstNonEmpty(card.Relics[i].Set, card.Relics[i].Name); set != "" {
+			in.SetName = set
+			in.SetCount = setCount[set]
+		}
+		res, ok := tr.assets.ScoreRelic(*in)
+		if !ok {
+			continue
+		}
+		r := &card.Relics[i]
+		r.Score = res.Score
+		r.ScorePct = res.Percent
+		r.ScoreCls = res.Class
+		r.WordCount = res.WordCount
+		r.CritScore = res.CritScore
+		r.WeightTag = res.WeightTag
+		total += res.Score
+		words += res.WordCount
+		crit += res.CritScore
+		scored++
+	}
+	if scored > 0 {
+		cls, avg := asset.RelicSetGrade(total, scored)
+		card.RelicScoreTotal = total
+		card.RelicScoreAvg = avg
+		card.RelicScoreClass = cls
+		card.RelicWordCount = words
+		card.RelicCritScore = crit
+	}
 }
 
 // statDetail 词条翻译：返回（词条名, 格式化数值，百分比词条自动补 %）

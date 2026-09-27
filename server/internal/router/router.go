@@ -220,6 +220,8 @@ func autoMigrate() {
 		&asset.RelicSlot{},
 		&asset.Affix{},
 		&asset.CharacterStatWeights{},
+		&asset.CharacterRelicWeight{},     // 圣遗物评分权重（V3，2026-09-27，见 ai/08）
+		&asset.CharacterRelicWeightRule{}, // 评分权重·角色级覆盖规则
 		&asset.Missing{},
 	); err != nil {
 		logger.L().Errorw("auto migrate failed", "err", err)
