@@ -23,7 +23,69 @@ package asset
 // 我们库里只有 旅行者(10000005/10000007) 与 奇偶·男性/女性(10000117/10000118)，
 // 所以按 (角色ID, 元素) 取权重：有元素形态用元素形态，取不到就退回通用那一行。
 
-import "strings"
+import (
+	_ "embed"
+	"encoding/json"
+	"os"
+	"strings"
+	"sync"
+)
+
+// ⚠️ 桥接实现（2026-09-27）：权重表暂时**随包内嵌**（go:embed），而不是走 DB 装载。
+// 原因：走 DB 需要同时改 表结构 + 两处 AutoMigrate + 导入分支 + Load() + 访问器（一次改完才行 ✗），
+// 本轮先把口径真正**跑起来**并锁住结果，DB 化作为紧接着的下一步（届时本文件只换数据来源、算分不动）。
+// 数据来源与 cmd/assetimport/relic_weights_mp.json 完全一致（同一个生成脚本产出）。
+//
+//go:embed relic_weights_mp.json
+var mpWeightsJSON []byte
+
+// mpWeightKey 权重主键：(角色 ID, 元素)。元素仅旅行者有值（风/岩/雷/草/水/火/冰）。
+type mpWeightKey struct {
+	ID      int64
+	Element string
+}
+
+var (
+	mpWeightsOnce sync.Once
+	mpWeights     map[mpWeightKey]CharacterRelicWeightMP
+)
+
+func loadMPWeights() map[mpWeightKey]CharacterRelicWeightMP {
+	mpWeightsOnce.Do(func() {
+		mpWeights = map[mpWeightKey]CharacterRelicWeightMP{}
+		var payload struct {
+			MPWeights []CharacterRelicWeightMP `json:"mpWeights"`
+		}
+		if err := json.Unmarshal(mpWeightsJSON, &payload); err != nil {
+			return
+		}
+		for _, w := range payload.MPWeights {
+			mpWeights[mpWeightKey{ID: w.CharacterID, Element: w.Element}] = w
+		}
+	})
+	return mpWeights
+}
+
+// MPWeight 取小助手口径权重：先按 (角色, 元素)，取不到再退回该角色的通用行（element = ""）。
+func MPWeight(characterID int64, element string) (CharacterRelicWeightMP, bool) {
+	m := loadMPWeights()
+	if element != "" {
+		if w, ok := m[mpWeightKey{ID: characterID, Element: element}]; ok {
+			return w, true
+		}
+	}
+	w, ok := m[mpWeightKey{ID: characterID}]
+	return w, ok
+}
+
+// RelicScoreMode 口径开关：环境变量 RELIC_SCORE_MODE = mp（默认）| miao。
+// 回滚时把容器环境变量改成 miao 重启即可（不需要改代码/发版）。
+func RelicScoreMode() string {
+	if v := strings.TrimSpace(strings.ToLower(os.Getenv("RELIC_SCORE_MODE"))); v == "miao" {
+		return "miao"
+	}
+	return "mp"
+}
 
 // 小助手系数表：dim key → 系数（dim 与 miao 口径共用一套 key）
 var mpCoef = map[string]float64{
@@ -72,6 +134,11 @@ type MPRelicScore struct {
 	Dims      map[string]float64 // 各维度贡献（调试与前端提示用）
 	WordCount float64            // 词条数：按均词条值折算（沿用既有展示口径）
 	CritScore float64            // 双暴分：暴击率×2 + 暴击伤害（只看副词条）
+}
+
+// ScoreRelicMP 小助手口径的单件算分（对外入口，供翻译层调用）
+func ScoreRelicMP(in RelicScoreInput, w CharacterRelicWeightMP) (MPRelicScore, bool) {
+	return mpscore(in, w)
 }
 
 // mpscore 小助手口径的单件计分（权重的 0~100 由调用方传入 dims 决定计分范围）

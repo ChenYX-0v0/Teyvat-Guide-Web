@@ -277,6 +277,24 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// travelerElement 旅行者当前元素（小助手口径的权重按 (角色, 元素) 取）。
+// 非旅行者、或拿不到可信元素时返回 "" ⇒ 权重取该角色的通用行（不会算错，只会少一点精度）。
+// ⚠️ 档案里的 Element 取自我们 characters 表配置，**不一定是玩家当前的旅行者元素** ✗
+//
+//	（真实元素在 Enka 的 skillDepotId 里）—— 接上 skillDepotId 是后续小改。
+func travelerElement(card *dto.CharacterCard) string {
+	switch card.ID {
+	case 10000005, 10000007, 10000117, 10000118: // 旅行者（荧/空）与 奇偶·男性/女性
+	default:
+		return ""
+	}
+	switch card.Element {
+	case "风", "岩", "雷", "草", "水", "火", "冰":
+		return card.Element
+	}
+	return ""
+}
+
 // scoreRelics 给角色卡打圣遗物评分（V3，2026-09-27；口径见 teyvat-docs/ai/08）。
 // 输入是 translate 层收集的原始 float（非 dto 字符串反解）；该角色未配置权重时
 // ScoreRelic 会走默认权重，评分恒可用 —— 但旧库未导入权重表时分数会偏"通用"，可接受。
@@ -304,6 +322,23 @@ func (tr *Translator) scoreRelics(card *dto.CharacterCard, inputs []asset.RelicS
 		if set := firstNonEmpty(card.Relics[i].Set, card.Relics[i].Name); set != "" {
 			in.SetName = set
 			in.SetCount = setCount[set]
+		}
+		// 口径分支（2026-09-27）：默认走小助手口径（RELIC_SCORE_MODE=mp），
+		// 设成 miao 即回到原实现（改容器环境变量 + 重启即可回滚，不用发版）。
+		if asset.RelicScoreMode() == "mp" {
+			if w, ok := asset.MPWeight(card.ID, travelerElement(card)); ok {
+				mp, _ := asset.ScoreRelicMP(*in, w)
+				r := &card.Relics[i]
+				r.Score = mp.Score
+				r.ScoreCls = asset.RelicClass(mp.Score) // 档位：沿用既有阈值（用户决定先不动）
+				r.WordCount = mp.WordCount
+				r.CritScore = mp.CritScore
+				total += mp.Score
+				words += mp.WordCount
+				crit += mp.CritScore
+				scored++
+				continue
+			}
 		}
 		res, ok := tr.assets.ScoreRelic(*in)
 		if !ok {
