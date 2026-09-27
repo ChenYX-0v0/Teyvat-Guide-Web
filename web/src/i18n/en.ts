@@ -82,6 +82,37 @@ const en: Partial<Dict> = {
   'home.backendStatus': 'Backend: ',
   'home.statusUp': 'Up',
   'home.statusDown': 'Offline (please start the Go server)',
+  // Roadmap block on the home page — always phrased from the *user's* point of view:
+  // say what you will get, never internal jargon.
+  'home.roadmapTitle': 'What is coming next',
+  'home.roadmapHint': 'Only things you will actually use. Shipped one by one; order may change.',
+  'home.roadmapDoing': 'In progress',
+  'home.roadmapPlanned': 'Planned',
+  'home.roadmap.buildPriority.title': 'Who to build next, ranked for you',
+  'home.roadmap.buildPriority.desc':
+    'Based on the characters you have uploaded and their current investment, tells you who to level next and how far.',
+  'home.roadmap.banner.title': 'Is the current banner worth pulling?',
+  'home.roadmap.banner.desc':
+    'Shows the current rate-up characters and weapons, then advises based on your roster. (Pity counter and primogems are not available, so advice is about "do you need it")',
+  'home.roadmap.story.title': 'Forgot the story? Recap by chapter',
+  'home.roadmap.story.desc':
+    'Main-story recap: one-line summary plus key events per chapter, only for what you have already played — no spoilers.',
+  'home.roadmap.wiki.title': 'Wiki (coming back when it has real data)',
+  'home.roadmap.wiki.desc':
+    'Characters / weapons / artifacts lookup: list, filters and details on one page. (Hidden for now so it does not sit empty in the menu.)',
+  'home.roadmap.teamBuilder.title': 'Team building from your own roster',
+  'home.roadmap.teamBuilder.desc': 'Teams you can actually field, with reasons — not generic guides.',
+  'home.roadmap.farmRoute.title': 'Farming route map',
+  'home.roadmap.farmRoute.desc':
+    'A sensible route for the materials your characters or weapons need, so you run less.',
+  'home.roadmap.endgame.title': 'Spiral Abyss / Imaginarium Theater / Stygian Onslaught',
+  'home.roadmap.endgame.desc':
+    'This cycle blessing, 3-star conditions and per-chamber enemies. Blessing and conditions first, chamber details after.',
+  'home.roadmap.theme.title': 'Light theme',
+  'home.roadmap.theme.desc': 'For bright rooms: a light theme you can switch to anytime.',
+  'home.roadmap.pwa.title': 'Add to home screen, works on weak networks',
+  'home.roadmap.pwa.desc': 'Opens from your phone home screen like an app; what you already loaded stays available.',
+
 
   // Chat
   'chat.title': 'AI Chat',
