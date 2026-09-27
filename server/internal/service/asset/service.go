@@ -143,10 +143,16 @@ func (s *Service) Load() error {
 	propIDByName := make(map[string]string, len(props))
 	for _, p := range props {
 		propMap[p.PropID] = p
-		// 词条名 → PropID：**同名冲突时优先保留"有数字枚举"的那个**。
-		// 反例（2026-09-26 踩到）：FIGHT_PROP_FIRE_ADD 与 FIGHT_PROP_FIRE_ADD_HURT 都叫「火元素伤害加成」
-		// —— 面板属性行要用数字枚举回查数值，若选中没有枚举的 _ADD_HURT，整行会被跳过，
-		// 表现为「角色面板里 元素伤害加成 整项消失」。顺序敏感：所以先建 numByFight 再建本表。
+		// 词条名 → PropID：**同名冲突时优先保留"有数字枚举"的那个**（防御性保留 ✓）。
+		//
+		// 反例（2026-09-26 踩到）：`FIGHT_PROP_FIRE_ADD` 与 `FIGHT_PROP_FIRE_ADD_HURT`
+		// 都叫「火元素伤害加成」，而面板属性行要用数字枚举回查数值 —— 若选中没有枚举的那个，
+		// 整行会被跳过，表现为「角色面板里 元素伤害加成 整项消失」✗。
+		// 顺序敏感：所以先建 numByFight 再建本表 ✓。
+		//
+		// 2026-09-27 已清理数据：库与种子里只留**真 key（`_*_ADD_HURT`）** ✓（删掉 8 条旧 `_ADD` 行，
+		// 见 deploy/out/clean-dup-add-props.js）；下面的裁决逻辑仍保留，作为"数据再出错"的兜底 ✓。
+		// ⚠️ `FIGHT_PROP_HEAL_ADD` / `FIGHT_PROP_HEALED_ADD` **没有** HURT 兄弟，是正当 key ✓。
 		old, exists := propIDByName[p.Name]
 		if !exists {
 			propIDByName[p.Name] = p.PropID
@@ -323,7 +329,7 @@ func (s *Service) PropIDByNum(numID string) (string, bool) {
 	return id, ok
 }
 
-// NumIDByPropID PropID → 数字枚举（如 FIGHT_PROP_WATER_ADD → "45"）
+// NumIDByPropID PropID → 数字枚举（如 FIGHT_PROP_WATER_ADD_HURT → "42"）
 func (s *Service) NumIDByPropID(propID string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

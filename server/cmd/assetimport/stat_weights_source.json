@@ -846,7 +846,7 @@
                                                          "secondary"
                                                      ],
                                                      [
-                                                         "FIGHT_PROP_WATER_ADD",
+                                                         "FIGHT_PROP_WATER_ADD_HURT",
                                                          5,
                                                          "primary"
                                                      ]
