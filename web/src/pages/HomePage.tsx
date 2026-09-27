@@ -1,38 +1,22 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Map, MessageSquare, UserRound } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { chatApi } from '@/api/chat'
 import { t } from '@/i18n'
-import Card from '@/components/common/Card'
 import { buttonClass } from '@/utils/buttonStyles'
 import { EVENTS, track } from '@/lib/track'
 import type { HealthData } from '@/types'
 
-/** 功能卡：图标徽记用元素色点一下（小面积，不做大面积铺色） */
-const features = [
-  {
-    key: 'chat',
-    icon: MessageSquare,
-    accent: 'var(--color-el-hydro)',
-    title: t('home.feature1Title'),
-    desc: t('home.feature1Desc'),
-  },
-  {
-    key: 'profile',
-    icon: UserRound,
-    accent: 'var(--color-el-geo)',
-    title: t('home.feature2Title'),
-    desc: t('home.feature2Desc'),
-  },
-  {
-    key: 'route',
-    icon: Map,
-    accent: 'var(--color-el-anemo)',
-    title: t('home.feature3Title'),
-    desc: t('home.feature3Desc'),
-  },
-]
-
+/**
+ * 首页
+ *
+ * 2026-09-28：原「智能问答 / 档案查询 / 路线规划」三张功能卡**已移除** ✗ ——
+ * 它们只是把左侧导航又抄了一遍（三处入口导航里本来就有），占着首屏却没给出新信息。
+ *
+ * 腾出的位置留给规划中的三张新卡（口径与依赖见 `teyvat-docs/web/06-开发路线图.md` P2）：
+ *   1) 推荐优先培养角色  2) 当前祈愿 + 抽取建议  3) 主线剧情回顾
+ * 在它们落地前，首页 = 英雄区（定位 + 主/次 CTA）+ 后端状态行。
+ */
 export default function HomePage() {
   const [health, setHealth] = useState<HealthData>()
 
@@ -76,21 +60,6 @@ export default function HomePage() {
         ) : (
           <span className="text-warn"> {t('home.statusDown')}</span>
         )}
-      </div>
-
-      <div className="mt-10 grid gap-4 sm:grid-cols-3">
-        {features.map(({ key, icon: Icon, accent, title, desc }) => (
-          <Card key={key} lift className="p-5">
-            <span
-              className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-teyvat-line bg-white/[0.03]"
-              style={{ color: accent }}
-            >
-              <Icon className="h-4 w-4" />
-            </span>
-            <h3 className="font-medium text-teyvat-text">{title}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-teyvat-text-3">{desc}</p>
-          </Card>
-        ))}
       </div>
     </div>
   )

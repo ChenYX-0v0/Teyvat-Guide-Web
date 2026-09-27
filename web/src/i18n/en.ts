@@ -72,12 +72,9 @@ const en: Partial<Dict> = {
 
   // Home
   'home.welcome': 'Welcome to Teyvat, Traveler',
-  'home.feature1Title': 'Smart Q&A',
-  'home.feature1Desc': 'Team building, artifact advice and leveling plans in one question.',
-  'home.feature2Title': 'Profile Lookup',
-  'home.feature2Desc': 'Look up any player showcase by UID — no login, no risk control.',
-  'home.feature3Title': 'Route Planning',
-  'home.feature3Desc': 'Generate farming routes by target, travel efficiently.',
+  // home.feature1~3Title/Desc (Smart Q&A / Profile Lookup / Route Planning) removed 2026-09-28:
+  // they only duplicated the sidebar entries; the space is reserved for three planned cards
+  // (see web/06 roadmap, P2).
   'home.startChat': 'Start Chatting',
   'home.viewWiki': 'Browse Wiki',
   'home.backendStatus': 'Backend: ',

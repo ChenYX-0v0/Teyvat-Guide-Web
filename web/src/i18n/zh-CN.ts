@@ -70,12 +70,8 @@ const zhCN = {
 
   // 首页
   'home.welcome': '欢迎来到提瓦特，旅行者',
-  'home.feature1Title': '智能问答',
-  'home.feature1Desc': '角色配队、圣遗物推荐、养成规划，一句话问清楚。',
-  'home.feature2Title': '档案查询',
-  'home.feature2Desc': '输入 UID 查看玩家展柜角色、养成详情，免登录免风控。',
-  'home.feature3Title': '路线规划',
-  'home.feature3Desc': '按目标生成采集路线，省时高效跑图。',
+  // 原 home.feature1~3Title/Desc（智能问答 / 档案查询 / 路线规划）已于 2026-09-28 移除 ✓
+  // —— 那三张卡只是重复了左侧导航的入口；腾出的位置留给规划中的三张新卡（见 web/06 路线图 P2）
   'home.startChat': '开始对话',
   'home.viewWiki': '查看图鉴',
   'home.backendStatus': '后端状态：',
