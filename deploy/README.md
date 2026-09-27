@@ -335,12 +335,13 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260927-0224`** | 用户须知（免责声明）接口：`/api/auth/me` 下发版本状态 + `POST /api/auth/terms`（服务端校验版本、写 `users.terms_version`）+ 事件白名单新增 `terms_shown` / `terms_accepted`（见 `teyvat-docs/web/15`）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
-| `teyvat-guide-web` | **`20260927-0224`** | **用户须知强制确认弹窗**（登录后版本不一致即阻断、强制阅读 5 秒、同意/退出）+ **公开条款页 `/terms`** + **AI 生成内容标识**（每条 AI 回答）+ 备案号页脚 + 不参与搜索收录 |
+| `teyvat-guide-server` | **`20260927-1446`** | **终局玩法概要**（深渊/剧诗/危战进 AI 上下文）+ **圣遗物评分 V3**（新表 `character_relic_weights` / `character_relic_weight_rules`，权重来源 miao-plugin·MIT，124 角色 + 3 覆盖规则已导入；翻译层算分落进档案快照与 AI 上下文；设计见 `teyvat-docs/ai/08`）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR**；发版后已执行 `reload?purgeSnapshots=true` |
+| `teyvat-guide-web` | **`20260927-1448`** | **圣遗物评分展示**（单件徽标 + 套装总评/词条/双暴）+ 顶栏副标题残缺文案修正；此前：用户须知弹窗 + `/terms` + AI 标识 + 备案号页脚 + 不参与搜索收录 |
 | `teyvat-ai` | `20260920-0220` | 首次部署版（未改动） |
 
-> **回滚**：`20260926-1839` 是上一版 server（旧镜像仍在 ECS 上）。
-> 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` 改回上一版 tag + `docker compose up -d --no-build server`。
+> **回滚**：server 上一版 `20260927-0224`、web 上一版 `20260927-0224`（旧镜像仍在 ECS 上）。
+> 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` / `WEB_IMAGE` 改回上一版 tag + `docker compose up -d --no-build <服务>`。
+> ⚠️ 评分权重数据独立于镜像：回滚 server 镜像不影响已导入的权重表；但要重算旧快照需再 `reload?purgeSnapshots=true`。
 
 **发一版（三种方式，任选）**：
 
