@@ -88,10 +88,26 @@ type StatWeightItem struct {
 	Tier    string `json:"tier,omitempty"` // primary | secondary | ""
 }
 
-// StatRecommendation 角色推荐强化词条（副词条权重 + 主词条推荐）
+// StatRecommendation 角色推荐强化词条（副词条权重 + 主词条推荐 + **评分权重**）
 type StatRecommendation struct {
 	SubStats  []StatWeightItem  `json:"subStats"`
 	MainStats map[string]string `json:"mainStats,omitempty"` // sand/goblet/circlet → 推荐主属性
+	// Score 圣遗物评分权重（2026-09-27 合并：评分权重**写在推荐属性里**，一份数据一个地方 ✓）
+	Score *RelicScorePayload `json:"score,omitempty"`
+}
+
+// RelicScorePayload 评分权重块（小助手口径 7 维，key 与推荐词条一致 = `FIGHT_PROP_*`）
+//
+// 为什么放在推荐属性 payload 里：原先评分权重单独一张表（`character_relic_weights_mp`），
+// 而"推荐词条优先级"与"评分权重"是同一批词条的两个数字 ⇒ 两处维护必然漂移 ✗（用户决定合并 ✓）。
+//
+// 元素维度**放进 JSON**：推荐属性表主键是一行一角色 ✗，而旅行者 7 个形态要分开算 ✓
+// ⇒ 用 `ByElement` 表达（key = 风/岩/雷/草/水/火/冰；`Dims` 是通用/兜底行）。
+type RelicScorePayload struct {
+	// Dims 通用权重：`FIGHT_PROP_*` → 0~100（0 = 该角色不吃这一维）
+	Dims map[string]int `json:"dims,omitempty"`
+	// ByElement 仅旅行者用：元素 → 该形态的权重（覆盖 Dims）
+	ByElement map[string]map[string]int `json:"byElement,omitempty"`
 }
 
 // CharacterStatWeights 角色推荐词条（按角色存储，JSON payload）

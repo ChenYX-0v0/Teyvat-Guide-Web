@@ -73,7 +73,20 @@ func (s *Service) Import(p ImportPayload) error {
 			return err
 		}
 		for _, item := range p.StatWeights {
-			payload, err := json.Marshal(item.Rec)
+			rec := item.Rec
+			// ⚠️ `score`（评分权重）**归后台所有**（2026-09-27 合并后）⇒ 导入必须"只补缺、不覆盖" ✗：
+			// 导入件里通常没有 score 块，而这里用的是 OnConflict UpdateAll —— 直接写会把后台刚编辑的
+			// 评分权重整块抹掉 ✗。规则：库里已有 score 就原样保留 ✓；库里没有才用导入件里的 ✓。
+			if rec.Score == nil {
+				var existing CharacterStatWeights
+				if err := tx.First(&existing, "character_id = ?", item.CharacterID).Error; err == nil && existing.Payload != "" {
+					var old StatRecommendation
+					if err := json.Unmarshal([]byte(existing.Payload), &old); err == nil && old.Score != nil {
+						rec.Score = old.Score
+					}
+				}
+			}
+			payload, err := json.Marshal(rec)
 			if err != nil {
 				return err
 			}

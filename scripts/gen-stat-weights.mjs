@@ -120,6 +120,10 @@ const MANUAL = SOURCE.manual
 // 判据只用我们自己的副词条权重（数据驱动，不引入外部依赖）：
 //   · 冠：暴击率与暴击伤害都达到 primary 量级 ⇒ 两条都可选
 //   · 沙：现为攻击力且充能需求同样高 ⇒ 充能沙同样可选
+// ⚠️ 评分权重（payload 里的 `score` 块）**不由本生成器产出**（2026-09-27 合并决定）：
+//    它归后台所有 ✓ —— 本生成器只管"推荐词条"（subStats / mainStats），
+//    导入侧对 score 是**只补缺、不覆盖**（见 server/internal/service/asset/import.go）
+//    ⇒ 重跑本脚本 + 重导入**不会**冲掉后台编辑的评分权重 ✓。
 const CRIT_BOTH_MIN = 6 // 双暴都到这个量级才算"都吃"
 const ER_SAND_MIN = 8 // 充能权重大到这个量级，充能沙才成立
 

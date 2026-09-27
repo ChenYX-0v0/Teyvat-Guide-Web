@@ -187,9 +187,25 @@ func (s *Service) Load() error {
 		relicRuleMap[rr.CharacterID] = append(relicRuleMap[rr.CharacterID], rr)
 	}
 	// 小助手口径权重：主键 (角色, 元素)；非旅行者 element 为空串
+	//
+	// ⚠️ 2026-09-27 起**真源已改为推荐属性 payload 的 score 块** ✓（见下方覆盖逻辑）
+	// —— 这张表降级为**过渡兜底**（表不删，但不是编辑入口）
 	mpWeightMap := make(map[mpWeightKey]CharacterRelicWeightMP, len(mpWeightRows))
 	for _, mw := range mpWeightRows {
 		mpWeightMap[mpWeightKey{ID: mw.CharacterID, Element: mw.Element}] = mw
+	}
+	// 用 payload 里的 score 块**覆盖**上表（有 score 的角色以推荐属性为准 ✓）
+	for _, row := range statRecRows {
+		rec, ok := recMap[row.CharacterID]
+		if !ok || rec.Score == nil {
+			continue
+		}
+		for elem, dims := range rec.Score.ByElement {
+			mpWeightMap[mpWeightKey{ID: row.CharacterID, Element: elem}] = mpWeightFromDims(row.CharacterID, dims)
+		}
+		if len(rec.Score.Dims) > 0 {
+			mpWeightMap[mpWeightKey{ID: row.CharacterID}] = mpWeightFromDims(row.CharacterID, rec.Score.Dims)
+		}
 	}
 	// 规则顺序要稳定（map/DB 返回顺序不保证；同一角色多条规则可叠加，展示标签也要可复现）
 	for id, list := range relicRuleMap {
@@ -346,8 +362,38 @@ func (s *Service) RelicWeight(characterID int64) (CharacterRelicWeight, bool) {
 	return w, ok
 }
 
+// mpWeightFromDims 把推荐属性 payload 里的 `score.dims`（`FIGHT_PROP_*` → 0~100）转成 7 维权重。
+//
+// "用 key 对齐"就落在这里 ✓：推荐词条的 statKey 与评分维度是同一批 `FIGHT_PROP_*` ✓
+// （cpct ↔ FIGHT_PROP_CRITICAL、cdmg ↔ FIGHT_PROP_CRITICAL_HURT、recharge ↔ FIGHT_PROP_CHARGE_EFFICIENCY…）。
+func mpWeightFromDims(characterID int64, dims map[string]int) CharacterRelicWeightMP {
+	w := CharacterRelicWeightMP{CharacterID: characterID}
+	for prop, v := range dims {
+		switch prop {
+		case "FIGHT_PROP_HP_PERCENT":
+			w.HP = v
+		case "FIGHT_PROP_ATTACK_PERCENT":
+			w.ATK = v
+		case "FIGHT_PROP_DEFENSE_PERCENT":
+			w.DEF = v
+		case "FIGHT_PROP_CRITICAL":
+			w.CPCT = v
+		case "FIGHT_PROP_CRITICAL_HURT":
+			w.CDMG = v
+		case "FIGHT_PROP_ELEMENT_MASTERY":
+			w.Mastery = v
+		case "FIGHT_PROP_CHARGE_EFFICIENCY":
+			w.Recharge = v
+		}
+	}
+	return w
+}
+
 // MPWeight 取小助手口径权重（7 维）：先按 (角色, 元素) 查 DB，再退回该角色的通用行；
 // 两者都没有时退回**包内嵌种子**（桥接兜底：DB 尚未导入任何东西时口径仍然可用）。
+//
+// ⚠️ 2026-09-27 起：这份内存映射的**真源是推荐属性 payload 的 `score` 块** ✓
+// （`character_relic_weights_mp` 表降级为过渡兜底，见 Load() 里的覆盖逻辑）。
 func (s *Service) MPWeight(characterID int64, element string) (CharacterRelicWeightMP, bool) {
 	s.mu.RLock()
 	m := s.mpWeights

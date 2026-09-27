@@ -14,6 +14,65 @@ import (
 	"teyvat-guide/server/internal/pkg/database"
 )
 
+// 2026-09-27 合并后：评分权重（payload 的 `score` 块）**归后台所有** ⇒ 导入必须"只补缺、不覆盖" ✗
+// （否则重跑生成器 + 重导入会把后台刚编辑的评分权重整块抹掉；生成器本身也不再产出 score ✓）
+func TestStatWeightImportKeepsScore(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "stat_weight_score.db")
+	if err := database.Init(config.DatabaseConfig{Driver: "sqlite", DSN: dsn}); err != nil {
+		t.Fatalf("初始化 sqlite 失败：%v", err)
+	}
+	db := database.DB()
+	// ⚠️ Import() 会遍历全部导入分支 ⇒ 这些表都得建出来（少一张就 "no such table" ✗）
+	if err := db.AutoMigrate(
+		&Character{}, &Weapon{}, &RelicSet{}, &RelicSetEffect{}, &TextMapEntry{},
+		&PropMap{}, &FightProp{}, &RelicSlot{}, &Affix{}, &CharacterStatWeights{},
+		&CharacterRelicWeight{}, &CharacterRelicWeightRule{}, &CharacterRelicWeightMP{}, &Missing{},
+	); err != nil {
+		t.Fatalf("迁移失败：%v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	svc := New(db)
+
+	// ① 模拟"后台编辑过"的 payload（含 score：通用 + 冰主形态）
+	fromAdmin := StatRecommendation{
+		SubStats:  []StatWeightItem{{StatKey: "FIGHT_PROP_CRITICAL", Weight: 8}},
+		MainStats: map[string]string{"circlet": "暴击率"},
+		Score: &RelicScorePayload{
+			Dims:      map[string]int{"FIGHT_PROP_CRITICAL": 100},
+			ByElement: map[string]map[string]int{"冰": {"FIGHT_PROP_CRITICAL": 100}},
+		},
+	}
+	if err := svc.Import(ImportPayload{StatWeights: []StatWeightImport{{CharacterID: 10000007, Rec: fromAdmin}}}); err != nil {
+		t.Fatalf("首次导入失败：%v", err)
+	}
+
+	// ② 再导入一份**没有 score** 的推荐词条（生成器的常态）⇒ score 必须原样保留 ✓
+	imported := StatRecommendation{SubStats: []StatWeightItem{{StatKey: "FIGHT_PROP_ATTACK_PERCENT", Weight: 10}}}
+	if err := svc.Import(ImportPayload{StatWeights: []StatWeightImport{{CharacterID: 10000007, Rec: imported}}}); err != nil {
+		t.Fatalf("二次导入失败：%v", err)
+	}
+
+	var row CharacterStatWeights
+	if err := db.First(&row, "character_id = ?", 10000007).Error; err != nil {
+		t.Fatalf("读取 payload 失败：%v", err)
+	}
+	var got StatRecommendation
+	if err := json.Unmarshal([]byte(row.Payload), &got); err != nil {
+		t.Fatalf("解析 payload 失败：%v", err)
+	}
+	if got.Score == nil || got.Score.Dims["FIGHT_PROP_CRITICAL"] != 100 || got.Score.ByElement["冰"] == nil {
+		t.Fatalf("重导入不该冲掉 score，实际 %+v", got.Score)
+	}
+	// 推荐词条本身仍应被导入覆盖（只保护 score ✓）
+	if len(got.SubStats) != 1 || got.SubStats[0].StatKey != "FIGHT_PROP_ATTACK_PERCENT" {
+		t.Fatalf("推荐词条应被导入覆盖，实际 %+v", got.SubStats)
+	}
+}
+
 func TestRelicWeightsSeedImportAndScore(t *testing.T) {
 	seed := filepath.Join("..", "..", "..", "cmd", "assetimport", "relic_weights_miao.json")
 	raw, err := os.ReadFile(seed)
