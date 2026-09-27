@@ -140,6 +140,13 @@ func (tr *Translator) TranslateProfile(p *Profile) *dto.PlayerProfile {
 			card.Name = fmt.Sprintf("未知角色 #%d", a.AvatarID)
 			report(asset.KindCharacter, fmt.Sprint(a.AvatarID))
 		}
+
+		// 旅行者：元素以 Enka 的 skillDepotId 为准（角色表里只能写死一个 ✗）。
+		// ⚠️ 必须在下面 panelStats 与评分**之前**改：元素伤害加成、面板着色、
+		// (角色,元素) 的小助手权重全都吃 card.Element（2026-09-27 接上 skillDepotId）。
+		if elem := travelerElementOverride(int64(a.AvatarID), a.SkillDepotID); elem != "" {
+			card.Element = elem
+		}
 		// 推荐强化词条（有录入才输出）
 		// tierByName：中文词条名 → 属性分级（primary/secondary），供面板属性与圣遗物词条着色
 		tierByName := map[string]string{}
@@ -277,15 +284,56 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// travelerAvatarIDs 旅行者系：空(10000005) / 荧(10000006) / 男旅行者(10000007) /
+// 奇偶·男性(10000117) / 奇偶·女性(10000118)。
+var travelerAvatarIDs = map[int64]bool{
+	10000005: true, 10000006: true, 10000007: true, 10000117: true, 10000118: true,
+}
+
+// travelerElementOverride 应按 skillDepotId 修正的元素；非旅行者、或 depot 不可信时返回 ""
+// （返回空 = 保持角色表里的配置、不擅自改写 ✗）。抽成函数是为了**能测**：
+// "映射写对了但没接到翻译循环上" 是最容易犯的错 ✗（见 traveler_element_test.go）。
+func travelerElementOverride(avatarID int64, depotID int) string {
+	if !travelerAvatarIDs[avatarID] {
+		return ""
+	}
+	return elementFromSkillDepot(depotID)
+}
+
+// elementFromSkillDepot 旅行者当前元素 —— **真源是 Enka 返回的 skillDepotId**。
+//
+// 为什么必须用它：角色表里旅行者只能写死**一个**元素 ✗ ——玩家切成草主/水主后，
+// 元素伤害加成、面板着色、(角色,元素) 的小助手权重会全错 ✗（2026-09-27 接上）。
+// 取值来自游戏 AvatarSkillDepotExcelConfigData，按各元素上线顺序排布：
+//
+//	男（空）501~507、女（荧）701~707 = 风 / 岩 / 雷 / 草 / 水 / 火 / 冰 ✓
+//
+// 非旅行者恒返回 ""（其它角色的 skillDepotId 不落在这个区间）。
+func elementFromSkillDepot(depotID int) string {
+	switch depotID {
+	case 501, 701:
+		return "风"
+	case 502, 702:
+		return "岩"
+	case 503, 703:
+		return "雷"
+	case 504, 704:
+		return "草"
+	case 505, 705:
+		return "水"
+	case 506, 706:
+		return "火"
+	case 507, 707:
+		return "冰"
+	}
+	return ""
+}
+
 // travelerElement 旅行者当前元素（小助手口径的权重按 (角色, 元素) 取）。
 // 非旅行者、或拿不到可信元素时返回 "" ⇒ 权重取该角色的通用行（不会算错，只会少一点精度）。
-// ⚠️ 档案里的 Element 取自我们 characters 表配置，**不一定是玩家当前的旅行者元素** ✗
-//
-//	（真实元素在 Enka 的 skillDepotId 里）—— 接上 skillDepotId 是后续小改。
+// 正常路径上 card.Element 已在 translate 时按 skillDepotId 修正过 ✓（见 elementFromSkillDepot）。
 func travelerElement(card *dto.CharacterCard) string {
-	switch card.ID {
-	case 10000005, 10000007, 10000117, 10000118: // 旅行者（荧/空）与 奇偶·男性/女性
-	default:
+	if !travelerAvatarIDs[card.ID] {
 		return ""
 	}
 	switch card.Element {

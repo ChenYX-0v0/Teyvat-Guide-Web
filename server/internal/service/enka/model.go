@@ -44,14 +44,17 @@ type PlayerInfo struct {
 }
 
 type AvatarInfo struct {
-	AvatarID     int                `json:"avatarId"`
+	AvatarID int `json:"avatarId"`
+	// SkillDepotID 技能套件 id —— **旅行者当前元素的唯一真源**（见 translate.go elementFromSkillDepot）。
+	// 男 501~507 / 女 701~707 = 风/岩/雷/草/水/火/冰；其它角色该字段无意义。
+	SkillDepotID int                `json:"skillDepotId"`
 	PropMap      map[string]PropVal `json:"propMap"`
 	FightPropMap map[string]float64 `json:"fightPropMap"` // 面板属性（key 为 FIGHT_PROP 数字枚举）
 	TalentIDList []int              `json:"talentIdList"` // 命座解锁列表（长度即命座数）
 	// 天赋等级：key 为技能 id（升序依次对应 普攻 / 元素战技 / 元素爆发）
 	SkillLevelMap map[string]json.Number `json:"skillLevelMap"`
-	EquipList    []Equip            `json:"equipList"`
-	FetterInfo   struct {
+	EquipList     []Equip                `json:"equipList"`
+	FetterInfo    struct {
 		ExpLevel int `json:"expLevel"`
 	} `json:"fetterInfo"`
 }
@@ -73,16 +76,16 @@ type Equip struct {
 }
 
 type EquipFlat struct {
-	ItemType             string      `json:"itemType"`             // ITEM_WEAPON / ITEM_RELIQUARY
-	NameTextMapHash      json.Number `json:"nameTextMapHash"`      // 名称 hash（字符串大数）
-	Icon                 string      `json:"icon"`
-	RankLevel            int         `json:"rankLevel"`            // 星级
-	EquipType            string      `json:"equipType"`            // 圣遗物部位（EQUIP_BRACER 等）
-	SetID                int         `json:"setId"`                // 圣遗物套装 ID
-	SetNameTextMapHash   json.Number `json:"setNameTextMapHash"`   // 套装名 hash
-	ReliquarySubstats    []struct {
-		AppendPropID string      `json:"appendPropId"` // FIGHT_PROP_XXX
-		StatValue    float64     `json:"statValue"`
+	ItemType           string      `json:"itemType"`        // ITEM_WEAPON / ITEM_RELIQUARY
+	NameTextMapHash    json.Number `json:"nameTextMapHash"` // 名称 hash（字符串大数）
+	Icon               string      `json:"icon"`
+	RankLevel          int         `json:"rankLevel"`          // 星级
+	EquipType          string      `json:"equipType"`          // 圣遗物部位（EQUIP_BRACER 等）
+	SetID              int         `json:"setId"`              // 圣遗物套装 ID
+	SetNameTextMapHash json.Number `json:"setNameTextMapHash"` // 套装名 hash
+	ReliquarySubstats  []struct {
+		AppendPropID string  `json:"appendPropId"` // FIGHT_PROP_XXX
+		StatValue    float64 `json:"statValue"`
 	} `json:"reliquarySubstats"`
 	ReliquaryMainstat struct {
 		MainPropID string  `json:"mainPropId"` // FIGHT_PROP_XXX
@@ -95,8 +98,8 @@ type EquipFlat struct {
 }
 
 type WeaponDetail struct {
-	Level        json.Number `json:"level"`
-	PromoteLevel json.Number `json:"promoteLevel"`
+	Level        json.Number            `json:"level"`
+	PromoteLevel json.Number            `json:"promoteLevel"`
 	AffixMap     map[string]json.Number `json:"affixMap"` // value 为精炼等级
 }
 
