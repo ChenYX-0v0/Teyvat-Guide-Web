@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // ───────────────────────── 上游常数（miao-plugin，MIT） ─────────────────────────
@@ -139,25 +140,33 @@ var relicClasses = []struct {
 	{"SS", 42}, {"SSS", 49}, {"ACE", 56}, {"MAX", 70},
 }
 
-// relicWeaponRule 武器适配（ArtisMarkCfg.weaponCfg）：按精炼线性提升某维度权重
-type relicWeaponRule struct {
-	Dim string
-	Max int
-	Min int
+// ───────────────────────── 动态规则的求值 ─────────────────────────
+//
+// 三类"上游动态规则"（武器适配 / 西风系列 / 绝缘 4 件）**已全部落库**
+// （2026-09-27；此前硬编码在 Go 里 ⇒ 改一次要发版，与角色级规则的"改数据不发版"不一致）。
+// 现在它们就是 character_relic_weight_rules 里 character_id = 0 的通用规则行，
+// 差异只体现在 Effect / CondType 上：
+//   delta_refine  （武器适配，按精炼线性）   condType=weapon
+//   raise_to      （西风系列 → 暴击 100）    condType=weapon_regex
+//   raise_to_max_of（绝缘 4 件 → 充能拉齐）  condType=set + condNum=4
+
+// relicRuleRegexCache 缓存 weapon_regex 规则的编译结果（规则少、进程内长期复用；
+// 失败也缓存为 nil，避免每次请求重复编译坏正则）
+var relicRuleRegexCache sync.Map // pattern -> *regexp.Regexp（nil = 编译失败）
+
+func relicRuleRegex(pattern string) (*regexp.Regexp, bool) {
+	if v, ok := relicRuleRegexCache.Load(pattern); ok {
+		re, _ := v.(*regexp.Regexp)
+		return re, re != nil
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		relicRuleRegexCache.Store(pattern, (*regexp.Regexp)(nil))
+		return nil, false
+	}
+	relicRuleRegexCache.Store(pattern, re)
+	return re, true
 }
-
-var relicWeaponCfg = map[string]relicWeaponRule{
-	"磐岩结绿":  {Dim: "hp", Max: 30, Min: 15},
-	"猎人之径":  {Dim: "mastery", Max: 20, Min: 10},
-	"薙草之稻光": {Dim: "recharge", Max: 20, Min: 10},
-	"护摩之杖":  {Dim: "hp", Max: 18, Min: 10},
-}
-
-// relicXifengRe 西风系列武器（携带则暴击权重强制 100）
-var relicXifengRe = regexp.MustCompile(`^西风(长枪|大剑|剑|猎弓|秘典)$`)
-
-// 绝缘之旗印 4 件套（充能权重拉到与 atk/hp/def/mastery 最高者齐平）
-const relicInsulationSetName = "绝缘之旗印"
 
 // ───────────────────────── 入参与出参 ─────────────────────────
 
@@ -339,7 +348,11 @@ func ParseRelicMainStat(mainStat string) (string, float64) {
 // ───────────────────────── 权重求值 ─────────────────────────
 
 // effectiveRelicWeight 组装该角色本次算分实际生效的权重：
-// 默认权重 → 角色默认表 → 角色级覆盖规则（DB）→ 上游动态规则（武器/绝缘4/西风）
+//
+//	默认权重（兜底） → 角色默认权重表 → 覆盖规则（DB：角色级 + 通用级，按 Priority 求值）
+//
+// 覆盖规则全部走数据（character_relic_weight_rules），**Go 里不再有硬编码规则**：
+// 武器适配 / 西风系列 / 绝缘 4 件都是 character_id = 0 的通用行（见文件上半部分的说明）。
 func (s *Service) effectiveRelicWeight(in RelicScoreInput) (CharacterRelicWeight, string) {
 	w, ok := s.RelicWeight(in.CharacterID)
 	if !ok {
@@ -350,83 +363,137 @@ func (s *Service) effectiveRelicWeight(in RelicScoreInput) (CharacterRelicWeight
 	}
 
 	var tags []string
-
-	// ① 角色级覆盖规则（来自 DB，数据化自 character/<角色>/artis.js）
-	for _, r := range s.RelicWeightRules(in.CharacterID) {
-		if !relicRuleHit(r, in) {
+	for _, r := range s.relicRulesFor(in.CharacterID) {
+		if !relicRuleHit(r, in) || !relicRuleRequireOK(r, w) {
 			continue
 		}
-		w.setDim(r.StatKey, w.Dim(r.StatKey)+r.Delta)
-		if r.Note != "" {
+		if relicRuleApply(&w, r, in) && r.Note != "" {
 			tags = append(tags, r.Note)
 		}
 	}
-
-	// ② 武器适配（仅攻击型角色，同上游 weight.atk > 0 的判定）
-	if w.ATK > 0 {
-		if cfg, hit := relicWeaponCfg[in.WeaponName]; hit && cfg.Dim != "" {
-			affix := in.WeaponAffix
-			if affix < 1 {
-				affix = 1
-			}
-			if affix > 5 {
-				affix = 5
-			}
-			plus := cfg.Min + int(math.Round(float64(cfg.Max-cfg.Min)*float64(affix-1)/4.0))
-			cur := w.Dim(cfg.Dim)
-			if cur < 100 {
-				next := cur + plus
-				if next > 100 {
-					next = 100
-				}
-				w.setDim(cfg.Dim, next)
-				tags = append(tags, in.WeaponName)
-			}
-		}
-	}
-
-	// ③ 西风系列 → 暴击权重强制 100
-	if relicXifengRe.MatchString(in.WeaponName) && w.CPct < 100 {
-		w.CPct = 100
-		tags = append(tags, "西风")
-	}
-
-	// ④ 绝缘之旗印 4 件套 → 充能权重拉到与 atk/hp/def/mastery 最高者齐平
-	if in.SetName == relicInsulationSetName && in.SetCount >= 4 {
-		maxWeight := w.ATK
-		for _, v := range []int{w.HP, w.DEF, w.Mastery} {
-			if v > maxWeight {
-				maxWeight = v
-			}
-		}
-		if w.Recharge < maxWeight {
-			w.Recharge = maxWeight
-			tags = append(tags, "绝缘4")
-		}
-	}
-
 	return w, strings.Join(tags, "|")
+}
+
+// relicRulesFor 该角色本次生效的规则：角色级 + 通用级（character_id = 0），
+// 按 Priority 升序（同序按 ID）—— 顺序会影响结果（先加减、后抬升），所以不能只靠 ID。
+func (s *Service) relicRulesFor(characterID int64) []CharacterRelicWeightRule {
+	out := append(
+		append([]CharacterRelicWeightRule{}, s.RelicWeightRules(characterID)...),
+		s.RelicWeightRules(0)...,
+	)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Priority != out[j].Priority {
+			return out[i].Priority < out[j].Priority
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// relicRuleRequireOK 前置条件：RequireStat 为空则无条件生效；
+// 否则要求该维当前权重 ≥ RequireMin（上游武器适配只对攻击型角色生效 = atk ≥ 1）
+func relicRuleRequireOK(r CharacterRelicWeightRule, w CharacterRelicWeight) bool {
+	if r.RequireStat == "" {
+		return true
+	}
+	return w.Dim(r.RequireStat) >= r.RequireMin
+}
+
+// relicRuleApply 应用一条规则，返回**是否真的改动了权重**。
+// 与数据化之前的实现严格对齐：加法恒视为生效（角色级规则命中就打标签），
+// 抬升类只在真的抬起来时才算生效（否则不重复打标签）。
+func relicRuleApply(w *CharacterRelicWeight, r CharacterRelicWeightRule, in RelicScoreInput) bool {
+	switch r.EffectOrDefault() {
+	case RelicEffectDelta:
+		w.setDim(r.StatKey, w.Dim(r.StatKey)+r.Delta)
+		return true
+
+	case RelicEffectDeltaRefine:
+		cur := w.Dim(r.StatKey)
+		if cur >= 100 {
+			return false
+		}
+		affix := in.WeaponAffix
+		if affix < 1 {
+			affix = 1
+		}
+		if affix > 5 {
+			affix = 5
+		}
+		plus := r.ValueMin + int(math.Round(float64(r.ValueMax-r.ValueMin)*float64(affix-1)/4.0))
+		next := cur + plus
+		if next > 100 {
+			next = 100
+		}
+		w.setDim(r.StatKey, next)
+		return true
+
+	case RelicEffectRaiseTo:
+		if w.Dim(r.StatKey) >= r.Value {
+			return false
+		}
+		w.setDim(r.StatKey, r.Value)
+		return true
+
+	case RelicEffectRaiseToMaxOf:
+		best := 0
+		for _, dim := range strings.Split(r.Dims, ",") {
+			dim = strings.TrimSpace(dim)
+			if dim == "" || dim == r.StatKey {
+				continue
+			}
+			if v := w.Dim(dim); v > best {
+				best = v
+			}
+		}
+		if best == 0 || w.Dim(r.StatKey) >= best {
+			return false
+		}
+		w.setDim(r.StatKey, best)
+		return true
+	}
+	return false
 }
 
 func relicRuleHit(r CharacterRelicWeightRule, in RelicScoreInput) bool {
 	switch r.CondType {
 	case "weapon":
 		return r.CondValue != "" && r.CondValue == in.WeaponName
+	case "weapon_regex":
+		if r.CondValue == "" || in.WeaponName == "" {
+			return false
+		}
+		re, ok := relicRuleRegex(r.CondValue)
+		return ok && re.MatchString(in.WeaponName)
+	case "set":
+		if r.CondValue == "" || r.CondValue != in.SetName {
+			return false
+		}
+		return relicCompareNum(in.SetCount, r.CondOp, r.CondNum)
 	case "cons":
 		n, err := strconv.Atoi(strings.TrimSpace(r.CondValue))
 		if err != nil {
 			return false
 		}
-		switch r.CondOp {
-		case ">=":
-			return in.Constellation >= n
-		case "=":
-			return in.Constellation == n
-		case "<=":
-			return in.Constellation <= n
-		}
+		return relicCompareNum(in.Constellation, r.CondOp, n)
 	}
 	return false
+}
+
+// relicCompareNum 数值比较（CondOp 缺省按等号；> / < 供将来扩展）
+func relicCompareNum(v int, op string, target int) bool {
+	switch op {
+	case ">=":
+		return v >= target
+	case "<=":
+		return v <= target
+	case ">":
+		return v > target
+	case "<":
+		return v < target
+	default:
+		return v == target
+	}
 }
 
 // (w *CharacterRelicWeight) setDim 自增/覆盖某维度权重（白值维度归到其 base 维度）

@@ -147,39 +147,119 @@ func TestRelicWeightRulesFromSeed(t *testing.T) {
 	}
 }
 
-// 上游动态规则：西风系列 / 武器适配（精炼线性） / 绝缘4
+// 上游动态规则（武器适配 / 西风系列 / 绝缘4）—— 2026-09-27 起**全部走数据**：
+// 它们是 character_id = 0 的通用规则行，Go 里不再有硬编码表。
+// 本用例用与线上种子一致的行构造 Service，断言与数据化之前**逐条等价**。
+func relicGlobalRules() map[int64][]CharacterRelicWeightRule {
+	return map[int64][]CharacterRelicWeightRule{
+		0: {
+			{
+				CondType: "weapon", CondOp: "=", CondValue: "磐岩结绿", StatKey: "hp",
+				Effect: RelicEffectDeltaRefine, ValueMin: 15, ValueMax: 30,
+				RequireStat: "atk", RequireMin: 1, Priority: 20, Note: "磐岩结绿",
+			},
+			{
+				CondType: "weapon_regex", CondOp: "=", CondValue: `^西风(长枪|大剑|剑|猎弓|秘典)$`,
+				StatKey: "cpct", Effect: RelicEffectRaiseTo, Value: 100, Priority: 30, Note: "西风",
+			},
+			{
+				CondType: "set", CondOp: ">=", CondValue: "绝缘之旗印", CondNum: 4,
+				StatKey: "recharge", Effect: RelicEffectRaiseToMaxOf, Dims: "atk,hp,def,mastery",
+				Priority: 40, Note: "绝缘4",
+			},
+		},
+	}
+}
+
 func TestRelicDynamicRules(t *testing.T) {
-	// 西风 → 暴击强制 100
-	s := &Service{relicWeights: map[int64]CharacterRelicWeight{
-		1: {CharacterID: 1, ATK: 75, CPct: 60, CDmg: 100, Dmg: 100},
-	}}
+	// 西风 → 暴击抬到 100（只升不降）
+	s := &Service{
+		relicWeights: map[int64]CharacterRelicWeight{
+			1: {CharacterID: 1, ATK: 75, CPct: 60, CDmg: 100, Dmg: 100},
+		},
+		relicRules: relicGlobalRules(),
+	}
 	w, tag := s.effectiveRelicWeight(RelicScoreInput{CharacterID: 1, WeaponName: "西风剑"})
 	if w.CPct != 100 || !strings.Contains(tag, "西风") {
 		t.Fatalf("西风剑应把暴击拉到 100 并打标签，实际 cpct=%d tag=%q", w.CPct, tag)
 	}
-
-	// 武器适配：磐岩结绿 精1 +15 / 精5 +30（线性）
-	s2 := &Service{relicWeights: map[int64]CharacterRelicWeight{
-		2: {CharacterID: 2, ATK: 75, HP: 20},
-	}}
-	if w2, _ := s2.effectiveRelicWeight(RelicScoreInput{CharacterID: 2, WeaponName: "磐岩结绿", WeaponAffix: 1}); w2.HP != 35 {
-		t.Fatalf("磐岩结绿精1 应为 20+15=35，实际 %d", w2.HP)
+	// 暴击本就 100 → 不改动、也不打标签（与数据化之前一致）
+	s100 := &Service{
+		relicWeights: map[int64]CharacterRelicWeight{9: {CharacterID: 9, ATK: 75, CPct: 100}},
+		relicRules:   relicGlobalRules(),
 	}
-	if w2, _ := s2.effectiveRelicWeight(RelicScoreInput{CharacterID: 2, WeaponName: "磐岩结绿", WeaponAffix: 5}); w2.HP != 50 {
-		t.Fatalf("磐岩结绿精5 应为 20+30=50，实际 %d", w2.HP)
+	if _, tg := s100.effectiveRelicWeight(RelicScoreInput{CharacterID: 9, WeaponName: "西风剑"}); strings.Contains(tg, "西风") {
+		t.Fatalf("暴击已 100 时不应重复打「西风」标签，实际 %q", tg)
+	}
+	// 非西风武器 → 不命中
+	if w2, _ := s.effectiveRelicWeight(RelicScoreInput{CharacterID: 1, WeaponName: "磐岩结绿"}); w2.CPct != 60 {
+		t.Fatalf("非西风武器不应改暴击，实际 %d", w2.CPct)
+	}
+
+	// 武器适配：磐岩结绿 精1 +15 / 精5 +30（线性），且只对攻击型角色生效
+	s2 := &Service{
+		relicWeights: map[int64]CharacterRelicWeight{
+			2: {CharacterID: 2, ATK: 75, HP: 20},
+			8: {CharacterID: 8, ATK: 0, HP: 20}, // 非攻击型（如精通/治疗型）
+		},
+		relicRules: relicGlobalRules(),
+	}
+	if w3, _ := s2.effectiveRelicWeight(RelicScoreInput{CharacterID: 2, WeaponName: "磐岩结绿", WeaponAffix: 1}); w3.HP != 35 {
+		t.Fatalf("磐岩结绿精1 应为 20+15=35，实际 %d", w3.HP)
+	}
+	if w4, _ := s2.effectiveRelicWeight(RelicScoreInput{CharacterID: 2, WeaponName: "磐岩结绿", WeaponAffix: 5}); w4.HP != 50 {
+		t.Fatalf("磐岩结绿精5 应为 20+30=50，实际 %d", w4.HP)
+	}
+	if w5, _ := s2.effectiveRelicWeight(RelicScoreInput{CharacterID: 8, WeaponName: "磐岩结绿", WeaponAffix: 5}); w5.HP != 20 {
+		t.Fatalf("非攻击型角色不应吃武器适配（requireStat=atk），实际 hp=%d", w5.HP)
 	}
 
 	// 绝缘4 → 充能拉到 atk/hp/def/mastery 最高者（75）
-	s3 := &Service{relicWeights: map[int64]CharacterRelicWeight{
-		3: {CharacterID: 3, ATK: 75, Recharge: 30, CPct: 100, CDmg: 100, Dmg: 100},
-	}}
-	w3, tag3 := s3.effectiveRelicWeight(RelicScoreInput{CharacterID: 3, SetName: "绝缘之旗印", SetCount: 4})
-	if w3.Recharge != 75 || !strings.Contains(tag3, "绝缘4") {
-		t.Fatalf("绝缘4 应把充能拉到 75，实际 recharge=%d tag=%q", w3.Recharge, tag3)
+	s3 := &Service{
+		relicWeights: map[int64]CharacterRelicWeight{
+			3: {CharacterID: 3, ATK: 75, Recharge: 30, CPct: 100, CDmg: 100, Dmg: 100},
+		},
+		relicRules: relicGlobalRules(),
+	}
+	w6, tag6 := s3.effectiveRelicWeight(RelicScoreInput{CharacterID: 3, SetName: "绝缘之旗印", SetCount: 4})
+	if w6.Recharge != 75 || !strings.Contains(tag6, "绝缘4") {
+		t.Fatalf("绝缘4 应把充能拉到 75，实际 recharge=%d tag=%q", w6.Recharge, tag6)
 	}
 	// 只有 2 件 → 不触发
-	if w4, _ := s3.effectiveRelicWeight(RelicScoreInput{CharacterID: 3, SetName: "绝缘之旗印", SetCount: 2}); w4.Recharge != 30 {
-		t.Fatalf("绝缘 2 件不应触发，实际 %d", w4.Recharge)
+	if w7, _ := s3.effectiveRelicWeight(RelicScoreInput{CharacterID: 3, SetName: "绝缘之旗印", SetCount: 2}); w7.Recharge != 30 {
+		t.Fatalf("绝缘 2 件不应触发，实际 %d", w7.Recharge)
+	}
+}
+
+// 顺序敏感：武器适配（priority 20）先加攻击，绝缘4（priority 40）再让充能拉齐 —— 与上游一致。
+func TestRelicRulePriorityOrder(t *testing.T) {
+	s := &Service{
+		relicWeights: map[int64]CharacterRelicWeight{
+			4: {CharacterID: 4, ATK: 60, Recharge: 10},
+		},
+		relicRules: map[int64][]CharacterRelicWeightRule{
+			0: {
+				{
+					CondType: "set", CondOp: ">=", CondValue: "绝缘之旗印", CondNum: 4,
+					StatKey: "recharge", Effect: RelicEffectRaiseToMaxOf, Dims: "atk,hp,def,mastery",
+					Priority: 40, Note: "绝缘4",
+				},
+				{
+					CondType: "weapon", CondOp: "=", CondValue: "猎人之径", StatKey: "atk",
+					Effect: RelicEffectDelta, Delta: 30, Priority: 20, Note: "猎人之径",
+				},
+			},
+		},
+	}
+	w, tag := s.effectiveRelicWeight(RelicScoreInput{CharacterID: 4, SetName: "绝缘之旗印", SetCount: 4, WeaponName: "猎人之径"})
+	if w.ATK != 90 {
+		t.Fatalf("武器适配应先加攻击到 90，实际 %d", w.ATK)
+	}
+	if w.Recharge != 90 {
+		t.Fatalf("绝缘4 应看到加完后的攻击 90 并拉齐，实际 %d（说明 Priority 没生效）", w.Recharge)
+	}
+	if !strings.Contains(tag, "绝缘4") {
+		t.Fatalf("标签应含 绝缘4，实际 %q", tag)
 	}
 }
 

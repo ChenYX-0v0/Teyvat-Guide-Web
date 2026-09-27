@@ -109,7 +109,9 @@ func upsertRelicWeightRules(tx *gorm.DB, rows []CharacterRelicWeightRule) error 
 			{Name: "character_id"}, {Name: "cond_type"}, {Name: "cond_value"}, {Name: "stat_key"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"character_name", "cond_op", "delta", "note", "source", "source_ref", "fetched_at", "updated_at",
+			"character_name", "cond_op", "cond_num", "effect", "priority",
+			"delta", "value", "value_min", "value_max", "dims", "require_stat", "require_min",
+			"note", "source", "source_ref", "fetched_at", "updated_at",
 		}),
 	}).Create(&rows).Error
 }

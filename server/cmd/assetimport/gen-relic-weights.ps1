@@ -203,8 +203,46 @@ foreach ($line in ($rulesCsv -split "`r?`n")) {
       characterId = $id; characterName = $f[0]
       condType = $f[1]; condOp = $f[2]; condValue = $f[3]
       statKey = $f[4]; delta = [int]$f[5]; note = $f[6]
+      effect = 'delta'; priority = 10   # 角色级规则：先于通用抬升类规则求值
       source = 'miao-plugin'; sourceRef = $SOURCE_REF; fetchedAt = $FETCHED_AT
     }
+  }
+}
+
+# ── 通用规则（characterId = 0 ⇒ 对所有角色生效）──
+# 2026-09-27：这三类此前**硬编码在 Go**（改一次要发版），现全部落库，与角色级规则同一张表。
+# 来源：ArtisMarkCfg.weaponCfg（武器适配，按精炼线性）、ArtisMark.js 的西风 regex 与绝缘 4 件规则。
+# priority：先加减（10 角色级 / 20 武器适配），后抬升（30 西风 / 40 绝缘4）——顺序会影响结果。
+$commonRules = @(
+  @{ condType = 'weapon'; condOp = '='; condValue = '磐岩结绿'; statKey = 'hp'
+     effect = 'delta_refine'; valueMin = 15; valueMax = 30; requireStat = 'atk'; requireMin = 1; priority = 20; note = '磐岩结绿' }
+  @{ condType = 'weapon'; condOp = '='; condValue = '猎人之径'; statKey = 'mastery'
+     effect = 'delta_refine'; valueMin = 10; valueMax = 20; requireStat = 'atk'; requireMin = 1; priority = 20; note = '猎人之径' }
+  @{ condType = 'weapon'; condOp = '='; condValue = '薙草之稻光'; statKey = 'recharge'
+     effect = 'delta_refine'; valueMin = 10; valueMax = 20; requireStat = 'atk'; requireMin = 1; priority = 20; note = '薙草之稻光' }
+  @{ condType = 'weapon'; condOp = '='; condValue = '护摩之杖'; statKey = 'hp'
+     effect = 'delta_refine'; valueMin = 10; valueMax = 18; requireStat = 'atk'; requireMin = 1; priority = 20; note = '护摩之杖' }
+  @{ condType = 'weapon_regex'; condOp = '='; condValue = '^西风(长枪|大剑|剑|猎弓|秘典)$'; statKey = 'cpct'
+     effect = 'raise_to'; value = 100; priority = 30; note = '西风' }
+  @{ condType = 'set'; condOp = '>='; condValue = '绝缘之旗印'; condNum = 4; statKey = 'recharge'
+     effect = 'raise_to_max_of'; dims = 'atk,hp,def,mastery'; priority = 40; note = '绝缘4' }
+)
+foreach ($c in $commonRules) {
+  $rules += [ordered]@{
+    characterId = 0; characterName = ''
+    condType = $c.condType; condOp = $c.condOp; condValue = $c.condValue
+    condNum  = $(if ($c.ContainsKey('condNum')) { [int]$c.condNum } else { 0 })
+    statKey  = $c.statKey
+    effect   = $c.effect; priority = [int]$c.priority
+    delta    = $(if ($c.ContainsKey('delta')) { [int]$c.delta } else { 0 })
+    value    = $(if ($c.ContainsKey('value')) { [int]$c.value } else { 0 })
+    valueMin = $(if ($c.ContainsKey('valueMin')) { [int]$c.valueMin } else { 0 })
+    valueMax = $(if ($c.ContainsKey('valueMax')) { [int]$c.valueMax } else { 0 })
+    dims     = $(if ($c.ContainsKey('dims')) { [string]$c.dims } else { '' })
+    requireStat = $(if ($c.ContainsKey('requireStat')) { [string]$c.requireStat } else { '' })
+    requireMin  = $(if ($c.ContainsKey('requireMin')) { [int]$c.requireMin } else { 0 })
+    note = $c.note
+    source = 'miao-plugin'; sourceRef = $SOURCE_REF; fetchedAt = $FETCHED_AT
   }
 }
 

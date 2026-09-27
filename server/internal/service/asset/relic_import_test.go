@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"teyvat-guide/server/internal/config"
@@ -28,8 +29,32 @@ func TestRelicWeightsSeedImportAndScore(t *testing.T) {
 	if len(payload.RelicWeights) != 124 {
 		t.Fatalf("权重点数应为 124（我们库里全部角色），实际 %d", len(payload.RelicWeights))
 	}
-	if len(payload.RelicWeightRules) != 3 {
-		t.Fatalf("覆盖规则应为 3 条，实际 %d", len(payload.RelicWeightRules))
+	// 2026-09-27 起：3 条角色级（菲林斯专武 / 哥伦比娅专武 + 高命）+ 6 条通用级
+	// （武器适配 4 把 / 西风 1 / 绝缘4 1）—— 通用级就是原先**硬编码在 Go** 的三类动态规则，
+	// 落库后只改数据、不发版（所以这里也顺带守住"种子必须覆盖全部三类"的数据不变式）。
+	if len(payload.RelicWeightRules) != 9 {
+		t.Fatalf("覆盖规则应为 9 条（3 角色级 + 6 通用级），实际 %d", len(payload.RelicWeightRules))
+	}
+	var globalCount int
+	for _, r := range payload.RelicWeightRules {
+		if r.Effect == "" {
+			t.Fatalf("规则缺 effect（应为 delta / delta_refine / raise_to / raise_to_max_of）：%+v", r)
+		}
+		if r.CharacterID != 0 {
+			continue
+		}
+		globalCount++
+		if r.Priority == 0 {
+			t.Fatalf("通用规则必须带 priority（顺序会影响结果）：%+v", r)
+		}
+		if r.CondType == "weapon_regex" {
+			if _, ok := relicRuleRegex(r.CondValue); !ok {
+				t.Fatalf("通用规则的正则无法编译：%s", r.CondValue)
+			}
+		}
+	}
+	if globalCount != 6 {
+		t.Fatalf("通用规则应为 6 条（4 武器适配 + 西风 + 绝缘4），实际 %d", globalCount)
 	}
 
 	// ② 真实入库（sqlite 临时库）
@@ -73,6 +98,26 @@ func TestRelicWeightsSeedImportAndScore(t *testing.T) {
 	eff, tag := svc.effectiveRelicWeight(RelicScoreInput{CharacterID: 10000120, WeaponName: "血染荒城"})
 	if eff.Recharge != 45 || tag != "专武" {
 		t.Fatalf("菲林斯专武规则未生效：recharge=%d tag=%q", eff.Recharge, tag)
+	}
+
+	// ④-b 通用规则经 DB 装载同样生效（本次改造的回归点：它们以前是 Go 里的硬编码）
+	//      绝缘 4 件 → 充能拉齐 atk/hp/def/mastery 最高者（菲林斯 atk=100 ⇒ 充能 100）
+	insul, tagI := svc.effectiveRelicWeight(RelicScoreInput{
+		CharacterID: 10000120, SetName: "绝缘之旗印", SetCount: 4,
+	})
+	if insul.Recharge != 100 || !strings.Contains(tagI, "绝缘4") {
+		t.Fatalf("通用规则（绝缘4）未生效：recharge=%d tag=%q", insul.Recharge, tagI)
+	}
+	//      西风系列 → 暴击抬到 100（挑一个暴击权重 < 100 的角色才有观察效果）
+	for id, w := range svc.relicWeights {
+		if w.CPct <= 0 || w.CPct >= 100 {
+			continue
+		}
+		xf, tagX := svc.effectiveRelicWeight(RelicScoreInput{CharacterID: id, WeaponName: "西风剑"})
+		if xf.CPct != 100 || !strings.Contains(tagX, "西风") {
+			t.Fatalf("通用规则（西风）未生效：角色 %d cpct=%d tag=%q", id, xf.CPct, tagX)
+		}
+		break
 	}
 
 	// ⑤ 幂等：重复导入不会堆出重复规则

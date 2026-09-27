@@ -156,24 +156,66 @@ func (w CharacterRelicWeight) Dim(key string) int {
 	return 0
 }
 
-// CharacterRelicWeightRule 评分权重的角色级覆盖规则（表名 character_relic_weight_rules）
+// 评分权重的效果类型（列 effect；历史行为空 ⇒ 按 delta 处理）
+const (
+	// RelicEffectDelta 命中即把某维加减 Delta（角色级规则，例：菲林斯 + 专武 → 充能 -5）
+	RelicEffectDelta = "delta"
+	// RelicEffectDeltaRefine 按武器精炼线性加某维：R1 ~ R5 从 ValueMin 增到 ValueMax，封顶 100
+	// （上游 ArtisMarkCfg.weaponCfg 的"武器适配"）
+	RelicEffectDeltaRefine = "delta_refine"
+	// RelicEffectRaiseTo 把某维**只升不降**地抬到 Value（例：西风系列 → 暴击率 100）
+	RelicEffectRaiseTo = "raise_to"
+	// RelicEffectRaiseToMaxOf 把某维抬到 Dims 里最高者（例：绝缘 4 件 → 充能拉齐最高维）
+	RelicEffectRaiseToMaxOf = "raise_to_max_of"
+)
+
+// CharacterRelicWeightRule 评分权重的覆盖规则（表名 character_relic_weight_rules）
 //
-// 把 miao-plugin 的 character/<角色>/artis.js 逻辑数据化，运营可在后台维护：
-// 例：菲林斯 + 武器「血染荒城」→ 充能权重 -5；哥伦比娅 + 命座 ≥4 → 充能权重 -15（可叠加）。
+// 把 miao-plugin 的规则数据化（**含三类动态规则**，2026-09-27 由硬编码改为落库）：
+//   - 角色级（character/<角色>/artis.js）：菲林斯 + 武器「血染荒城」→ 充能 -5；哥伦比娅 + 命座 ≥4 → 充能 -15（可叠加）
+//   - 通用级（**CharacterID = 0**，对所有角色生效）：
+//     武器适配（ArtisMarkCfg.weaponCfg，按精炼线性）、西风系列 → 暴击 100、绝缘 4 件 → 充能拉齐最高维
+//
+// 求值顺序由 Priority 决定（小在前，同序按 ID）：先加减（10/20），后抬升（30/40）——
+// 顺序会影响结果（如"先加攻击、再让充能拉齐最高维"），所以**不能只靠 ID 顺序**。
 type CharacterRelicWeightRule struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	CharacterID   int64     `gorm:"uniqueIndex:idx_relic_rule;not null" json:"characterId"`
-	CharacterName string    `gorm:"size:32" json:"characterName,omitempty"`
-	CondType      string    `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"condType"` // weapon | cons
-	CondOp        string    `gorm:"size:8;not null" json:"condOp"`                               // = | >=
-	CondValue     string    `gorm:"uniqueIndex:idx_relic_rule;size:32;not null" json:"condValue"`
-	StatKey       string    `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"statKey"` // 维度 key，如 recharge
-	Delta         int       `gorm:"not null;default:0" json:"delta"`
-	Note          string    `gorm:"size:32" json:"note,omitempty"` // 标签：专武 / 高命
-	Source        string    `gorm:"size:64" json:"source,omitempty"`
-	SourceRef     string    `gorm:"size:96" json:"sourceRef,omitempty"`
-	FetchedAt     string    `gorm:"size:16" json:"fetchedAt,omitempty"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID            int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	CharacterID   int64  `gorm:"uniqueIndex:idx_relic_rule;not null" json:"characterId"` // 0 = 通用于所有角色
+	CharacterName string `gorm:"size:32" json:"characterName,omitempty"`
+	// 条件类型：weapon（武器名精确匹配）| weapon_regex（武器名正则）| cons（命座数）| set（套装名 + 件数）
+	CondType  string `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"condType"`
+	CondOp    string `gorm:"size:8;not null" json:"condOp"` // = | >= | <=
+	CondValue string `gorm:"uniqueIndex:idx_relic_rule;size:32;not null" json:"condValue"`
+	// CondNum 数值条件：set 的件数阈值（如 ≥4）、cons 的命座数（也可用 CondValue 写数字，历史数据如此）
+	CondNum int `json:"condNum,omitempty"`
+
+	StatKey string `gorm:"uniqueIndex:idx_relic_rule;size:16;not null" json:"statKey"` // 目标维度 key，如 recharge
+
+	Effect   string `gorm:"size:16;not null;default:delta" json:"effect,omitempty"`
+	Priority int    `gorm:"not null;default:0" json:"priority,omitempty"`
+	Delta    int    `json:"delta,omitempty"`               // delta
+	Value    int    `json:"value,omitempty"`               // raise_to 的目标值
+	ValueMin int    `json:"valueMin,omitempty"`            // delta_refine 的 R1 增量
+	ValueMax int    `json:"valueMax,omitempty"`            // delta_refine 的 R5 增量
+	Dims     string `gorm:"size:64" json:"dims,omitempty"` // raise_to_max_of：参照维度（逗号分隔）
+
+	// 前置条件：仅当该维权重 ≥ RequireMin 时才生效（如武器适配只对攻击型角色：atk ≥ 1）
+	RequireStat string `gorm:"size:16" json:"requireStat,omitempty"`
+	RequireMin  int    `json:"requireMin,omitempty"`
+
+	Note      string    `gorm:"size:32" json:"note,omitempty"` // 命中后给前端的标签：专武 / 高命 / 西风 / 绝缘4
+	Source    string    `gorm:"size:64" json:"source,omitempty"`
+	SourceRef string    `gorm:"size:96" json:"sourceRef,omitempty"`
+	FetchedAt string    `gorm:"size:16" json:"fetchedAt,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// EffectOrDefault 空值按 delta 处理（兼容加列之前写入的历史行）
+func (r CharacterRelicWeightRule) EffectOrDefault() string {
+	if r.Effect == "" {
+		return RelicEffectDelta
+	}
+	return r.Effect
 }
 
 // Missing 翻译缺漏收集（补录依据，不阻塞查询）
