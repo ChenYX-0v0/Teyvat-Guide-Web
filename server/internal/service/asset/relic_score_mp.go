@@ -125,6 +125,10 @@ type CharacterRelicWeightMP struct {
 	FetchedAt   string `gorm:"size:16" json:"fetchedAt,omitempty"`
 }
 
+// TableName 钉死表名：交给 GORM 复数化会变成 character_relic_weight_mps ✗
+// （与文档/种子/导入说明里的 character_relic_weights_mp 不一致，容易查错库）
+func (CharacterRelicWeightMP) TableName() string { return "character_relic_weights_mp" }
+
 // MPRelicScore 小助手口径的单件结果
 type MPRelicScore struct {
 	Score     float64            // 单件分（未做归一化）
