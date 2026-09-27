@@ -2,7 +2,7 @@ package asset
 
 // AssetService 映射数据服务
 // - 启动时从 MySQL 全量加载进内存，翻译零 SQL
-// - 未命中异步写入 asset_missing 供补录
+// - 未命中异步写入 missings 供补录（表名 2026-09-27 校正：无 `asset_` 前缀 ✗）
 // - Import 后自动 reload，立即生效无需重启
 
 import (

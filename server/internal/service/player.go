@@ -23,7 +23,8 @@ import (
 const snapshotTTL = 10 * time.Minute
 
 // statSlotEnums 推荐词条 payload 的部位 key（契约见 docs/04-API接口文档.md §6.2）
-// → 圣遗物部位枚举；中文部位名从 asset_relic_slots 表取，不硬编码。
+// → 圣遗物部位枚举；中文部位名从 relic_slots 表取，不硬编码。
+// （表名 2026-09-27 校正：文档里的 `asset_relic_slots` 是早期设计名 ✗，实际无 `asset_` 前缀 ✓）
 var statSlotEnums = []struct{ key, pos string }{
 	{"sand", "EQUIP_SHOES"},    // 时之沙
 	{"goblet", "EQUIP_RING"},   // 空之杯
