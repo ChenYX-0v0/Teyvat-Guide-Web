@@ -18,7 +18,7 @@ const zhCN = {
 
   // 布局
   'header.title': 'AI 提瓦特向导',
-  'header.subtitle': 'Teyvat Guide · 原神智能助手机',
+  'header.subtitle': 'Teyvat Guide',
   'header.logout': '退出登录',
   'header.menu': '菜单',
   'header.close': '关闭',
@@ -152,6 +152,11 @@ const zhCN = {
   'character.relicsCount': '圣遗物 {n} 件',
   'character.effectiveRolls': '有效词条 {n} 条',
   'character.enhanceTimes': '强化 {n} 次',
+  'character.relicScore': '圣遗物评分',
+  'character.relicScoreNote':
+    '社区参考评分（非官方标准）：单件满分 66，按 5 件平均分档 D/C/B/A/S/SS/SSS/ACE/MAX',
+  'character.relicWords': '词条 {n}',
+  'character.relicCrit': '双暴 {n}',
   'character.recommendTitle': '推荐强化词条',
   'character.mainStatsLabel': '主词条推荐',
 

@@ -14,6 +14,19 @@ const rarityText: Record<number, string> = {
   3: 'text-rarity-3',
 }
 
+/** 评分档位配色：高档金色、中档常规、低档弱化（口径见 teyvat-docs/ai/08） */
+const scoreClsText: Record<string, string> = {
+  D: 'text-teyvat-text-4',
+  C: 'text-teyvat-text-4',
+  B: 'text-teyvat-text-3',
+  A: 'text-teyvat-text-2',
+  S: 'text-teyvat-gold/80',
+  SS: 'text-teyvat-gold/90',
+  SSS: 'text-teyvat-gold',
+  ACE: 'text-teyvat-gold',
+  MAX: 'text-teyvat-gold',
+}
+
 /**
  * 圣遗物卡片（响应式紧凑版）。
  *
@@ -47,6 +60,18 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
         <span className="rounded-md border border-teyvat-line bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-tight text-teyvat-text-2 sm:px-2 sm:text-xs">
           {relicPosNames[relic.pos] ?? relic.pos}
         </span>
+        {/* 评分徽标（2026-09-27 起）：档位 + 单件分；旧快照无字段时整块不渲染 */}
+        {relic.scoreCls && relic.score !== undefined && (
+          <span
+            className={clsx(
+              'shrink-0 rounded-md border border-teyvat-line bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-tight font-semibold sm:text-xs',
+              scoreClsText[relic.scoreCls] ?? 'text-teyvat-text-2',
+            )}
+            title={`${t('character.relicScoreNote')}${relic.weightTag ? `（${relic.weightTag}）` : ''}`}
+          >
+            {relic.scoreCls} {relic.score.toFixed(1)}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-[11px] leading-tight text-teyvat-text-3 sm:text-xs">
           +{relic.level}
         </span>

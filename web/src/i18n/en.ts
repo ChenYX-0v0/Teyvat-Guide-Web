@@ -19,7 +19,8 @@ const en: Partial<Dict> = {
 
   // Layout
   'header.title': 'Teyvat Guide',
-  'header.subtitle': 'Teyvat Guide · Genshin AI Assistant',
+  // 英文界面下标题本身就是 Teyvat Guide，副标题留空（Header 对空值不渲染，见 Header.tsx）
+  'header.subtitle': '',
   'header.logout': 'Log out',
   'header.menu': 'Menu',
   'header.close': 'Close',
@@ -156,6 +157,11 @@ const en: Partial<Dict> = {
   'character.relicsCount': '{n} Artifacts',
   'character.effectiveRolls': '{n} effective rolls',
   'character.enhanceTimes': 'Enhanced {n}x',
+  'character.relicScore': 'Relic score',
+  'character.relicScoreNote':
+    'Community reference score (unofficial): 66 max per piece, graded D/C/B/A/S/SS/SSS/ACE/MAX by 5-piece average',
+  'character.relicWords': '{n} rolls',
+  'character.relicCrit': 'Crit {n}',
   'character.recommendTitle': 'Recommended Substats',
   'character.mainStatsLabel': 'Recommended main stats',
 

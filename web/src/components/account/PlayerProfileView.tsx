@@ -237,9 +237,16 @@ export default function PlayerProfileView({ profile, selectedId, onSelect }: Pro
                     {t('character.relicsCount', { n: selected.relics.length })}
                   </h4>
 
-                  {/* 一览：套装构成 + 有效词条（参考提瓦特小助手，让"配置"第一眼就读得到） */}
+                  {/* 一览：评分 + 套装构成 + 有效词条（参考提瓦特小助手，让"配置"第一眼就读得到） */}
                   <div className="mb-2 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {/* 总评分（2026-09-27 起）：平均分 + 档位，悬停看口径说明；旧快照无字段不渲染 */}
+                      {selected.relicScoreClass && selected.relicScoreAvg !== undefined && (
+                        <Chip tone="gold" title={t('character.relicScoreNote')}>
+                          {t('character.relicScore')} {selected.relicScoreAvg.toFixed(1)} ·{' '}
+                          {selected.relicScoreClass}
+                        </Chip>
+                      )}
                       {relicSets.map((g) => (
                         // 满 4 件用金色：4 件套是该套装的生效阈值
                         <Chip key={g.name} tone={g.count >= 4 ? 'gold' : undefined}>
@@ -247,6 +254,19 @@ export default function PlayerProfileView({ profile, selectedId, onSelect }: Pro
                         </Chip>
                       ))}
                     </div>
+                    {selected.relicScoreTotal !== undefined && selected.relicScoreTotal > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-teyvat-text-4">
+                          {t('character.relicWords', {
+                            n: (selected.relicWordCount ?? 0).toFixed(1),
+                          })}
+                          {' · '}
+                          {t('character.relicCrit', {
+                            n: (selected.relicCritScore ?? 0).toFixed(1),
+                          })}
+                        </span>
+                      </div>
+                    )}
                     {totalRolls > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] text-teyvat-text-4">

@@ -34,7 +34,10 @@ export default function Header({ onMenuClick }: Props) {
           <h1 className="truncate text-base font-semibold tracking-wide text-teyvat-gold sm:text-lg">
             {t('header.title')}
           </h1>
-          <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('header.subtitle')}</p>
+          {/* 副标题为空时不渲染（英文界面下标题已是 Teyvat Guide，无需重复） */}
+          {t('header.subtitle') ? (
+            <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('header.subtitle')}</p>
+          ) : null}
         </div>
       </div>
 

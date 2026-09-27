@@ -47,6 +47,12 @@ export interface CharacterCard {
   statWeights?: StatRecommendation
   weapon?: WeaponInfo
   relics?: RelicInfo[]
+  // 圣遗物评分汇总（2026-09-27 起：旧快照无这些字段，整块不渲染）
+  relicScoreTotal?: number // 5 件总分（0~330）
+  relicScoreAvg?: number // 平均分（0~66，分档按它）
+  relicScoreClass?: string // D/C/B/A/S/SS/SSS/ACE/MAX
+  relicWordCount?: number // 总词条数（均值口径）
+  relicCritScore?: number // 双暴分（暴击×2+暴伤，仅副词条）
 }
 
 export interface WeaponInfo {
@@ -66,6 +72,13 @@ export interface RelicInfo {
   mainStatTier?: StatTier // 主词条分级
   subStats?: RelicSubStat[]
   iconUrl?: string // 部位图标（Enka 图床；2026-09-21 起后端返回，旧快照无此字段）
+  // 圣遗物评分（2026-09-27 起：未配置权重的角色缺省，整块不渲染）
+  score?: number // 单件分（0~66，社区参考口径）
+  scorePct?: number // 占该部位理论上限的百分比（0~100）
+  scoreCls?: string // D/C/B/A/S/SS/SSS/ACE/MAX
+  wordCount?: number // 总词条数（均值口径）
+  critScore?: number // 双暴分（暴击×2+暴伤）
+  weightTag?: string // 命中的权重规则标签（专武/高命/西风/绝缘4）
 }
 
 export interface RelicSubStat {
