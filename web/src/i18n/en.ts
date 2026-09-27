@@ -27,7 +27,8 @@ const en: Partial<Dict> = {
   'sidebar.home': 'Home',
   'sidebar.chat': 'AI Chat',
   'sidebar.account': 'Account',
-  'sidebar.wiki': 'Wiki',
+  // 'sidebar.wiki': 'Wiki',  <- commented out 2026-09-28: the wiki page is still a placeholder
+  //   (no real data), so it is withdrawn from the menu. Route kept: /wiki still works if typed.
 
   // Login
   'login.welcome': 'Welcome back, Traveler',
@@ -76,7 +77,8 @@ const en: Partial<Dict> = {
   // they only duplicated the sidebar entries; the space is reserved for three planned cards
   // (see web/06 roadmap, P2).
   'home.startChat': 'Start Chatting',
-  'home.viewWiki': 'Browse Wiki',
+  // 'home.viewWiki': 'Browse Wiki',  <- commented out 2026-09-28: wiki withdrawn from the menu,
+  //   so the homepage no longer links to it.
   'home.backendStatus': 'Backend: ',
   'home.statusUp': 'Up',
   'home.statusDown': 'Offline (please start the Go server)',

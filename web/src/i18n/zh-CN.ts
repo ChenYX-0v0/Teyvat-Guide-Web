@@ -25,7 +25,8 @@ const zhCN = {
   'sidebar.home': '首页',
   'sidebar.chat': '智能问答',
   'sidebar.account': '账号信息',
-  'sidebar.wiki': '图鉴',
+  // 'sidebar.wiki': '图鉴',  ← 2026-09-28 注释掉：图鉴页仍是占位（无真实数据），先从菜单撤下 ✗
+  //   （路由保留 ⇒ 直接输 /wiki 仍可访问 ✓；做真实数据时把 navItems.ts 那一行与这两条文案一起恢复 ✓）
 
   // 登录
   'login.welcome': '欢迎回来，旅行者',
@@ -73,7 +74,7 @@ const zhCN = {
   // 原 home.feature1~3Title/Desc（智能问答 / 档案查询 / 路线规划）已于 2026-09-28 移除 ✓
   // —— 那三张卡只是重复了左侧导航的入口；腾出的位置留给规划中的三张新卡（见 web/06 路线图 P2）
   'home.startChat': '开始对话',
-  'home.viewWiki': '查看图鉴',
+  // 'home.viewWiki': '查看图鉴',  ← 2026-09-28 注释掉：图鉴已从菜单撤下，首页不再挂它的入口 ✗
   'home.backendStatus': '后端状态：',
   'home.statusUp': '正常',
   'home.statusDown': '未连接（请先启动 Go 服务）',

@@ -41,13 +41,8 @@ export default function HomePage() {
           {t('home.startChat')}
           <ArrowRight className="h-4 w-4" />
         </Link>
-        <Link
-          to="/wiki"
-          onClick={() => track(EVENTS.homeCtaClick, { target: 'wiki' })}
-          className={buttonClass({ variant: 'ghost' })}
-        >
-          {t('home.viewWiki')}
-        </Link>
+        {/* 2026-09-28：原「查看图鉴」次 CTA 一并撤下 ✗ —— 图鉴页还是占位、且已从菜单撤下，
+            首页再挂一个入口就自相矛盾了（做真实数据时连同 here 与 navItems.ts 一起恢复 ✓）。 */}
       </div>
 
       <div className="mt-4 text-xs text-teyvat-text-4">
