@@ -358,6 +358,15 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 > 4) `docker compose up -d --no-build server`；**回滚 = 把第 3 步改回 false** 再执行第 4 步 ✓
 >
 > 签名/模板默认 `恒创联众` / `100001`（可在 `.env` 覆盖 ✓）；限速默认 同号 60s / 同号日 10 / 同 IP 时 20 ✓。
+>
+> ✅ **现状（2026-09-28）：已按方案 A 开启真发短信** —— ECS 绑了 RAM 角色 **`EcsDypnsRole`** ✓，
+> `.env` 里显式 AK **留空** ⇒ 代码走容器内的**实例元数据凭据链** ✓（实测容器内可直接取到
+> STS 临时凭据 ✓）；`TEYVAT_SMS_MOCK=false`、`TEYVAT_AUTH_ALLOW_REGISTER=true` ✓。
+> 首条真发冒烟：`198****8158` 发送成功 ✓（日志 `sms sent`，无阿里云错误码 ✓）。
+> ⚠️ 至此**公网上任何人都能注册**（防护：同号 60s / 同号日 10 / 同 IP 时 20 ✓，把刷费框住 ✓）——
+> 真正的准入门槛是**邀请码**（见 `teyvat-docs/ai/07` **TODO-14**，字段位已预留 ✓）。
+> ⚠️ 凭据链的临时凭据有有效期（实测 6 小时 ✓），SDK 会自动刷新 ✓，无需干预 ✓；RAM 角色的策略必须含
+> `dypns:SendSmsVerifyCode` + `dypns:CheckSmsVerifyCode`（或 `AliyunDypnsFullAccess` ✓），否则发送报 `isv.*` 权限错误 ✗。
 > 💡 只改 AI 上下文文案（如 `relicScore.note`）时**不需要**清快照 —— 上下文是每次请求实时拼的，快照里只存档案数据。
 > ⚠️ 但改**会进快照的资产数据**（如推荐词条 `card.statWeights`）时**必须** `reload?purgeSnapshots=true`：
 > 原因是 `asset.Service` 有**两个实例**（handler 那份被 `import` 刷新、**PlayerService 那份不会**），
