@@ -194,17 +194,28 @@ func (s *Service) Load() error {
 	for _, mw := range mpWeightRows {
 		mpWeightMap[mpWeightKey{ID: mw.CharacterID, Element: mw.Element}] = mw
 	}
-	// 用 payload 里的 score 块**覆盖**上表（有 score 的角色以推荐属性为准 ✓）
+	// 用推荐属性里的权重**覆盖**上表（有配置的角色以推荐属性为准 ✓）
+	// 2026-09-27 起：评分权重就是 `subStats[].weight`（一个词条一个数字 ✓）；老结构走过渡兼容 ✓
 	for _, row := range statRecRows {
 		rec, ok := recMap[row.CharacterID]
-		if !ok || rec.Score == nil {
+		if !ok {
 			continue
 		}
-		for elem, dims := range rec.Score.ByElement {
-			mpWeightMap[mpWeightKey{ID: row.CharacterID, Element: elem}] = mpWeightFromDims(row.CharacterID, dims)
+		if w, ok := mpWeightFromRec(row.CharacterID, rec, ""); ok {
+			mpWeightMap[mpWeightKey{ID: row.CharacterID}] = w
 		}
-		if len(rec.Score.Dims) > 0 {
-			mpWeightMap[mpWeightKey{ID: row.CharacterID}] = mpWeightFromDims(row.CharacterID, rec.Score.Dims)
+		for elem := range rec.ByElement {
+			if w, ok := mpWeightFromRec(row.CharacterID, rec, elem); ok {
+				mpWeightMap[mpWeightKey{ID: row.CharacterID, Element: elem}] = w
+			}
+		}
+		if rec.Score != nil { // 过渡兼容：老 payload 的 score 块（含 byElement）
+			for elem, dims := range rec.Score.ByElement {
+				mpWeightMap[mpWeightKey{ID: row.CharacterID, Element: elem}] = mpWeightFromDims(row.CharacterID, dims)
+			}
+			if len(rec.Score.Dims) > 0 {
+				mpWeightMap[mpWeightKey{ID: row.CharacterID}] = mpWeightFromDims(row.CharacterID, rec.Score.Dims)
+			}
 		}
 	}
 	// 规则顺序要稳定（map/DB 返回顺序不保证；同一角色多条规则可叠加，展示标签也要可复现）
@@ -362,7 +373,50 @@ func (s *Service) RelicWeight(characterID int64) (CharacterRelicWeight, bool) {
 	return w, ok
 }
 
-// mpWeightFromDims 把推荐属性 payload 里的 `score.dims`（`FIGHT_PROP_*` → 0~100）转成 7 维权重。
+// mpWeightFromRec 从推荐属性里取某（角色 / 角色+元素）的 7 维评分权重。
+//
+// 新结构（2026-09-27）：`subStats[].weight` **就是**评分权重（一个词条一个数字 ✓），
+// `byElement[元素]` 覆盖对应 statKey；非 7 维的词条（如白值攻击 `FIGHT_PROP_ATTACK`）不影响评分 ✓。
+//
+// ⚠️ 过渡期规则：**老 payload（带 `score` 块）优先按 score 读** —— 因为老数据的
+// `subStats[].weight` 还是"推荐优先级 10 分制"，直接当评分权重用会算错 ✗（迁移完成后可删这段）。
+func mpWeightFromRec(characterID int64, rec StatRecommendation, element string) (CharacterRelicWeightMP, bool) {
+	if rec.Score != nil {
+		if element != "" {
+			if dims, ok := rec.Score.ByElement[element]; ok {
+				return mpWeightFromDims(characterID, dims), true
+			}
+			if len(rec.Score.Dims) == 0 {
+				return CharacterRelicWeightMP{}, false
+			}
+		}
+		if len(rec.Score.Dims) > 0 {
+			return mpWeightFromDims(characterID, rec.Score.Dims), true
+		}
+		return CharacterRelicWeightMP{}, false
+	}
+	dims := make(map[string]int, len(rec.SubStats))
+	for _, s := range rec.SubStats {
+		if s.StatKey != "" {
+			dims[s.StatKey] = s.Weight
+		}
+	}
+	if element != "" {
+		over, ok := rec.ByElement[element]
+		if !ok {
+			return CharacterRelicWeightMP{}, false
+		}
+		for k, v := range over {
+			dims[k] = v
+		}
+	}
+	if len(dims) == 0 {
+		return CharacterRelicWeightMP{}, false
+	}
+	return mpWeightFromDims(characterID, dims), true
+}
+
+// mpWeightFromDims 把 `FIGHT_PROP_*` → 0~100 的映射转成 7 维权重。
 //
 // "用 key 对齐"就落在这里 ✓：推荐词条的 statKey 与评分维度是同一批 `FIGHT_PROP_*` ✓
 // （cpct ↔ FIGHT_PROP_CRITICAL、cdmg ↔ FIGHT_PROP_CRITICAL_HURT、recharge ↔ FIGHT_PROP_CHARGE_EFFICIENCY…）。

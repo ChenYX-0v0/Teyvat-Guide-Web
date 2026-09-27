@@ -88,11 +88,19 @@ type StatWeightItem struct {
 	Tier    string `json:"tier,omitempty"` // primary | secondary | ""
 }
 
-// StatRecommendation 角色推荐强化词条（副词条权重 + 主词条推荐 + **评分权重**）
+// StatRecommendation 角色推荐强化词条（副词条权重 + 主词条推荐）
+//
+// ⚠️ 2026-09-27 决定（用户）：**不再有独立的"评分权重"块** —— 每个词条只有**一个数字**：
+// `SubStats[].Weight` 既是推荐优先级，**也是圣遗物评分权重**（0~100，小助手口径 ✓）。
+//
+// 代价是卡片着色/排序与 AI 文案会跟着评分权重走 ✓ —— 这是**明确接受**的行为
+// （原先"推荐优先级 10 分制"与"评分权重 0~100"两处维护，必然漂移 ✗）。
 type StatRecommendation struct {
 	SubStats  []StatWeightItem  `json:"subStats"`
 	MainStats map[string]string `json:"mainStats,omitempty"` // sand/goblet/circlet → 推荐主属性
-	// Score 圣遗物评分权重（2026-09-27 合并：评分权重**写在推荐属性里**，一份数据一个地方 ✓）
+	// ByElement 仅旅行者用：元素 →（`FIGHT_PROP_*` → 权重覆盖）—— 对应"不同元素当不同角色算" ✓
+	ByElement map[string]map[string]int `json:"byElement,omitempty"`
+	// Deprecated: 旧结构（评分权重独立成块）。**仅为过渡期读老数据**，迁移完成后可删 ✓
 	Score *RelicScorePayload `json:"score,omitempty"`
 }
 
