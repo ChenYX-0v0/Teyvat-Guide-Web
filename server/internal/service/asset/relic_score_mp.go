@@ -101,11 +101,7 @@ var mpCoef = map[string]float64{
 	"defPlus":  0.335 * 0.66,
 }
 
-// mpMainBonus 主词条固定加分：只有暴击率 / 暴击伤害主词条 +20（用户决定：其它主词条先不算）
-const mpMainBonus = 20.0
-
-// mpMainBonusDims 能拿 +20 的主词条维度
-var mpMainBonusDims = map[string]bool{"cpct": true, "cdmg": true}
+// 主词条计分：2026-09-27 用户决定**全部不计分**（先去掉其它主词条，再去掉暴击/暴伤主词条的 +20）
 
 // CharacterRelicWeightMP 小助手口径的收益权重（表名 character_relic_weights_mp）
 //
@@ -177,18 +173,8 @@ func mpscore(in RelicScoreInput, weight CharacterRelicWeightMP) (MPRelicScore, b
 		}
 	}
 
-	// 主词条：只认暴击率 / 暴击伤害，各 +20（花/羽主词条固定，不计）
-	// 名字容忍 "暴击伤害" 与 "暴击伤害 +62.2%" 两种形式（翻译层给的是纯名，这里做防御）
-	if relicSlotIndex[in.Slot] >= 3 && in.MainStatName != "" {
-		mainName := in.MainStatName
-		if i := strings.Index(mainName, " +"); i > 0 {
-			mainName = mainName[:i]
-		}
-		if dim, ok := relicDimByName[mainName]; ok && mpMainBonusDims[dim] {
-			res.Score += mpMainBonus
-			res.Dims[dim] += mpMainBonus
-		}
-	}
+	// 主词条：**一律不计分**（用户 2026-09-27 决定：连暴击率/暴击伤害主词条的 +20 也去掉）
+	// ⇒ 单件分完全来自副词条；主词条只影响"这件装备好不好用"，不影响评分。
 	return res, true
 }
 

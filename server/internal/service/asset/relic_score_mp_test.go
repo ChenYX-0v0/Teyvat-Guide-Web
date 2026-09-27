@@ -47,31 +47,26 @@ func TestMPScoreCoefficients(t *testing.T) {
 	}
 }
 
-func TestMPScoreMainStatBonus(t *testing.T) {
-	// 理之冠：暴击伤害主词条 → 只 +20（不含主词条数值折算 —— 与小助手口径一致）
+func TestMPScoreMainStatIgnored(t *testing.T) {
+	// 2026-09-27 用户决定：主词条**一律不计分**（含暴击率 / 暴击伤害主词条，不再 +20）
 	sub := []RelicStatInput{{Name: "暴击率", Value: 3.9}}
-	crit := RelicScoreInput{Slot: "理之冠", MainStatName: "暴击伤害 +62.2%", SubStats: sub}
-	res, _ := mpscore(crit, wen())
-	if !almostEqMP(res.Score, 3.9*2+20) {
-		t.Fatalf("暴伤冠 = %.4f，期望 %.4f（3.9×2 + 20）", res.Score, 3.9*2+20)
+	want := 3.9 * 2 // 只有副词条那一条暴击率
+	cases := []RelicScoreInput{
+		{Slot: "理之冠", MainStatName: "暴击伤害 +62.2%", SubStats: sub},
+		{Slot: "理之冠", MainStatName: "暴击率 +31.1%", SubStats: sub},
+		{Slot: "理之冠", MainStatName: "攻击力 +46.6%", SubStats: sub},
+		{Slot: "时之沙", MainStatName: "元素充能效率 +51.8%", SubStats: sub},
+		{Slot: "生之花", MainStatName: "生命值 +4780", SubStats: sub},
+		{Slot: "死之羽", MainStatName: "攻击力 +311", SubStats: sub},
 	}
-	// 暴击率主词条同样 +20
-	rate := RelicScoreInput{Slot: "理之冠", MainStatName: "暴击率 +31.1%", SubStats: sub}
-	res2, _ := mpscore(rate, wen())
-	if !almostEqMP(res2.Score, 3.9*2+20) {
-		t.Fatalf("暴击冠 = %.4f，期望 %.4f", res2.Score, 3.9*2+20)
-	}
-	// 其它主词条不加分（用户决定：先不算）
-	other := RelicScoreInput{Slot: "理之冠", MainStatName: "攻击力 +46.6%", SubStats: sub}
-	res3, _ := mpscore(other, wen())
-	if !almostEqMP(res3.Score, 3.9*2) {
-		t.Fatalf("攻击冠不应加分，实际 %.4f", res3.Score)
-	}
-	// 花/羽的主词条永远不加分
-	flower := RelicScoreInput{Slot: "生之花", MainStatName: "生命值 +4780", SubStats: sub}
-	res4, _ := mpscore(flower, wen())
-	if !almostEqMP(res4.Score, 3.9*2) {
-		t.Fatalf("花的主词条不应加分，实际 %.4f", res4.Score)
+	for _, in := range cases {
+		res, ok := mpscore(in, wen())
+		if !ok {
+			t.Fatalf("%s 应当算得出分", in.Slot)
+		}
+		if !almostEqMP(res.Score, want) {
+			t.Fatalf("%s（主词条 %s）应只算副词条 %.4f，实际 %.4f", in.Slot, in.MainStatName, want, res.Score)
+		}
 	}
 }
 
