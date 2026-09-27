@@ -40,6 +40,40 @@ const scoreClsText: Record<string, string> = {
 export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
   const rarity = relic.rarity && relic.rarity >= 3 ? relic.rarity : 5
 
+  // 下面四块在卡片里复用（评分行与部位行都要用），所以提到 return 之前定义
+  const iconEl = relic.iconUrl ? (
+    <img
+      src={relic.iconUrl}
+      alt={relicPosNames[relic.pos] ?? relic.pos}
+      loading="lazy"
+      className="h-6 w-6 shrink-0 rounded-md border border-teyvat-line bg-teyvat-raised object-cover sm:h-8 sm:w-8"
+    />
+  ) : null
+  const posEl = (
+    <span className="shrink-0 rounded-md border border-teyvat-line bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
+      {relicPosNames[relic.pos] ?? relic.pos}
+    </span>
+  )
+  const levelEl = (
+    <span className="shrink-0 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-3 sm:text-xs">
+      +{relic.level}
+    </span>
+  )
+  // 评分徽标（2026-09-27 起）：档位 + 单件分；旧快照没有该字段时不渲染
+  const scoreEl =
+    relic.scoreCls && relic.score !== undefined ? (
+      <span
+        className={clsx(
+          'shrink-0 text-sm leading-tight font-semibold whitespace-nowrap sm:text-base',
+          scoreClsText[relic.scoreCls] ?? 'text-teyvat-text-2',
+        )}
+        title={`${t('character.relicScoreNote')}${relic.weightTag ? `（${relic.weightTag}）` : ''}`}
+      >
+        {relic.scoreCls} {relic.score.toFixed(1)}
+      </span>
+    ) : null
+  const hasScore = scoreEl !== null
+
   return (
     <div
       className={clsx(
@@ -47,40 +81,26 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
         rarityBorder[rarity] ?? rarityBorder[5],
       )}
     >
-      {/* 头部行允许换行（flex-wrap）：窄卡片（移动端两列 / lg 五列）里
-          「部位 + 评分 + 等级」三项加起来会超过一行宽度，
-          此前部位可压缩、评分与等级都是 shrink-0 ⇒ 一旦放不下就整体溢出，
-          把末尾的等级 +20 挤到卡片外面（2026-09-27 用户反馈 ✗）。
-          现在：三项都不许被压扁（shrink-0 + nowrap），放不下就换到下一行 —— 只挪位置，不丢信息。 */}
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-        {/* 部位图标（参考提瓦特小助手）：旧快照没有该字段，缺失时整块不渲染 */}
-        {relic.iconUrl && (
-          <img
-            src={relic.iconUrl}
-            alt={relicPosNames[relic.pos] ?? relic.pos}
-            loading="lazy"
-            className="h-6 w-6 shrink-0 rounded-md border border-teyvat-line bg-teyvat-raised object-cover sm:h-8 sm:w-8"
-          />
-        )}
-        <span className="shrink-0 rounded-md border border-teyvat-line bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
-          {relicPosNames[relic.pos] ?? relic.pos}
-        </span>
-        {/* 评分徽标（2026-09-27 起）：档位 + 单件分；旧快照无字段时整块不渲染。
-            手机端收紧一点内边距，给等级留出空间 */}
-        {relic.scoreCls && relic.score !== undefined && (
-          <span
-            className={clsx(
-              'shrink-0 rounded-md border border-teyvat-line bg-white/[0.03] px-1 py-0.5 text-[11px] leading-tight font-semibold whitespace-nowrap sm:px-1.5 sm:text-xs',
-              scoreClsText[relic.scoreCls] ?? 'text-teyvat-text-2',
-            )}
-            title={`${t('character.relicScoreNote')}${relic.weightTag ? `（${relic.weightTag}）` : ''}`}
-          >
-            {relic.scoreCls} {relic.score.toFixed(1)}
-          </span>
-        )}
-        <span className="ml-auto shrink-0 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-3 sm:text-xs">
-          +{relic.level}
-        </span>
+      {/* 头部（2026-09-27 改版）：**评分放最上面一行** ——
+          用户看这套圣遗物的第一诉求是"哪件最高 / 哪件最低，先练哪件"，
+          所以把评分做成卡片视觉首位（档位配色 + 加大字号），等级挪到它右侧同行。
+          副作用是顺带修掉了此前的溢出：一行从"部位 + 评分 + 等级"三样减到两样，
+          窄卡片（手机两列 / lg 五列，每张约 190px）也放得下，不会再挤掉等级 ✗。
+          旧快照没有评分字段时，回落到原来的"部位 + 等级"单行布局。 */}
+      {hasScore ? (
+        <div className="flex items-center justify-between gap-2 border-b border-teyvat-line pb-1.5">
+          {scoreEl}
+          {levelEl}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 border-b border-teyvat-line pb-1.5">
+          {posEl}
+          <span className="ml-auto">{levelEl}</span>
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center gap-1.5 sm:mt-2">
+        {iconEl}
+        {posEl}
       </div>
 
       {/* 主词条：看"配置"时最该一眼扫到的信息（参考提瓦特小助手：主词条最醒目） */}
