@@ -264,6 +264,41 @@ func TestRelicRulePriorityOrder(t *testing.T) {
 }
 
 // 算分主流程：能算、结果在界内、副词条更好则分更高
+// 2026-09-27 用户决定：条件规则**不参与算分** ✗ —— ScoreRelic 必须忽略 character_relic_weight_rules。
+// 反例（旧行为）：西风系列会把暴击权重抬到 100，从而直接改变单件分；现在不该有任何影响。
+func TestScoreRelicIgnoresConditionRules(t *testing.T) {
+	relic := RelicScoreInput{
+		CharacterID:   12345,
+		Slot:          "EQUIP_BRACER",
+		MainStatName:  "生命值",
+		MainStatValue: 4780,
+		WeaponName:    "西风剑", // 命中通用规则（旧行为：暴击率 → 100）
+		SubStats: []RelicStatInput{
+			{Name: "暴击率", Value: 3.9, Count: 1},
+			{Name: "暴击伤害", Value: 7.8, Count: 1},
+			{Name: "元素充能效率", Value: 5.2, Count: 1},
+		},
+	}
+	weights := map[int64]CharacterRelicWeight{
+		12345: {CharacterID: 12345, ATK: 75, CPct: 60, CDmg: 100, Recharge: 50},
+	}
+	noRule := &Service{relicWeights: weights}
+	withRule := &Service{relicWeights: weights, relicRules: relicGlobalRules()}
+
+	a, okA := noRule.ScoreRelic(relic)
+	b, okB := withRule.ScoreRelic(relic)
+	if !okA || !okB {
+		t.Fatal("两件都应能计分")
+	}
+	if !almostEqual(a.Score, b.Score, 1e-9) {
+		t.Fatalf("规则不能再影响算分：无规则=%.6f 有规则=%.6f", a.Score, b.Score)
+	}
+	// 规则数据与函数**保留**（便于参考/回滚 ✓）—— 但它们不在算分链路上
+	if w, tag := withRule.effectiveRelicWeight(relic); w.CPct != 100 || tag == "" {
+		t.Fatalf("effectiveRelicWeight 应仍能算出规则效果（保留 ✓），实际 cpct=%d tag=%q", w.CPct, tag)
+	}
+}
+
 func TestRelicScoreBasicAndMonotonic(t *testing.T) {
 	s := &Service{relicWeights: map[int64]CharacterRelicWeight{
 		10000046: {CharacterID: 10000046, HP: 80, ATK: 50, CPct: 100, CDmg: 100, Mastery: 75, Dmg: 100},

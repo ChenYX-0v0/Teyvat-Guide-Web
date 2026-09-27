@@ -226,7 +226,12 @@ func (s *Service) ScoreRelic(in RelicScoreInput) (RelicScoreResult, bool) {
 	}
 	mainDim := relicDimByName[strings.TrimSpace(in.MainStatName)]
 
-	w, tag := s.effectiveRelicWeight(in)
+	// 2026-09-27 用户决定：**条件规则一律不参与算分** ✗
+	// （西风系列 / 绝缘 4 件 / 武器适配 / 专精武 都不再改动权重）—— 直接取角色默认权重。
+	// `effectiveRelicWeight` 与规则数据（character_relic_weight_rules）保留但**不再被调用** ✓（便于参考与回滚）。
+	// 注：线上默认口径本就是 mp（小助手），而 mp 路径从未吃规则 ✓ —— 所以这次改动对现网分数**无影响** ✓。
+	w := s.baseRelicWeight(in.CharacterID)
+	tag := ""
 	attrs := relicAttrs(w, relicBaseValues(in))
 	posMax := relicPosMaxMark(attrs, slot)
 	if posMax <= 0 {
@@ -347,6 +352,22 @@ func ParseRelicMainStat(mainStat string) (string, float64) {
 
 // ───────────────────────── 权重求值 ─────────────────────────
 
+// baseRelicWeight 角色的**默认权重**（不含任何条件规则）：查不到该角色就退回通用默认表 ✓
+func (s *Service) baseRelicWeight(characterID int64) CharacterRelicWeight {
+	w, ok := s.RelicWeight(characterID)
+	if !ok {
+		w = CharacterRelicWeight{CharacterID: characterID}
+		for dim, v := range relicDefaultWeight {
+			w.setDim(dim, v)
+		}
+	}
+	return w
+}
+
+// ⚠️ **已停用（2026-09-27）**：条件规则不再参与算分 ✗ —— `ScoreRelic` 现在直接调 `baseRelicWeight`。
+// 本函数与 `character_relic_weight_rules` 的 9 条数据都保留（便于参考 / 必要时回滚 ✓），
+// 但**没有任何生产调用点**（只剩单测在守着它的行为，见 relic_score_test.go）。
+//
 // effectiveRelicWeight 组装该角色本次算分实际生效的权重：
 //
 //	默认权重（兜底） → 角色默认权重表 → 覆盖规则（DB：角色级 + 通用级，按 Priority 求值）
@@ -354,13 +375,7 @@ func ParseRelicMainStat(mainStat string) (string, float64) {
 // 覆盖规则全部走数据（character_relic_weight_rules），**Go 里不再有硬编码规则**：
 // 武器适配 / 西风系列 / 绝缘 4 件都是 character_id = 0 的通用行（见文件上半部分的说明）。
 func (s *Service) effectiveRelicWeight(in RelicScoreInput) (CharacterRelicWeight, string) {
-	w, ok := s.RelicWeight(in.CharacterID)
-	if !ok {
-		w = CharacterRelicWeight{CharacterID: in.CharacterID}
-		for dim, v := range relicDefaultWeight {
-			w.setDim(dim, v)
-		}
-	}
+	w := s.baseRelicWeight(in.CharacterID)
 
 	var tags []string
 	for _, r := range s.relicRulesFor(in.CharacterID) {
