@@ -66,6 +66,8 @@ func New(cfg *config.Config) *gin.Engine {
 	smsSvc := service.NewSMSService(cfg.SMS)
 	authSvc := service.NewAuthService(cfg.Auth, smsSvc, database.DB())
 	auth := handler.NewAuthHandler(authSvc)
+	// 邀请码（注册的第二道门，2026-09-28）：后台接口用（内网）✓
+	inviteAdmin := handler.NewInviteAdminHandler(service.NewInviteService())
 	assets := asset.New(database.DB())
 	playerSvc := service.NewPlayerService(database.DB())
 	player := handler.NewPlayerHandler(playerSvc)
@@ -190,6 +192,10 @@ func New(cfg *config.Config) *gin.Engine {
 			internal.PUT("/preset-qa/:id", preset.Update)
 			// 提示词维护（后台可运营：新增版本 / 启用回滚；**不提供改内容**，
 			// 改文案一律"新增一版"、老版本留作回滚——见 shared-docs/03 §5.2）
+			// 邀请码管理（2026-09-28，注册的第二道门）：生成 / 列表 / 停用 ✓
+			internal.GET("/invite-codes", inviteAdmin.List)
+			internal.POST("/invite-codes", inviteAdmin.Create)
+			internal.PUT("/invite-codes/:code", inviteAdmin.SetEnabled)
 			internal.GET("/ai-prompts", internalAIAdmin.AdminList)
 			internal.POST("/ai-prompts", internalAIAdmin.Create)
 			internal.PUT("/ai-prompts/:id", internalAIAdmin.SetEnabled)
@@ -217,6 +223,7 @@ func autoMigrate() {
 		&model.AIPrompt{},
 		&model.UsageEvent{}, // 埋点明细（shared-docs/07）
 		&model.UsageDaily{}, // 埋点按天聚合（看板读它）
+		&model.InviteCode{}, // 邀请码（2026-09-28，注册的第二道门）
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},

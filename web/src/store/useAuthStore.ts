@@ -37,6 +37,8 @@ export interface RegisterPayload {
   code: string
   password: string
   displayName?: string
+  /** 邀请码（`requireInviteCode=true` 时必填；服务端会在注册事务里原子占用 ✓） */
+  inviteCode?: string
 }
 
 function persist(token: string, displayName: string) {
@@ -66,8 +68,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  async register({ phone, code, password, displayName }) {
-    await authApi.register(phone, code, password, displayName)
+  async register({ phone, code, password, displayName, inviteCode }) {
+    await authApi.register(phone, code, password, displayName, inviteCode)
     // 注册成功后直接登录：用户名就是手机号（后端约定 ✓）
     //
     // ⚠️ 必须用 `get().login(...)`，**不能**写 `this.login(...)` ✗ ——

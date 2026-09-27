@@ -46,6 +46,7 @@ const en: Partial<Dict> = {
   'login.hasAccount': 'Already have an account?',
   'login.switchToLogin': 'Sign in',
   // Phone sign-up (2026-09-27): whether the entry shows is decided by GET /api/auth/config
+  'login.inviteCode': 'Invite code',
   'login.phone': 'Phone number',
   'login.smsCode': 'SMS code',
   'login.sendCode': 'Send code',

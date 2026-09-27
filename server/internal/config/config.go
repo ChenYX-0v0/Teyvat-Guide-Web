@@ -131,6 +131,11 @@ type AuthConfig struct {
 	SeedPass      string `mapstructure:"seed_pass"`
 	AdminKey      string `mapstructure:"admin_key"`    // 管理接口密钥（X-Admin-Key）；为空时回落 jwt_secret
 	InternalKey   string `mapstructure:"internal_key"` // 内网管理接口密钥（X-Internal-Key）；为空则内网接口不注册（安全默认）
+	// RequireInviteCode 注册是否**必须**填邀请码（2026-09-28 新增，注册的第二道门 ✓）。
+	// true 时：**发短信前**就要验码（不填 / 不对 ⇒ 连短信都不发 ✓）、
+	// 注册时在事务里**原子占用**该码（用过一次即作废 ✓，并发下也不会被两个账号共用 ✓）。
+	// 默认 false ⇒ 行为与以前完全一致（不影响任何既有部署 ✓）。
+	RequireInviteCode bool `mapstructure:"require_invite_code"`
 }
 
 // AdminAPIKey 返回管理接口实际使用的密钥：优先 admin_key，未配置则复用 jwt_secret（不推荐）
@@ -214,6 +219,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.seed_user", "admin")
 	v.SetDefault("auth.seed_pass", "admin123")
 	v.SetDefault("auth.internal_key", "") // 为空则内网管理接口不注册
+	// 邀请码（注册的第二道门）：默认关闭 ⇒ 行为与以前一致 ✓；开启即"没码注册不了" ✓
+	v.SetDefault("auth.require_invite_code", false)
 	// 配额与并发闸门（口径见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2）
 	v.SetDefault("quota.daily_tokens_per_user", 100000) // 每用户每自然日 10 万 token；0 = 不限
 	v.SetDefault("quota.daily_tokens_global", 0)        // 全站日预算（熔断）；0 = 关闭

@@ -44,6 +44,7 @@ const zhCN = {
   'login.hasAccount': '已有账号？',
   'login.switchToLogin': '登录',
   // 手机号注册（2026-09-27）：注册入口是否显示由服务端 `/api/auth/config` 决定 ✓
+  'login.inviteCode': '邀请码',
   'login.phone': '手机号',
   'login.smsCode': '短信验证码',
   'login.sendCode': '获取验证码',

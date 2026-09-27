@@ -59,9 +59,14 @@ export const authApi = {
     )
   },
 
-  /** 发送注册验证码（限速：同号 60s / 同号日上限 / 同 IP 小时上限；超限返回 429 + retryAfterSeconds） */
-  sendSmsCode(phone: string) {
-    return unwrap<SendSmsCodeResult>(http.post('/auth/sms/send', { phone }))
+  /**
+   * 发送注册验证码（限速：同号 60s / 同号日上限 / 同 IP 小时上限；超限返回 429 + retryAfterSeconds）。
+   *
+   * ⚠️ `inviteCode` 是**必传语义**（服务端 `require_invite_code=true` 时）：
+   * 不填 / 不对 ⇒ 服务端**一条短信都不会发** ✓（用户 2026-09-28 口径 ✓），返回 400。
+   */
+  sendSmsCode(phone: string, inviteCode?: string) {
+    return unwrap<SendSmsCodeResult>(http.post('/auth/sms/send', { phone, inviteCode }))
   },
 
   /** 注册入口可用性（登录页进页面时拉一次 ✓） */
@@ -73,9 +78,10 @@ export const authApi = {
    * 手机号注册（2026-09-27）：手机号 + 短信验证码 + 设置密码。
    * 成功后**不会自动登录**（注册与登录是两步 ✓），由 store 串起来。
    */
-  register(phone: string, code: string, password: string, displayName?: string) {
+  register(phone: string, code: string, password: string, displayName?: string, inviteCode?: string) {
     return unwrap<{ id: number; username: string; displayName: string }>(
-      http.post('/auth/register', { phone, code, password, displayName }),
+      // 注册时会**原子占用**邀请码（用过一次即作废 ✓，见 server/internal/repository/invite.go）
+      http.post('/auth/register', { phone, code, password, displayName, inviteCode }),
     )
   },
 

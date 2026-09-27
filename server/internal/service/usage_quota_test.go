@@ -27,8 +27,9 @@ func setupUsageTestDB(t *testing.T) {
 		t.Fatalf("初始化 sqlite 失败：%v", err)
 	}
 	db := database.DB()
+	// InviteCode 也一起迁（邀请码用例复用本 helper ✓）
 	if err := db.AutoMigrate(
-		&model.User{}, &model.ChatSession{}, &model.ChatMessage{}, &model.PresetQA{},
+		&model.User{}, &model.ChatSession{}, &model.ChatMessage{}, &model.PresetQA{}, &model.InviteCode{},
 	); err != nil {
 		t.Fatalf("迁移失败：%v", err)
 	}

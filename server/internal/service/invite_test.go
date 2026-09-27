@@ -71,11 +71,11 @@ func TestAuthRegisterRespectsAllowRegister(t *testing.T) {
 
 	// 不公开 / 邀请制：公开注册关闭（**先判开关**，所以不需要短信通道也测得到 ✓）
 	closed := NewAuthService(testAuthConfig(false), testMockSMS(), db)
-	if _, err := closed.Register("13800138000", "123456", "secret123", ""); !errors.Is(err, ErrRegisterClosed) {
+	if _, err := closed.Register("13800138000", "123456", "secret123", "", ""); !errors.Is(err, ErrRegisterClosed) {
 		t.Fatalf("allow_register=false 时应拒绝公开注册，实际 %v", err)
 	}
 	// 关闭注册时**连验证码也不发**：否则会被刷短信费 ✗（2026-09-27 抽查发现的成本漏洞 ✓）
-	if err := closed.SendSMSCode("13800138000", "127.0.0.1"); !errors.Is(err, ErrRegisterClosed) {
+	if err := closed.SendSMSCode("13800138000", "127.0.0.1", ""); !errors.Is(err, ErrRegisterClosed) {
 		t.Fatalf("注册关闭时不应发送验证码，实际 %v", err)
 	}
 	// 但后台代建不受开关影响（否则邀请制部署没法开户）
@@ -92,7 +92,7 @@ func TestAuthRegisterRespectsAllowRegister(t *testing.T) {
 		t.Fatalf("发验证码失败：%v", err)
 	}
 	code := mockCodeOf(t, sms, "13900139000")
-	if _, err := open.Register("13900139000", code, "secret123", ""); err != nil {
+	if _, err := open.Register("13900139000", code, "secret123", "", ""); err != nil {
 		t.Fatalf("allow_register=true 时应可注册：%v", err)
 	}
 }

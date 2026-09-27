@@ -31,6 +31,8 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  // 邀请码：**放在手机号上方**（用户 2026-09-28 口径 ✓）—— 它是"准入"，手机号是"身份"
+  const [inviteCode, setInviteCode] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -53,6 +55,10 @@ export default function LoginPage() {
   }, [countdown])
 
   const canRegister = Boolean(registerOptions?.allowRegister && registerOptions?.smsEnabled)
+  // 是否要求邀请码：**由服务端配置决定，不硬编码** ✓（require_invite_code=false 时这一栏直接不显示）
+  const requireInvite = Boolean(registerOptions?.requireInviteCode)
+  // 只要求"非空"：格式与是否有效**交给服务端**判定 ✓（前端再写一套正则，改规则时就会两边漂移 ✗）
+  const inviteOk = !requireInvite || inviteCode.trim().length > 0
   const phoneValid = PHONE_RE.test(phone.trim())
   const codeValid = /^\d{4,8}$/.test(code.trim())
   const passValid = password.length >= 6
@@ -79,12 +85,13 @@ export default function LoginPage() {
   }
 
   const sendCode = async () => {
-    if (!phoneValid || sending || countdown > 0) return
+    // ⚠️ 邀请码不填 / 不合法 ⇒ **按钮就是禁用的** ✓（服务端也会再拦一道 ✓）
+    if (!phoneValid || !inviteOk || sending || countdown > 0) return
     setSending(true)
     setError('')
     setNotice('')
     try {
-      const res = await authApi.sendSmsCode(phone.trim())
+      const res = await authApi.sendSmsCode(phone.trim(), inviteCode.trim() || undefined)
       setCountdown(res.resendAfterSeconds || 60)
       setNotice(registerOptions?.smsMock ? t('login.codeSentMock') : t('login.codeSent'))
     } catch (err) {
@@ -99,7 +106,7 @@ export default function LoginPage() {
 
   const submitRegister = async (e: FormEvent) => {
     e.preventDefault()
-    if (!phoneValid || !codeValid || !passValid) return
+    if (!phoneValid || !codeValid || !passValid || !inviteOk) return
     setBusy(true)
     setError('')
     setNotice('')
@@ -109,6 +116,7 @@ export default function LoginPage() {
         code: code.trim(),
         password,
         displayName: displayName.trim() || undefined,
+        inviteCode: inviteCode.trim() || undefined,
       })
       navigate('/', { replace: true })
     } catch (err) {
@@ -160,6 +168,18 @@ export default function LoginPage() {
               {t('login.registerPhoneHint')}
             </p>
 
+            {/* 邀请码在**手机号上方** ✓：不填就拿不到验证码（服务端同样会拦 ✓） */}
+            {requireInvite && (
+              <input
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder={t('login.inviteCode')}
+                autoComplete="off"
+                autoFocus
+                className={inputClass}
+              />
+            )}
+
             <div className="flex gap-2">
               <input
                 value={phone}
@@ -167,7 +187,7 @@ export default function LoginPage() {
                 placeholder={t('login.phone')}
                 inputMode="numeric"
                 autoComplete="tel"
-                autoFocus
+                autoFocus={!requireInvite}
                 className={inputClass}
               />
               <Button
@@ -175,7 +195,7 @@ export default function LoginPage() {
                 variant="soft"
                 size="sm"
                 className="shrink-0"
-                disabled={!phoneValid || sending || countdown > 0}
+                disabled={!phoneValid || !inviteOk || sending || countdown > 0}
                 onClick={sendCode}
               >
                 {sending
@@ -227,7 +247,7 @@ export default function LoginPage() {
               type="submit"
               variant="primary"
               className="w-full"
-              disabled={busy || !phoneValid || !codeValid || !passValid}
+              disabled={busy || !phoneValid || !codeValid || !passValid || !inviteOk}
             >
               {busy ? t('common.loading') : t('login.registerSubmit')}
             </Button>

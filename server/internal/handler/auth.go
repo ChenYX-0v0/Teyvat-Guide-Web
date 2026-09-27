@@ -34,10 +34,15 @@ type registerRequest struct {
 	Code        string `json:"code" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	DisplayName string `json:"displayName,omitempty"`
+	// InviteCode 邀请码（2026-09-28）：`auth.require_invite_code=true` 时必填 ✓
+	// **不在 binding 里标 required** ✗ —— 开关关着时它就该可以不填，由服务层按开关判定 ✓
+	InviteCode string `json:"inviteCode,omitempty"`
 }
 
 type sendSMSCodeRequest struct {
 	Phone string `json:"phone" binding:"required"`
+	// InviteCode 同 registerRequest：开关开着时**不填/不对都不发短信** ✓
+	InviteCode string `json:"inviteCode,omitempty"`
 }
 
 // RegisterConfig GET /api/auth/config —— 注册入口可用性（**公开接口**）
@@ -58,8 +63,13 @@ func (h *AuthHandler) SendSMS(c *gin.Context) {
 		response.BadRequest(c, "请求参数有误："+err.Error())
 		return
 	}
-	if err := h.svc.SendSMSCode(req.Phone, c.ClientIP()); err != nil {
+	if err := h.svc.SendSMSCode(req.Phone, c.ClientIP(), req.InviteCode); err != nil {
 		switch {
+		// 邀请码：不填 / 不对 ⇒ 明确告知（**此时一条短信都没发** ✓，用户口径见 service/invite.go）
+		case errors.Is(err, service.ErrInviteRequired),
+			errors.Is(err, service.ErrInviteInvalid),
+			errors.Is(err, service.ErrInviteUsed):
+			response.BadRequest(c, err.Error())
 		// 注册关闭时不发码（否则"不公开部署"也会被刷短信费 ✗）
 		case errors.Is(err, service.ErrRegisterClosed):
 			response.Fail(c, http.StatusForbidden, 403, err.Error())
@@ -95,7 +105,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.BadRequest(c, "请求参数有误："+err.Error())
 		return
 	}
-	u, err := h.svc.Register(req.Phone, req.Code, req.Password, req.DisplayName)
+	u, err := h.svc.Register(req.Phone, req.Code, req.Password, req.DisplayName, req.InviteCode)
 	switch {
 	case err == nil:
 		logger.L().Infow("user registered", "username", u.Username, "phone", service.MaskPhone(u.Username))
@@ -106,7 +116,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.Fail(c, http.StatusConflict, 409, err.Error())
 	case errors.Is(err, service.ErrUserInvalid),
 		errors.Is(err, service.ErrPhoneInvalid),
-		errors.Is(err, service.ErrSMSCodeWrong):
+		errors.Is(err, service.ErrSMSCodeWrong),
+		errors.Is(err, service.ErrInviteRequired),
+		errors.Is(err, service.ErrInviteInvalid),
+		errors.Is(err, service.ErrInviteUsed):
 		response.BadRequest(c, err.Error())
 	case errors.Is(err, service.ErrSMSDisabled):
 		response.Fail(c, http.StatusServiceUnavailable, 503, err.Error())

@@ -25,7 +25,7 @@ func registerWithSMS(t *testing.T, svc *AuthService, sms *SMSService, phone, pas
 		t.Fatalf("发验证码失败：%v", e)
 	}
 	code := mockCodeOf(t, sms, phone)
-	u, err := svc.Register(phone, code, password, displayName)
+	u, err := svc.Register(phone, code, password, displayName, "")
 	if u == nil {
 		return "", err
 	}
@@ -83,7 +83,7 @@ func TestRegisterRejectsWrongCode(t *testing.T) {
 	if err := sms.SendCode(testPhone, "127.0.0.1"); err != nil {
 		t.Fatalf("发验证码失败：%v", err)
 	}
-	if _, err := svc.Register(testPhone, "000000", testPass, ""); !errors.Is(err, ErrSMSCodeWrong) {
+	if _, err := svc.Register(testPhone, "000000", testPass, "", ""); !errors.Is(err, ErrSMSCodeWrong) {
 		t.Fatalf("错码应返回 ErrSMSCodeWrong，实际 %v", err)
 	}
 	// 关键：**错码不能建号** ✗（否则等于没有验证）
@@ -112,7 +112,7 @@ func TestRegisterRejectsDuplicatePhone(t *testing.T) {
 func TestRegisterNeedsSMSConfigured(t *testing.T) {
 	setupUsageTestDB(t)
 	svc := NewAuthService(testAuthConfig(true), NewSMSService(config.SMSConfig{}), database.DB())
-	if _, err := svc.Register(testPhone, "123456", testPass, ""); !errors.Is(err, ErrSMSDisabled) {
+	if _, err := svc.Register(testPhone, "123456", testPass, "", ""); !errors.Is(err, ErrSMSDisabled) {
 		t.Fatalf("短信未启用时应返回 ErrSMSDisabled，实际 %v", err)
 	}
 	if u, _ := svc.repo.FindByPhone(testPhone); u != nil {
@@ -126,7 +126,7 @@ func TestRegisterRejectsBadPhoneAndPassword(t *testing.T) {
 	svc := NewAuthService(testAuthConfig(true), sms, database.DB())
 
 	// 非法手机号：连码都不用发（也避免把非法号送进通道 ✓）
-	if _, err := svc.Register("12800138000", "123456", testPass, ""); !errors.Is(err, ErrPhoneInvalid) {
+	if _, err := svc.Register("12800138000", "123456", testPass, "", ""); !errors.Is(err, ErrPhoneInvalid) {
 		t.Fatalf("非法手机号应返回 ErrPhoneInvalid，实际 %v", err)
 	}
 	// 密码过短：ErrUserInvalid（沿用既有规则，≥6 位）
@@ -134,7 +134,7 @@ func TestRegisterRejectsBadPhoneAndPassword(t *testing.T) {
 		t.Fatalf("发验证码失败：%v", err)
 	}
 	code := mockCodeOf(t, sms, testPhone)
-	if _, err := svc.Register(testPhone, code, "12345", ""); !errors.Is(err, ErrUserInvalid) {
+	if _, err := svc.Register(testPhone, code, "12345", "", ""); !errors.Is(err, ErrUserInvalid) {
 		t.Fatalf("密码过短应返回 ErrUserInvalid，实际 %v", err)
 	}
 }

@@ -85,25 +85,31 @@ type RegisterOptions struct {
 }
 
 type AuthService struct {
-	cfg    config.AuthConfig
-	repo   *repository.UserRepository
-	sms    *SMSService
-	ttl    time.Duration
-	secret []byte
+	cfg     config.AuthConfig
+	repo    *repository.UserRepository
+	sms     *SMSService
+	invites *InviteService
+	ttl     time.Duration
+	secret  []byte
 }
 
 // NewAuthService 构造。sms 可以为 nil（短信未配置时注册接口会明确拒绝 ✓，其余功能不受影响 ✓）。
 func NewAuthService(cfg config.AuthConfig, sms *SMSService, db *gorm.DB) *AuthService {
 	s := &AuthService{
-		cfg:    cfg,
-		repo:   repository.NewUserRepository(),
-		sms:    sms,
-		ttl:    time.Duration(cfg.JWTTTLHours) * time.Hour,
-		secret: []byte(cfg.JWTSecret),
+		cfg:     cfg,
+		repo:    repository.NewUserRepository(),
+		sms:     sms,
+		invites: NewInviteService(),
+		ttl:     time.Duration(cfg.JWTTTLHours) * time.Hour,
+		secret:  []byte(cfg.JWTSecret),
 	}
 	s.seedIfEmpty()
 	return s
 }
+
+// RequireInviteCode 是否要求邀请码（配置开关 ✓）。
+// 前端不硬编码：`GET /api/auth/config` 的 `requireInviteCode` 就是它 ✓。
+func (s *AuthService) RequireInviteCode() bool { return s.cfg.RequireInviteCode }
 
 // seedIfEmpty 用户表为空时创建种子账号（默认 admin/admin123，请登录后尽快修改）
 func (s *AuthService) seedIfEmpty() {
@@ -141,7 +147,7 @@ func (s *AuthService) seedIfEmpty() {
 //
 // ⚠️ 顺序刻意是"**先验码、再查重**"：反过来的话，"这个手机号注册过没有"就成了
 // **不需要持码就能探测**的信息 ✗（可被拿来批量判断哪些号码是本站用户）。
-func (s *AuthService) Register(phone, code, password, displayName string) (*model.User, error) {
+func (s *AuthService) Register(phone, code, password, displayName, inviteCode string) (*model.User, error) {
 	if !s.cfg.AllowRegister {
 		return nil, ErrRegisterClosed
 	}
@@ -152,9 +158,17 @@ func (s *AuthService) Register(phone, code, password, displayName string) (*mode
 	if !ok {
 		return nil, ErrPhoneInvalid
 	}
+	// ① 邀请码（准入）—— 只校验，**先不占用** ✓：万一后面短信码填错，码不该被烧掉 ✗
+	if s.RequireInviteCode() {
+		if err := s.invites.Check(inviteCode); err != nil {
+			return nil, err
+		}
+	}
+	// ② 短信验证码（持号证明 ✓）
 	if err := s.sms.VerifyCode(normalized, code); err != nil {
 		return nil, err
 	}
+	// ③ 查重（便宜的先做：省得白占用一个码 ✓）
 	if existing, err := s.repo.FindByPhone(normalized); err != nil {
 		return nil, err
 	} else if existing != nil {
@@ -166,6 +180,23 @@ func (s *AuthService) Register(phone, code, password, displayName string) (*mode
 		return nil, err
 	}
 	u.Phone = &normalized
+
+	// ④ 建号 +（需要时）**原子占用邀请码** —— 同一个事务，任何一步失败整体回滚 ✓✓
+	//    于是：并发下不会两个账号共用一个码 ✓；建号失败也不会把码白白烧掉 ✓。
+	if s.RequireInviteCode() {
+		err = s.invites.repo.CreateUserWithInvite(u, NormalizeInviteCode(inviteCode), normalized)
+		if errors.Is(err, repository.ErrInviteTaken) {
+			return nil, ErrInviteUsed
+		}
+		if err != nil {
+			// 手机号并发撞唯一索引 ⇒ 仍然回"已注册"（不是 500 ✗）
+			if again, e2 := s.repo.FindByPhone(normalized); e2 == nil && again != nil {
+				return nil, ErrPhoneTaken
+			}
+			return nil, err
+		}
+		return u, nil
+	}
 	if err := s.repo.Create(u); err != nil {
 		// 并发下靠 phone 唯一索引兜底：撞了就回"已注册"（否则会 500 ✗）
 		if again, e2 := s.repo.FindByPhone(normalized); e2 == nil && again != nil {
@@ -180,9 +211,16 @@ func (s *AuthService) Register(phone, code, password, displayName string) (*mode
 //
 // ⚠️ 注册关闭时**不发电**：验证码唯一用途就是注册 ✗ —— 否则"不公开部署"仍会被刷短信费 ✗
 // （2026-09-27 抽查发现：只关 allow_register 时本接口照样 200 ⇒ 成本漏洞 ✓ 已堵）。
-func (s *AuthService) SendSMSCode(phone, clientIP string) error {
+func (s *AuthService) SendSMSCode(phone, clientIP, inviteCode string) error {
 	if !s.cfg.AllowRegister {
 		return ErrRegisterClosed
+	}
+	// 邀请码先于一切：**不填 / 不对 ⇒ 连短信都不发** ✓（2026-09-28 用户口径 ✓）。
+	// 顺带也避免把本接口当成免费的"邀请码试探器"✗（错的码不会触发任何发送与计费 ✓）。
+	if s.RequireInviteCode() {
+		if err := s.invites.Check(inviteCode); err != nil {
+			return err
+		}
 	}
 	if s.sms == nil {
 		return ErrSMSDisabled
@@ -192,7 +230,10 @@ func (s *AuthService) SendSMSCode(phone, clientIP string) error {
 
 // RegisterOptions 注册入口可用性（`GET /api/auth/config`；前端决定显示注册入口还是邀请制提示 ✓）
 func (s *AuthService) RegisterOptions() RegisterOptions {
-	opts := RegisterOptions{AllowRegister: s.cfg.AllowRegister}
+	opts := RegisterOptions{
+		AllowRegister:     s.cfg.AllowRegister,
+		RequireInviteCode: s.cfg.RequireInviteCode,
+	}
 	if s.sms != nil {
 		opts.SMSEnabled = s.sms.Enabled()
 		opts.SMSMock = s.sms.Mock()
