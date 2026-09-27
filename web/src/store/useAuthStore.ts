@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { authApi } from '@/api/auth'
+import { authApi, type RegisterOptions } from '@/api/auth'
 import { EVENTS, track } from '@/lib/track'
 
 const TOKEN_KEY = 'auth-token'
@@ -20,11 +20,23 @@ interface AuthState {
   termsLoaded: boolean
 
   login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string, displayName?: string) => Promise<void>
+  /** 手机号注册（成功后自动登录；注册口径见 api/auth.ts 注释） */
+  register: (payload: RegisterPayload) => Promise<void>
   logout: () => void
   verify: () => Promise<void>
   /** 记录"我已阅读并同意"（成功后本地版本立即更新，弹窗随之关闭） */
   acceptTerms: () => Promise<void>
+
+  // —— 注册入口可用性（登录页进页面拉一次；null = 还没拿到/拿不到 ⇒ 不显示注册入口 ✓）——
+  registerOptions: RegisterOptions | null
+  loadRegisterOptions: () => Promise<void>
+}
+
+export interface RegisterPayload {
+  phone: string
+  code: string
+  password: string
+  displayName?: string
 }
 
 function persist(token: string, displayName: string) {
@@ -39,6 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   termsAcceptedVersion: '',
   termsCurrentVersion: '',
   termsLoaded: false,
+  registerOptions: null,
 
   async login(username, password) {
     try {
@@ -53,10 +66,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  async register(username, password, displayName) {
-    await authApi.register(username, password, displayName)
-    // 注册成功后直接登录
-    await this.login(username, password)
+  async register({ phone, code, password, displayName }) {
+    await authApi.register(phone, code, password, displayName)
+    // 注册成功后直接登录：用户名就是手机号（后端约定 ✓）
+    await this.login(phone, password)
+  },
+
+  /**
+   * 拉取注册入口可用性（失败就保持 null = 不显示注册入口 ✓）。
+   * 宁可少一个入口，也不给一个"点了才发现不能注册"的死按钮 ✗。
+   */
+  async loadRegisterOptions() {
+    try {
+      set({ registerOptions: await authApi.registerConfig() })
+    } catch {
+      set({ registerOptions: null })
+    }
   },
 
   logout() {

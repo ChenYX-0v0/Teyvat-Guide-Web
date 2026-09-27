@@ -335,14 +335,29 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260927-2014`** | **评分链路三连（口径收敛）** —— ① **条件规则不参与算分**（`ScoreRelic` 直接取角色默认权重；线上默认口径是 mp，而 mp 路径**从未调用过规则** ✓ ⇒ 对现网分数零影响 ✓）；② **评分权重就写在 `subStats[].weight`**（一个词条一个数字 ✓，去掉独立 `score` 块与"两张表两处维护"✗）；③ **导入只补缺、不覆盖后台权重**（生成器产出的是老 10 分制优先级 ✗，直接覆盖会让分数**静默全错** ✗✗）。实测：迁移 124 角色、旧 `score` 块残留 0 行、**迁移前后 12/12 角色分数零变化** ✓<br>此前（20260927-1928）：**旅行者元素接 Enka `skillDepotId`（修正版）** —— `AvatarInfo` 此前**根本没解析**这个字段 ✗，而 `characters` 表一个角色只能存一个元素 ⇒ 玩家切换元素后，元素伤害加成 / 面板着色 / (角色,元素) 的小助手权重全按错的算 ✗（**静默错**）。修法：翻译层在 `panelStats` 与评分**之前**改写 `card.Element`；**套件号→元素只登记有实测锚点的格子**（目前仅 `705 = 冰` ✓），其余返回空不覆盖 ✓ —— 第一版按"元素上线顺序"猜的全表是**错的** ✗（用户指出自己是冰主，实测 UID 197794747 的 `skillDepotId` 正是 705 ✓，见 `teyvat-docs/ai/08` 第 9 条 + `ai/07` TODO-13）<br>实测：旅行者元素 **水 → 冰** ✓、非旅行者**零改动** ✓；顺带更正 `10000006` 是**丽莎**不是旅行者 ✗<br>此前：圣遗物评分：三类动态规则落库（武器适配 4 把 / 西风系列 / 绝缘 4 件）—— 行为等价重构，12/12 逐件分数一致 ✓<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR**；改**翻译层**后须 `reload?purgeSnapshots=true`（档案进快照 ✗） |
-| `teyvat-guide-web` | **`20260927-1610`** | **圣遗物评分提到卡片第一行**（用户第一诉求是"比高低" ⇒ 评分从次要位置提到头部首行 ✓）<br>此前（20260927-1606）：**修圣遗物卡片头部溢出**：评分徽标变长后把末尾的等级 `+20` 挤出卡片（用户反馈 ✗）—— 头部行改 `flex-wrap` + 部位/评分/等级三项都 `shrink-0` + `whitespace-nowrap`，手机端徽标收紧内边距：**放不下就换行，只挪位置不丢信息**（`components/account/RelicDetailCard.tsx`）<br>此前：圣遗物评分展示（单件徽标 + 套装总评/词条/双暴）+ 顶栏副标题修正 + 用户须知弹窗 + `/terms` + AI 标识 + 备案号页脚 + 不参与搜索收录 |
+| `teyvat-guide-server` | **`20260927-2355`** | **手机号 + 短信验证码注册**（`GET /api/auth/config` 入口可用性 / `POST /api/auth/sms/send` 发码 / `POST /api/auth/register` 注册 ✓）—— 验证码走阿里云 Dypnsapi（`SendSmsVerifyCode` + `CheckSmsVerifyCode`）⇒ **不落库验证码** ✓；我们只做限速（同号 60s / 同号日 10 / 同 IP 时 20 ✓）；`sms.enabled` **默认关闭**（没配好绝不误发短信 = 不烧钱 ✗）；`users` 表加可空 `phone` 唯一列（后台代建账号为 NULL ✓）；注册关闭时**连验证码都不发**（403 ✓，否则会被刷短信费 ✗）。门槛：`gofmt`/`vet`/`go test`（新增 19 条 ✓）、线上端到端（发码 → 错码 400 → 正确码注册 id=9 → 手机号+密码登录拿到 token ✓）、UI 实测（注册入口随配置显示、倒计时 57 秒、mock 提示 ✓）<br>此前（`20260927-2014`）：**评分链路三连（口径收敛）** —— ① **条件规则不参与算分**（`ScoreRelic` 直接取角色默认权重；线上默认口径是 mp，而 mp 路径**从未调用过规则** ✓ ⇒ 对现网分数零影响 ✓）；② **评分权重就写在 `subStats[].weight`**（一个词条一个数字 ✓，去掉独立 `score` 块与"两张表两处维护"✗）；③ **导入只补缺、不覆盖后台权重**（生成器产出的是老 10 分制优先级 ✗，直接覆盖会让分数**静默全错** ✗✗）。实测：迁移 124 角色、旧 `score` 块残留 0 行、**迁移前后 12/12 角色分数零变化** ✓<br>此前（20260927-1928）：**旅行者元素接 Enka `skillDepotId`（修正版）** —— `AvatarInfo` 此前**根本没解析**这个字段 ✗，而 `characters` 表一个角色只能存一个元素 ⇒ 玩家切换元素后，元素伤害加成 / 面板着色 / (角色,元素) 的小助手权重全按错的算 ✗（**静默错**）。修法：翻译层在 `panelStats` 与评分**之前**改写 `card.Element`；**套件号→元素只登记有实测锚点的格子**（目前仅 `705 = 冰` ✓），其余返回空不覆盖 ✓ —— 第一版按"元素上线顺序"猜的全表是**错的** ✗（用户指出自己是冰主，实测 UID 197794747 的 `skillDepotId` 正是 705 ✓，见 `teyvat-docs/ai/08` 第 9 条 + `ai/07` TODO-13）<br>实测：旅行者元素 **水 → 冰** ✓、非旅行者**零改动** ✓；顺带更正 `10000006` 是**丽莎**不是旅行者 ✗<br>此前：圣遗物评分：三类动态规则落库（武器适配 4 把 / 西风系列 / 绝缘 4 件）—— 行为等价重构，12/12 逐件分数一致 ✓<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR**；改**翻译层**后须 `reload?purgeSnapshots=true`（档案进快照 ✗） |
+| `teyvat-guide-web` | **`20260927-2352`** | **登录页支持手机号注册** —— 登录/注册双模式（手机号 + 验证码 + 密码 + 昵称可选 ✓）、「获取验证码」带 60s 倒计时（429 时用后端下发的 `retryAfterSeconds` 直接接上 ✓）、注册入口**由服务端 `GET /api/auth/config` 决定**（不硬编码 ✗，否则会有"点了才发现 403"的死按钮 ✗）；`api/client` 的 ApiError 现在带 `code`/`data` ✓<br>此前（`20260927-1610`）：**圣遗物评分提到卡片第一行**（用户第一诉求是"比高低" ⇒ 评分从次要位置提到头部首行 ✓）<br>此前（20260927-1606）：**修圣遗物卡片头部溢出**：评分徽标变长后把末尾的等级 `+20` 挤出卡片（用户反馈 ✗）—— 头部行改 `flex-wrap` + 部位/评分/等级三项都 `shrink-0` + `whitespace-nowrap`，手机端徽标收紧内边距：**放不下就换行，只挪位置不丢信息**（`components/account/RelicDetailCard.tsx`）<br>此前：圣遗物评分展示（单件徽标 + 套装总评/词条/双暴）+ 顶栏副标题修正 + 用户须知弹窗 + `/terms` + AI 标识 + 备案号页脚 + 不参与搜索收录 |
 | `teyvat-ai` | **`20260927-1610`** | **防注入（L2）事前短路守卫**：`app/llm/guard.py` + `orchestrator` 的 `complete()`/`stream()` 双分支勾子 —— 越狱套话 / 现实任务（写代码·周报·翻译等）/ 情感类 / 严重违规**命中即不调用大模型**，直接回固定话术（`model=guard`、`tokens=0`、`offTopic=true` + reason）；守卫侧做 NFKC 归一化去零宽/全角绕过。<br>开关：`AI_GUARD_ENABLED`（默认 true）、`AI_GUARD_MODE`（`block` 默认 / `observe` 灰度 / `off`）<br>⚠️ 发布法：先 `docker build -t …/teyvat-ai:<tag>`，再跑 `deploy/out/deploy-ai-full.ps1`（该脚本只 save/scp/load，**不 build**）<br>此前：修 `context_render` 丢字段（终局概要 + relicScore 进上下文，配套提示词 v7） |
 
 > **回滚**：server 上一版 `20260927-2011`、web 上一版 `20260927-1606`、ai 上一版 `20260927-1520`（旧镜像仍在 ECS 上；实测 `/opt/teyvat-guide/` 下 `.env.bak-<tag>` 已累计 **37 份** ✓）。
 > 另有环境变量级回滚：AI 侧 `AI_GUARD_MODE=observe|off` 可**不发版**关掉事前短路（只记日志 / 完全关闭）。
 > 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` / `WEB_IMAGE` 改回上一版 tag + `docker compose up -d --no-build <服务>`。
 > ⚠️ 评分权重数据独立于镜像：回滚 server 镜像不影响已导入的权重表；但要重算旧快照需再 `reload?purgeSnapshots=true`。
+>
+> ⚠️⚠️ **compose 用 `environment` 白名单，不是 `env_file`** ✗ —— 新增任何 `TEYVAT_*` 配置项，
+> 必须**同时**写进 `docker-compose.yml` 的 `environment:` 段；只写宿主机 `.env` 容器里**看不到** ✗
+> （2026-09-27 加短信配置时踩到：`docker exec teyvat-guide-server env | grep TEYVAT_SMS` 为空 ✓）。
+> 另外 `TEYVAT_AUTH_ALLOW_REGISTER` 之前是**写死 `"false"`** ✗，已改成 `${TEYVAT_AUTH_ALLOW_REGISTER:-false}` ✓
+> （现在改 `.env` 才真的生效 ✓）。
+>
+> **手机号注册怎么开**（默认**全关** ✓ —— 没配好时绝不误发短信，发一条就是钱 ✗）：
+> 1) `.env`：`TEYVAT_SMS_MOCK=false`（联调期可先 `true`：不发短信、验证码只进服务端日志 ✓）
+> 2) 配 AK：`TEYVAT_SMS_ACCESS_KEY_ID` / `TEYVAT_SMS_ACCESS_KEY_SECRET`
+>    —— 两者都留空 = 走"**无 AK**"凭据链（ECS 绑了 RAM 角色时用这种 ✓）
+> 3) `.env`：`TEYVAT_AUTH_ALLOW_REGISTER=true`
+> 4) `docker compose up -d --no-build server`；**回滚 = 把第 3 步改回 false** 再执行第 4 步 ✓
+>
+> 签名/模板默认 `恒创联众` / `100001`（可在 `.env` 覆盖 ✓）；限速默认 同号 60s / 同号日 10 / 同 IP 时 20 ✓。
 > 💡 只改 AI 上下文文案（如 `relicScore.note`）时**不需要**清快照 —— 上下文是每次请求实时拼的，快照里只存档案数据。
 > ⚠️ 但改**会进快照的资产数据**（如推荐词条 `card.statWeights`）时**必须** `reload?purgeSnapshots=true`：
 > 原因是 `asset.Service` 有**两个实例**（handler 那份被 `import` 刷新、**PlayerService 那份不会**），

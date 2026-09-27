@@ -2,10 +2,15 @@ package model
 
 import "time"
 
-// User 用户（账号密码登录）
+// User 用户（账号密码登录；2026-09-27 起支持手机号注册）
 type User struct {
-	ID            uint       `gorm:"primaryKey" json:"id"`
-	Username      string     `gorm:"size:32;uniqueIndex;not null" json:"username"`
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Username string `gorm:"size:32;uniqueIndex;not null" json:"username"`
+	// Phone 手机号（2026-09-27 新增，手机号注册必填）。**可空**：后台代建的账号没有手机号，
+	// 用指针 ⇒ 落库为 NULL ✓（MySQL/SQLite 都允许多个 NULL，而**空串只允许一个** ✗ ——
+	// 直接写 default:'' 会让"第二个后台账号"插入失败 ✗）。
+	// 手机号注册时 Username 就是手机号 ✓（登录链路零改动）。
+	Phone         *string    `gorm:"size:16;uniqueIndex" json:"phone,omitempty"`
 	PasswordHash  string     `gorm:"size:128;not null" json:"-"`
 	DisplayName   string     `gorm:"size:64" json:"displayName"`
 	GenshinUID    string     `gorm:"size:16" json:"genshinUid"`                     // 绑定的游戏 UID（一对一）

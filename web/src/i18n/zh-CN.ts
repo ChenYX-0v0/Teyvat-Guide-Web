@@ -43,6 +43,16 @@ const zhCN = {
   'login.switchToRegister': '注册',
   'login.hasAccount': '已有账号？',
   'login.switchToLogin': '登录',
+  // 手机号注册（2026-09-27）：注册入口是否显示由服务端 `/api/auth/config` 决定 ✓
+  'login.phone': '手机号',
+  'login.smsCode': '短信验证码',
+  'login.sendCode': '获取验证码',
+  'login.sendingCode': '发送中…',
+  'login.resendIn': '{seconds} 秒后重发',
+  'login.codeSent': '验证码已发送，请查收短信',
+  'login.codeSentMock': '验证码已生成（联调模式：验证码见服务端日志）',
+  'login.passwordRule': '密码至少 6 位',
+  'login.registerPhoneHint': '用手机号注册，注册后可直接用手机号登录',
 
   // 用户须知（免责声明）——正文见 components/legal/TermsContent.tsx，
   // 版本号真源在主服务 server/internal/service/terms.go（改文案要同步递增版本）

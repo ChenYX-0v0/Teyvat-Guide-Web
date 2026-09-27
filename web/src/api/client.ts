@@ -17,6 +17,24 @@ export function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/**
+ * ApiError 后端业务错误（2026-09-27 新增）。
+ * 除了 message，还带上 `code` 与 `data` —— 有些错误必须读 data 才有用：
+ * 例如发短信被限速（429）时的 `data.retryAfterSeconds`，前端据此直接接上倒计时 ✓
+ * （只给一句"太频繁了"，用户只能自己瞎猜要等多久 ✗）。
+ */
+export class ApiError extends Error {
+  code: number
+  data: unknown
+
+  constructor(message: string, code = 0, data: unknown = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.data = data
+  }
+}
+
 /** 登录态失效处理：清凭据并回登录页（axios 拦截器与 fetch 流式请求共用） */
 export function handleUnauthorized() {
   localStorage.removeItem('auth-token')
@@ -47,7 +65,10 @@ http.interceptors.response.use(
     }
     const message =
       error.response?.data?.message ?? error.message ?? t('errors.network')
-    return Promise.reject(new Error(message))
+    // 带上 code/data（HTTP 层的错误也走同一种 ApiError ✓，调用方不必区分两种错误形状）
+    return Promise.reject(
+      new ApiError(message, error.response?.data?.code ?? 0, error.response?.data?.data ?? null),
+    )
   },
 )
 
@@ -55,7 +76,7 @@ http.interceptors.response.use(
 export async function unwrap<T>(promise: Promise<{ data: ApiEnvelope<T> }>): Promise<T> {
   const { data } = await promise
   if (data.code !== 0) {
-    throw new Error(data.message || t('errors.requestFailed'))
+    throw new ApiError(data.message || t('errors.requestFailed'), data.code, data.data)
   }
   return data.data
 }

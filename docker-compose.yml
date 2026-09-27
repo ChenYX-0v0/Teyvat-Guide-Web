@@ -108,14 +108,38 @@ services:
       TEYVAT_AUTH_JWT_SECRET: ${TEYVAT_AUTH_JWT_SECRET:?请在 .env 设置 TEYVAT_AUTH_JWT_SECRET}
       TEYVAT_AUTH_ADMIN_KEY: ${TEYVAT_AUTH_ADMIN_KEY:?请在 .env 设置 TEYVAT_AUTH_ADMIN_KEY}
       TEYVAT_AUTH_INTERNAL_KEY: ${TEYVAT_AUTH_INTERNAL_KEY:?请在 .env 设置 TEYVAT_AUTH_INTERNAL_KEY}
-      TEYVAT_AUTH_ALLOW_REGISTER: "false" # 不公开/邀请制：账号只能后台代建
+      # 注册开关：默认 false = 不公开/邀请制（账号只能后台代建 ✓）。
+      # ⚠️ 以前这里是**写死 "false"** ✗ —— 宿主机 .env 里怎么设都不生效（2026-09-27 踩到）。
+      # 开放"手机号 + 短信验证码"注册：只要在 .env 里设 TEYVAT_AUTH_ALLOW_REGISTER=true ✓
+      TEYVAT_AUTH_ALLOW_REGISTER: ${TEYVAT_AUTH_ALLOW_REGISTER:-false}
       TEYVAT_AUTH_SEED_USER: ${TEYVAT_AUTH_SEED_USER:-admin}
       TEYVAT_AUTH_SEED_PASS: ${TEYVAT_AUTH_SEED_PASS:?请在 .env 设置 TEYVAT_AUTH_SEED_PASS}
+
+      # —— 短信验证码（手机号注册；口径见 shared/04 §2）——
+      # ⚠️ 必须在这里显式列出：本 compose 用 environment 白名单，**不是 env_file** ✗ ——
+      # 只写进宿主机 .env 而不列在这里，容器里根本看不到（2026-09-27 踩到 ✗）。
+      # 默认全关：没配签名/密钥时不会误发短信（发一条就是钱 ✗）。
+      TEYVAT_SMS_ENABLED: ${TEYVAT_SMS_ENABLED:-false}
+      TEYVAT_SMS_PROVIDER: ${TEYVAT_SMS_PROVIDER:-aliyun}
+      TEYVAT_SMS_SIGN_NAME: ${TEYVAT_SMS_SIGN_NAME:-恒创联众}
+      TEYVAT_SMS_TEMPLATE_CODE: ${TEYVAT_SMS_TEMPLATE_CODE:-100001}
+      TEYVAT_SMS_ENDPOINT: ${TEYVAT_SMS_ENDPOINT:-dypnsapi.aliyuncs.com}
+      # AK 留空 = 走"无 AK"凭据链（ECS 实例 RAM 角色）✓；显式填则用填的 ✓
+      TEYVAT_SMS_ACCESS_KEY_ID: ${TEYVAT_SMS_ACCESS_KEY_ID:-}
+      TEYVAT_SMS_ACCESS_KEY_SECRET: ${TEYVAT_SMS_ACCESS_KEY_SECRET:-}
+      # mock：不真发短信，验证码只进服务端日志（仅本地/联调 ✓，别开在线上 ✗）
+      TEYVAT_SMS_MOCK: ${TEYVAT_SMS_MOCK:-false}
+      TEYVAT_SMS_CODE_TTL_MINUTES: ${TEYVAT_SMS_CODE_TTL_MINUTES:-5}
+      TEYVAT_SMS_SEND_INTERVAL_SECONDS: ${TEYVAT_SMS_SEND_INTERVAL_SECONDS:-60}
+      TEYVAT_SMS_DAILY_LIMIT_PER_PHONE: ${TEYVAT_SMS_DAILY_LIMIT_PER_PHONE:-10}
+      TEYVAT_SMS_HOURLY_LIMIT_PER_IP: ${TEYVAT_SMS_HOURLY_LIMIT_PER_IP:-20}
 
       # —— 配额与并发闸门（口径见 shared/05 §2）——
       TEYVAT_QUOTA_DAILY_TOKENS_PER_USER: ${TEYVAT_QUOTA_DAILY_TOKENS_PER_USER:-100000}
       TEYVAT_QUOTA_DAILY_TOKENS_GLOBAL: ${TEYVAT_QUOTA_DAILY_TOKENS_GLOBAL:-0}
       TEYVAT_QUOTA_MAX_CONCURRENT_PER_USER: "2"
+      # 分钟级限速（L4）：拦住"短时间反复刷越界问题"（日额度按 token 计，拦不住 ✗）
+      TEYVAT_QUOTA_MAX_REQUESTS_PER_MINUTE: ${TEYVAT_QUOTA_MAX_REQUESTS_PER_MINUTE:-20}
 
     # 本地验证：容器访问宿主上的 MySQL（Linux 需要这一行）
     extra_hosts:

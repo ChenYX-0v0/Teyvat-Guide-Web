@@ -42,7 +42,7 @@ func TestUserAdminCreateUser(t *testing.T) {
 	}
 
 	// 密码哈希写对了：后台建的账号能直接登录
-	auth := NewAuthService(testAuthConfig(false), database.DB())
+	auth := NewAuthService(testAuthConfig(false), NewSMSService(config.SMSConfig{}), database.DB())
 	if _, _, err := auth.Login("invited_user", "secret123"); err != nil {
 		t.Fatalf("后台建的账号应能登录：%v", err)
 	}
@@ -69,10 +69,14 @@ func TestAuthRegisterRespectsAllowRegister(t *testing.T) {
 	setupUsageTestDB(t)
 	db := database.DB()
 
-	// 不公开 / 邀请制：公开注册关闭
-	closed := NewAuthService(testAuthConfig(false), db)
-	if _, err := closed.Register("self_signup", "secret123", ""); !errors.Is(err, ErrRegisterClosed) {
+	// 不公开 / 邀请制：公开注册关闭（**先判开关**，所以不需要短信通道也测得到 ✓）
+	closed := NewAuthService(testAuthConfig(false), testMockSMS(), db)
+	if _, err := closed.Register("13800138000", "123456", "secret123", ""); !errors.Is(err, ErrRegisterClosed) {
 		t.Fatalf("allow_register=false 时应拒绝公开注册，实际 %v", err)
+	}
+	// 关闭注册时**连验证码也不发**：否则会被刷短信费 ✗（2026-09-27 抽查发现的成本漏洞 ✓）
+	if err := closed.SendSMSCode("13800138000", "127.0.0.1"); !errors.Is(err, ErrRegisterClosed) {
+		t.Fatalf("注册关闭时不应发送验证码，实际 %v", err)
 	}
 	// 但后台代建不受开关影响（否则邀请制部署没法开户）
 	if _, err := NewUserAdminService().CreateUser(dto.AdminCreateUserRequest{
@@ -81,9 +85,14 @@ func TestAuthRegisterRespectsAllowRegister(t *testing.T) {
 		t.Fatalf("关闭公开注册时后台仍应能建号：%v", err)
 	}
 
-	// 开放注册（默认行为，用于将来公开）
-	open := NewAuthService(testAuthConfig(true), db)
-	if _, err := open.Register("self_signup", "secret123", ""); err != nil {
+	// 开放注册（默认行为，用于将来公开）：手机号 + 验证码 + 密码
+	sms := testMockSMS()
+	open := NewAuthService(testAuthConfig(true), sms, db)
+	if err := sms.SendCode("13900139000", "127.0.0.1"); err != nil {
+		t.Fatalf("发验证码失败：%v", err)
+	}
+	code := mockCodeOf(t, sms, "13900139000")
+	if _, err := open.Register("13900139000", code, "secret123", ""); err != nil {
 		t.Fatalf("allow_register=true 时应可注册：%v", err)
 	}
 }

@@ -45,6 +45,16 @@ const en: Partial<Dict> = {
   'login.switchToRegister': 'Register',
   'login.hasAccount': 'Already have an account?',
   'login.switchToLogin': 'Sign in',
+  // Phone sign-up (2026-09-27): whether the entry shows is decided by GET /api/auth/config
+  'login.phone': 'Phone number',
+  'login.smsCode': 'SMS code',
+  'login.sendCode': 'Send code',
+  'login.sendingCode': 'Sending…',
+  'login.resendIn': 'Resend in {seconds}s',
+  'login.codeSent': 'Code sent — please check your SMS',
+  'login.codeSentMock': 'Code generated (mock mode: see server logs)',
+  'login.passwordRule': 'At least 6 characters',
+  'login.registerPhoneHint': 'Sign up with your phone number, then sign in with it',
 
   // Terms & disclaimer — the declaration itself is Chinese-only by design
   // (legal text: the Chinese version prevails); version source of truth is the server.

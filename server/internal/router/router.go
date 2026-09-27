@@ -62,7 +62,9 @@ func New(cfg *config.Config) *gin.Engine {
 	}
 
 	health := handler.NewHealthHandler()
-	authSvc := service.NewAuthService(cfg.Auth, database.DB())
+	// 短信通道（手机号注册用）：未开启/未配好时为"不可用"状态，注册接口会明确拒绝 ✓
+	smsSvc := service.NewSMSService(cfg.SMS)
+	authSvc := service.NewAuthService(cfg.Auth, smsSvc, database.DB())
 	auth := handler.NewAuthHandler(authSvc)
 	assets := asset.New(database.DB())
 	playerSvc := service.NewPlayerService(database.DB())
@@ -136,6 +138,11 @@ func New(cfg *config.Config) *gin.Engine {
 
 		authGroup := api.Group("/auth")
 		{
+			// 注册入口可用性（公开）：前端据此决定显示"手机号注册"还是"邀请制"提示 ✓
+			authGroup.GET("/config", auth.RegisterConfig)
+			// 发送注册验证码（公开；靠三重限速防刷，响应体不含验证码 ✗）
+			authGroup.POST("/sms/send", auth.SendSMS)
+			// 手机号注册（公开；allow_register=false 时 403）
 			authGroup.POST("/register", auth.Register)
 			authGroup.POST("/login", auth.Login)
 			authGroup.GET("/me", middleware.JWTAuth(cfg.Auth, checkBanned), auth.Me)

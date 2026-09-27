@@ -53,6 +53,22 @@ func (r *UserRepository) FindByUsername(username string) (*model.User, error) {
 	return &u, nil
 }
 
+// FindByPhone 按手机号查询（手机号注册查重；未绑定手机号的账号是 NULL，不会被命中 ✓）
+func (r *UserRepository) FindByPhone(phone string) (*model.User, error) {
+	if r.db() == nil {
+		return nil, nil
+	}
+	var u model.User
+	err := r.db().First(&u, "phone = ?", phone).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
 // FindByID 按 ID 查询
 func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 	if r.db() == nil {

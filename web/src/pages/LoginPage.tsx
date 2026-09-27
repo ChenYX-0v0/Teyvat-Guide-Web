@@ -1,30 +1,69 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Compass } from 'lucide-react'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
 import SiteFooter from '@/components/layout/SiteFooter'
+import { ApiError } from '@/api/client'
+import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
 /**
- * 登录页（邀请制）。
+ * 登录 / 注册页。
  *
- * 本站当前是**不公开部署**：主服务 `auth.allow_register=false`，`POST /api/auth/register` 直接 403，
- * 因此这里不再提供注册入口——账号由管理员在后台「用户管理 → 新增用户」创建后转达。
- * 口径见 shared-docs/04 §2.3、web/11 §7.6；将来若改为公开，把注册模式加回来即可
- * （i18n 的 `login.register*` 等文案与 `useAuthStore.register` 都还在）。
+ * **注册口径（2026-09-27 起）**：手机号 + 短信验证码 + 设置密码，注册成功后自动登录。
+ * 账号名就是手机号 ⇒ 登录链路不用改（后端 `service/auth.go` 的约定 ✓）。
+ *
+ * ⚠️ 注册入口**不能硬编码** ✗：是否显示取决于服务端 `GET /api/auth/config`
+ * （`allowRegister` + `smsEnabled`）。不公开部署（当前线上口径）下两者都是 false，
+ * 页面退回"邀请制"提示 ✓；硬编码会出现"点了注册才发现 403"的死按钮 ✗。
  */
+const PHONE_RE = /^1[3-9]\d{9}$/
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
+  const register = useAuthStore((s) => s.register)
+  const registerOptions = useAuthStore((s) => s.registerOptions)
+  const loadRegisterOptions = useAuthStore((s) => s.loadRegisterOptions)
 
+  const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
+  const [code, setCode] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [countdown, setCountdown] = useState(0)
 
-  const submit = async (e: FormEvent) => {
+  // 注册可用性：进页面拉一次（失败按"不可注册"处理 ✓ —— 登录不受影响）
+  useEffect(() => {
+    void loadRegisterOptions()
+  }, [loadRegisterOptions])
+
+  // 重发倒计时：用 setTimeout 递归而不是 setInterval（依赖闭合更清楚 ✓）
+  useEffect(() => {
+    if (countdown <= 0) return
+    const timer = window.setTimeout(() => setCountdown((n) => n - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [countdown])
+
+  const canRegister = Boolean(registerOptions?.allowRegister && registerOptions?.smsEnabled)
+  const phoneValid = PHONE_RE.test(phone.trim())
+  const codeValid = /^\d{4,8}$/.test(code.trim())
+  const passValid = password.length >= 6
+
+  const switchMode = (next: 'login' | 'register') => {
+    setMode(next)
+    setError('')
+    setNotice('')
+  }
+
+  const submitLogin = async (e: FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !password) return
     setBusy(true)
@@ -39,9 +78,50 @@ export default function LoginPage() {
     }
   }
 
+  const sendCode = async () => {
+    if (!phoneValid || sending || countdown > 0) return
+    setSending(true)
+    setError('')
+    setNotice('')
+    try {
+      const res = await authApi.sendSmsCode(phone.trim())
+      setCountdown(res.resendAfterSeconds || 60)
+      setNotice(registerOptions?.smsMock ? t('login.codeSentMock') : t('login.codeSent'))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errors.unknown'))
+      // 429 里带 retryAfterSeconds：直接把倒计时接上（不然用户只能瞎猜要等多久 ✗）
+      const retry = err instanceof ApiError ? Number((err.data as { retryAfterSeconds?: number } | null)?.retryAfterSeconds) : NaN
+      if (Number.isFinite(retry) && retry > 0) setCountdown(retry)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const submitRegister = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!phoneValid || !codeValid || !passValid) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await register({
+        phone: phone.trim(),
+        code: code.trim(),
+        password,
+        displayName: displayName.trim() || undefined,
+      })
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errors.unknown'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // 输入框字号移动端 ≥16px：iOS 聚焦更小字号会自动放大页面（sm 起回到 text-sm）
   const inputClass =
     'w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
+  const registering = mode === 'register' && canRegister
 
   return (
     // pb-10：给底部固定的备案号页脚留位，避免短屏时卡片与页脚重叠
@@ -60,46 +140,156 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold tracking-wide text-teyvat-gold">
             {t('header.title')}
           </h1>
-          <p className="text-xs text-teyvat-text-3">{t('login.welcome')}</p>
+          <p className="text-xs text-teyvat-text-3">
+            {registering ? t('login.registerWelcome') : t('login.welcome')}
+          </p>
         </div>
 
-        <p className="mt-4 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
-          {t('login.inviteOnly')}
-          <br />
-          {t('login.inviteHint')}
-        </p>
+        {/* 注册关闭时的口径说明（服务端 allow_register=false / 短信未开启）*/}
+        {!canRegister && (
+          <p className="mt-4 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
+            {t('login.inviteOnly')}
+            <br />
+            {t('login.inviteHint')}
+          </p>
+        )}
 
-        <form onSubmit={submit} className="mt-5 space-y-3">
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder={t('login.username')}
-            autoFocus
-            className={inputClass}
-          />
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            placeholder={t('login.password')}
-            className={inputClass}
-          />
-
-          {error && (
-            <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
-              {error}
+        {registering ? (
+          <form onSubmit={submitRegister} className="mt-5 space-y-3">
+            <p className="text-[11px] leading-relaxed text-teyvat-text-4">
+              {t('login.registerPhoneHint')}
             </p>
-          )}
 
-          <Button
-            type="submit"
-            variant="primary"
-            className="w-full"
-            disabled={busy || !username.trim() || !password}
-          >
-            {busy ? t('common.loading') : t('login.submit')}
-          </Button>
-        </form>
+            <div className="flex gap-2">
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={t('login.phone')}
+                inputMode="numeric"
+                autoComplete="tel"
+                autoFocus
+                className={inputClass}
+              />
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                className="shrink-0"
+                disabled={!phoneValid || sending || countdown > 0}
+                onClick={sendCode}
+              >
+                {sending
+                  ? t('login.sendingCode')
+                  : countdown > 0
+                    ? t('login.resendIn', { seconds: countdown })
+                    : t('login.sendCode')}
+              </Button>
+            </div>
+
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder={t('login.smsCode')}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className={inputClass}
+            />
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              placeholder={t('login.password')}
+              autoComplete="new-password"
+              className={inputClass}
+            />
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={t('login.displayName')}
+              className={inputClass}
+            />
+            {!passValid && password.length > 0 && (
+              <p className="text-[11px] text-teyvat-text-4">{t('login.passwordRule')}</p>
+            )}
+
+            {error && (
+              <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
+                {error}
+              </p>
+            )}
+            {notice && !error && (
+              <p className="rounded-lg border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-xs text-teyvat-text-3">
+                {notice}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full"
+              disabled={busy || !phoneValid || !codeValid || !passValid}
+            >
+              {busy ? t('common.loading') : t('login.registerSubmit')}
+            </Button>
+
+            <p className="pt-1 text-center text-xs text-teyvat-text-3">
+              {t('login.hasAccount')}{' '}
+              <button
+                type="button"
+                className="text-teyvat-gold transition hover:underline"
+                onClick={() => switchMode('login')}
+              >
+                {t('login.switchToLogin')}
+              </button>
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={submitLogin} className="mt-5 space-y-3">
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder={t('login.username')}
+              autoFocus
+              className={inputClass}
+            />
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              placeholder={t('login.password')}
+              autoComplete="current-password"
+              className={inputClass}
+            />
+
+            {error && (
+              <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full"
+              disabled={busy || !username.trim() || !password}
+            >
+              {busy ? t('common.loading') : t('login.submit')}
+            </Button>
+
+            {canRegister && (
+              <p className="pt-1 text-center text-xs text-teyvat-text-3">
+                {t('login.noAccount')}{' '}
+                <button
+                  type="button"
+                  className="text-teyvat-gold transition hover:underline"
+                  onClick={() => switchMode('register')}
+                >
+                  {t('login.switchToRegister')}
+                </button>
+              </p>
+            )}
+          </form>
+        )}
       </Card>
       {/* 登录页在 AppLayout 之外：备案号必须自带（公安审核的第一屏很可能就是这里，见 web/11 §6.5） */}
       <SiteFooter className="fixed inset-x-0 bottom-0" />

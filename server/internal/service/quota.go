@@ -15,14 +15,15 @@ const (
 	QuotaReasonDaily      = "daily"      // 当日额度用完
 	QuotaReasonConcurrent = "concurrent" // 同一用户并发过高
 	QuotaReasonGlobal     = "global"     // 全站日预算熔断
+	QuotaReasonRate       = "rate"       // 分钟级请求数超限（L4，2026-09-27 新增）
 )
 
-// ErrQuotaExceeded 配额 / 并发超限。Handler 据此返回 429（契约见 docs/04 §2.6）。
+// ErrQuotaExceeded 配额 / 并发 / 限速超限。Handler 据此返回 429（契约见 docs/04 §2.6）。
 type ErrQuotaExceeded struct {
-	Reason  string // daily | concurrent | global
-	Used    int64  // 已用量：日配额为 token 数，并发为当前在途请求数
+	Reason  string // daily | concurrent | global | rate
+	Used    int64  // 已用量：日额度为 token 数，并发为在途请求数，限速为窗口内请求数
 	Limit   int64
-	ResetAt time.Time // 仅日配额有意义（自然日 0 点重置）
+	ResetAt time.Time // 日配额 = 自然日 0 点；限速 = 最早那次请求滑出窗口的时刻
 }
 
 func (e *ErrQuotaExceeded) Error() string {
@@ -34,6 +35,9 @@ func (e *ErrQuotaExceeded) Message() string {
 	switch e.Reason {
 	case QuotaReasonConcurrent:
 		return "派蒙还在回答上一个问题呢，稍等一下再问我好不好？"
+	case QuotaReasonRate:
+		// 限速文案要与"额度用完"区分开：这里只是节奏太快，几十秒后就能继续 ✓
+		return "旅行者问得太快啦，派蒙有点跟不上～歇一小会儿再问我好不好？"
 	case QuotaReasonGlobal:
 		return "今天来问派蒙的人太多啦，额度已经用完，明日 0 点恢复～"
 	default:
@@ -51,6 +55,9 @@ type QuotaService struct {
 
 	mu       sync.Mutex
 	inflight map[uint]int // userID → 同时进行中的请求数
+	// rateHits userID → 最近一分钟内的请求时刻（**分钟级滑窗**，L4，2026-09-27）
+	// 为什么需要它：日额度按 token 计，拦不住"反复刷越界问题"——那些请求几乎不花 token ✗
+	rateHits map[uint][]time.Time
 }
 
 func NewQuotaService(cfg config.QuotaConfig) *QuotaService {
@@ -58,12 +65,14 @@ func NewQuotaService(cfg config.QuotaConfig) *QuotaService {
 		cfg:      cfg,
 		repo:     repository.NewChatRepository(),
 		inflight: make(map[uint]int),
+		rateHits: make(map[uint][]time.Time),
 	}
 }
 
 // Enabled 是否配置了任何限制
 func (s *QuotaService) Enabled() bool {
-	return s.cfg.DailyTokensPerUser > 0 || s.cfg.DailyTokensGlobal > 0 || s.cfg.MaxConcurrentPerUser > 0
+	return s.cfg.DailyTokensPerUser > 0 || s.cfg.DailyTokensGlobal > 0 ||
+		s.cfg.MaxConcurrentPerUser > 0 || s.cfg.MaxRequestsPerMinute > 0
 }
 
 // Acquire 请求前检查额度并占用一个并发名额：
@@ -105,9 +114,38 @@ func (s *QuotaService) Acquire(userID uint) (func(), error) {
 		}
 	}
 
-	// 豁免用户：跳过额度检查（仍占用并发名额，避免豁免账号把并发打满）
+	// 豁免用户：跳过额度与限速检查（仍占用并发名额，避免豁免账号把并发打满）
 	if s.isWhitelisted(userID) {
 		return release, nil
+	}
+
+	// 分钟级滑窗限速（L4，2026-09-27）：窗口固定 60 秒，进程内计数（与其余配额同口径）。
+	// 定位：拦住"短时间反复刷"（越界提问、试探话术成本极低 ✗），不是拦正常提问 ✓
+	// ——正常用户每分钟 1~3 问，20 次/分不会碰到 ✓。
+	if s.cfg.MaxRequestsPerMinute > 0 {
+		now := time.Now()
+		cut := now.Add(-time.Minute)
+		s.mu.Lock()
+		kept := make([]time.Time, 0, len(s.rateHits[userID])+1)
+		for _, ts := range s.rateHits[userID] {
+			if ts.After(cut) {
+				kept = append(kept, ts)
+			}
+		}
+		if len(kept) >= s.cfg.MaxRequestsPerMinute {
+			s.rateHits[userID] = kept
+			oldest := kept[0]
+			s.mu.Unlock()
+			release() // 限速拒绝时把并发占位还回去（否则会把并发名额永久占住 ✗）
+			return noop, &ErrQuotaExceeded{
+				Reason:  QuotaReasonRate,
+				Used:    int64(len(kept)),
+				Limit:   int64(s.cfg.MaxRequestsPerMinute),
+				ResetAt: oldest.Add(time.Minute),
+			}
+		}
+		s.rateHits[userID] = append(kept, now)
+		s.mu.Unlock()
 	}
 
 	since := StartOfToday()

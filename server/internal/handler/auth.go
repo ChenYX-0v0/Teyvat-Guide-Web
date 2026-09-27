@@ -27,27 +27,91 @@ type credentialsRequest struct {
 	DisplayName string `json:"displayName,omitempty"`
 }
 
-// Register POST /api/auth/register
-// 不公开 / 邀请制部署（`auth.allow_register=false`）下直接 403：账号由后台「新增用户」代建。
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req credentialsRequest
+// registerRequest 手机号注册请求（2026-09-27）：手机号 + 短信验证码 + 设置密码。
+// 昵称可选（缺省 = 脱敏手机号）；邀请码字段留给后续功能 ✓。
+type registerRequest struct {
+	Phone       string `json:"phone" binding:"required"`
+	Code        string `json:"code" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	DisplayName string `json:"displayName,omitempty"`
+}
+
+type sendSMSCodeRequest struct {
+	Phone string `json:"phone" binding:"required"`
+}
+
+// RegisterConfig GET /api/auth/config —— 注册入口可用性（**公开接口**）
+//
+// 前端据此决定显示"手机号注册"还是"邀请制"提示：`allowRegister=false`（当前线上口径）时
+// 注册接口本身也会 403，所以前端不能硬编码入口 ✓。
+func (h *AuthHandler) RegisterConfig(c *gin.Context) {
+	response.OK(c, h.svc.RegisterOptions())
+}
+
+// SendSMS POST /api/auth/sms/send —— 发送注册验证码（**公开接口**）
+//
+// 防刷靠三重限速（同号 60s / 同号日上限 / 同 IP 小时上限，见 service/sms.go ✓）：
+// 短信按条计费，被刷就是直接烧钱 ✗。响应体**不含验证码** ✗。
+func (h *AuthHandler) SendSMS(c *gin.Context) {
+	var req sendSMSCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数有误："+err.Error())
 		return
 	}
-	u, err := h.svc.Register(req.Username, req.Password, req.DisplayName)
+	if err := h.svc.SendSMSCode(req.Phone, c.ClientIP()); err != nil {
+		switch {
+		// 注册关闭时不发码（否则"不公开部署"也会被刷短信费 ✗）
+		case errors.Is(err, service.ErrRegisterClosed):
+			response.Fail(c, http.StatusForbidden, 403, err.Error())
+		case errors.Is(err, service.ErrPhoneInvalid):
+			response.BadRequest(c, err.Error())
+		case errors.Is(err, service.ErrSMSDisabled):
+			response.Fail(c, http.StatusServiceUnavailable, 503, err.Error())
+		default:
+			var limited *service.ErrSMSRateLimited
+			if errors.As(err, &limited) {
+				response.FailWithData(c, http.StatusTooManyRequests, 429, limited.Error(), gin.H{
+					"retryAfterSeconds": int(limited.RetryAfter.Seconds()) + 1, // 向上取整，别让前端倒计时差 1 秒就撞墙
+				})
+				return
+			}
+			logger.L().Warnw("send sms code failed", "phone", service.MaskPhone(req.Phone), "err", err)
+			response.Fail(c, http.StatusServiceUnavailable, 503, err.Error())
+		}
+		return
+	}
+	opts := h.svc.RegisterOptions()
+	response.OK(c, gin.H{
+		"resendAfterSeconds": opts.SMSResendAfterSeconds,
+		"expiresInSeconds":   opts.SMSCodeTTLSeconds,
+	})
+}
+
+// Register POST /api/auth/register —— 手机号注册（需要前置发送验证码）
+// 不公开 / 邀请制部署（`auth.allow_register=false`）下直接 403：账号由后台「新增用户」代建。
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req registerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误："+err.Error())
+		return
+	}
+	u, err := h.svc.Register(req.Phone, req.Code, req.Password, req.DisplayName)
 	switch {
 	case err == nil:
-		logger.L().Infow("user registered", "username", u.Username)
-		response.OK(c, gin.H{"id": u.ID, "username": u.Username})
+		logger.L().Infow("user registered", "username", u.Username, "phone", service.MaskPhone(u.Username))
+		response.OK(c, gin.H{"id": u.ID, "username": u.Username, "displayName": u.DisplayName})
 	case errors.Is(err, service.ErrRegisterClosed):
 		response.Fail(c, http.StatusForbidden, 403, err.Error())
-	case errors.Is(err, service.ErrUsernameTaken):
+	case errors.Is(err, service.ErrPhoneTaken), errors.Is(err, service.ErrUsernameTaken):
 		response.Fail(c, http.StatusConflict, 409, err.Error())
-	case errors.Is(err, service.ErrUserInvalid):
+	case errors.Is(err, service.ErrUserInvalid),
+		errors.Is(err, service.ErrPhoneInvalid),
+		errors.Is(err, service.ErrSMSCodeWrong):
 		response.BadRequest(c, err.Error())
+	case errors.Is(err, service.ErrSMSDisabled):
+		response.Fail(c, http.StatusServiceUnavailable, 503, err.Error())
 	default:
-		logger.L().Errorw("register failed", "username", req.Username, "err", err)
+		logger.L().Errorw("register failed", "phone", service.MaskPhone(req.Phone), "err", err)
 		response.Internal(c, "注册失败")
 	}
 }
