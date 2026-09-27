@@ -78,33 +78,8 @@ const zhCN = {
   'home.backendStatus': '后端状态：',
   'home.statusUp': '正常',
   'home.statusDown': '未连接（请先启动 Go 服务）',
-  // 开发计划（首页那块）—— 措辞一律**站在使用者视角**：只说"你会得到什么" ✓，不写内部术语 ✗
-  'home.roadmapTitle': '接下来会有什么',
-  'home.roadmapHint': '只列你会用到的功能；做完一个上线一个，顺序可能按情况调整。',
-  'home.roadmapDoing': '正在做',
-  'home.roadmapPlanned': '计划中',
-  'home.roadmap.buildPriority.title': '先练谁，我帮你排',
-  'home.roadmap.buildPriority.desc':
-    '看你上传的展柜角色与当前练度，给出"下一个该练谁、先练到什么程度"。',
-  'home.roadmap.banner.title': '这期卡池值不值得抽',
-  'home.roadmap.banner.desc':
-    '直接显示当前祈愿的概率 UP 角色与武器，再按你的角色池给抽取建议。（保底进度、原石数量这些拿不到，所以建议只看"缺不缺"）',
-  'home.roadmap.story.title': '剧情忘了，按章节回看',
-  'home.roadmap.story.desc': '主线剧情回顾：一章一句话摘要 + 关键事件，已看过的章节才展开，不剧透你还没玩到的地方。',
-  'home.roadmap.wiki.title': '图鉴（做好了再放出来）',
-  'home.roadmap.wiki.desc': '角色 / 武器 / 圣遗物的数据查询：列表、筛选、详情一页看完。（现在先撤下，免得占着菜单还没内容）',
-  'home.roadmap.teamBuilder.title': '按你的角色池配队',
-  'home.roadmap.teamBuilder.desc': '给出能直接上手的队伍与理由，而不是"通用攻略"。',
-  'home.roadmap.farmRoute.title': '采集路线地图',
-  'home.roadmap.farmRoute.desc': '按你要练的角色或武器，生成一条顺路的采集路线，少跑冤枉路。',
-  'home.roadmap.endgame.title': '深渊 / 幻想真境剧诗 / 幽境危战 当期信息',
-  'home.roadmap.endgame.desc':
-    '本期祝福、三星条件与每间怪物阵容。先做"本期祝福 + 三星条件"，再做逐间明细。',
-  'home.roadmap.theme.title': '亮色主题',
-  'home.roadmap.theme.desc': '白天也想看得清：加一套浅色主题，随时切换。',
-  'home.roadmap.pwa.title': '装到手机主屏、弱网也能看',
-  'home.roadmap.pwa.desc': '像 App 一样从主屏打开，网络不好时已看过的内容还在。',
-
+  // 2026-09-28：曾加过首页「接下来会有什么」开发计划板块（22 个 home.roadmap* 文案键），
+  // 用户看过觉得没必要 ⇒ 整块撤掉 ✓（组件里的 ROADMAP 数组也一并删了）。要恢复就翻这次提交的反向 diff ✓
   // 智能问答
   'chat.title': '智能问答',
   'chat.subtitle': '由 Go 后端统一代理大模型能力',
