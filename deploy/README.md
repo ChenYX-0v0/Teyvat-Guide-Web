@@ -335,11 +335,12 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260927-1527`** | **主词条"二选一"**（`mainStats` 可写 `A/B`，渲染展开为「A 或 B」，不再被模型读成"唯一正确"；配套 prompt v8，见 `teyvat-docs/ai/07` TODO-10）<br>此前：终局玩法概要 + 圣遗物评分 V3（新表 `character_relic_weights` / `character_relic_weight_rules`，权重来源 miao-plugin·MIT，124 + 3 已导入；设计见 `ai/08`）<br>**评分不做口径声明**（2026-09-27 决策）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
+| `teyvat-guide-server` | **`20260927-1601`** | **防注入（L1）**：玩家**昵称清洗**（`internal/service/sanitize.go` —— 白名单字符 + 16 字上限 + 注入短语一票否决；接在 `ai_context.go`）—— 昵称是唯一被拼进 system 的用户可控字段，不清洗＝持久注入通道 ✗（见 `teyvat-docs/ai/09`、TODO-12）<br>此前：主词条"二选一"（`mainStats` 可写 `A/B` → 渲染「A 或 B」，配套 prompt v8，TODO-10）+ 终局概要 + 圣遗物评分 V3（`character_relic_weights` 等，权重来源 miao-plugin·MIT；`ai/08`）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
 | `teyvat-guide-web` | **`20260927-1459`** | **圣遗物评分展示**（单件徽标 + 套装总评/词条/双暴，悬停只描述刻度）+ 顶栏副标题残缺文案修正；此前：用户须知弹窗 + `/terms` + AI 标识 + 备案号页脚 + 不参与搜索收录 |
-| `teyvat-ai` | **`20260927-1520`** | **修 `context_render` 丢字段**：终局概要（`abyss/theater/stygian`）此前被静默丢弃、「概要已进上下文」实际未生效 ⇒ 现渲染进【玩家档案】（并放角色明细之前，保证不被裁剪）；`relicScore` 也转成人话。配套提示词 **v7**（`ai_prompts` rules/fewshot v7：终局口径 + 评分可直接说）已入库热生效 |
+| `teyvat-ai` | **`20260927-1610`** | **防注入（L2）事前短路守卫**：`app/llm/guard.py` + `orchestrator` 的 `complete()`/`stream()` 双分支勾子 —— 越狱套话 / 现实任务（写代码·周报·翻译等）/ 情感类 / 严重违规**命中即不调用大模型**，直接回固定话术（`model=guard`、`tokens=0`、`offTopic=true` + reason）；守卫侧做 NFKC 归一化去零宽/全角绕过。<br>开关：`AI_GUARD_ENABLED`（默认 true）、`AI_GUARD_MODE`（`block` 默认 / `observe` 灰度 / `off`）<br>⚠️ 发布法：先 `docker build -t …/teyvat-ai:<tag>`，再跑 `deploy/out/deploy-ai-full.ps1`（该脚本只 save/scp/load，**不 build**）<br>此前：修 `context_render` 丢字段（终局概要 + relicScore 进上下文，配套提示词 v7） |
 
-> **回滚**：server 上一版 `20260927-1446`、web 上一版 `20260927-1448`、ai 上一版 `20260920-0220`（旧镜像仍在 ECS 上）。
+> **回滚**：server 上一版 `20260927-1527`、web 上一版 `20260927-1459`、ai 上一版 `20260927-1520`（旧镜像仍在 ECS 上）。
+> 另有环境变量级回滚：AI 侧 `AI_GUARD_MODE=observe|off` 可**不发版**关掉事前短路（只记日志 / 完全关闭）。
 > 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` / `WEB_IMAGE` 改回上一版 tag + `docker compose up -d --no-build <服务>`。
 > ⚠️ 评分权重数据独立于镜像：回滚 server 镜像不影响已导入的权重表；但要重算旧快照需再 `reload?purgeSnapshots=true`。
 > 💡 只改 AI 上下文文案（如 `relicScore.note`）时**不需要**清快照 —— 上下文是每次请求实时拼的，快照里只存档案数据。

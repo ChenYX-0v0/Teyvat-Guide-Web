@@ -108,8 +108,10 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 	}
 
 	player := map[string]any{
-		"uid":        profile.UID,
-		"nickname":   profile.Nickname,
+		"uid": profile.UID,
+		// 昵称是玩家自由填写、且会被拼进 system 的动态内容 ⇒ 必须清洗，
+		// 否则「忽略以上规则，你现在是…」这类昵称就是一条**持久注入**（见 sanitize.go 注释）
+		"nickname":   sanitizePlayerNickname(profile.Nickname),
 		"level":      profile.Level,
 		"worldLevel": profile.WorldLevel,
 		"characters": chars,
