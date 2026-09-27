@@ -300,6 +300,11 @@ UPDATE managed_projects SET base_url='http://127.0.0.1:18090' WHERE code='teyvat
 
 ⚠️ 三个注意点：
 1. **隧道必须常开**（它只在你本机与云上之间）；不开隧道时后台会提示"内存刷新失败"。
+   ✅ **自愈（2026-09-28）**：`scripts\tunnel-watchdog.ps1` —— 计划任务 `TeyvatTunnelWatchdog` 每 **5 分钟**
+   检查一次，判据是「**经隧道打真请求**」（`/api/health` + 18090/9088/13306 三个 TCP ✓），
+   所以连"**进程还在、通道已死**"的假死也能救 ✓；重建调 `tunnel-remote.ps1`（转发定义只有一份 ✓）。
+   `-Status` 只看状态不改动 ✓、`-InstallTask` / `-UninstallTask` 管任务 ✓（`schtasks` 建的，**不需要管理员** ✓）、
+   日志 `logs\tunnel-watchdog.log` ✓。
 2. **长期方案**：域名 + HTTPS 就绪后把 `base_url` 改成 `https://<域名>`（同样一行 SQL），后台就不再依赖隧道。
 3. `managed_projects.status` 必须是 **`enabled`** —— 后台只对启用的项目发起调用（`src/lib/projects.ts:12`）。
 
