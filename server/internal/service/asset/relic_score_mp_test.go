@@ -71,6 +71,23 @@ func TestMPScoreMainStatIgnored(t *testing.T) {
 	}
 }
 
+func TestMPRelicClass(t *testing.T) {
+	// 用户 2026-09-27 定的锚点：ACE 从 40 起、MAX 从 45 起
+	cases := []struct {
+		avg  float64
+		want string
+	}{
+		{6.9, "D"}, {7, "C"}, {13.9, "C"}, {20, "B"}, {27.9, "A"},
+		{30, "S"}, {35, "SS"}, {38, "SSS"}, {39.9, "SSS"},
+		{40, "ACE"}, {44.9, "ACE"}, {45, "MAX"}, {60, "MAX"},
+	}
+	for _, c := range cases {
+		if got := MPRelicClass(c.avg); got != c.want {
+			t.Errorf("MPRelicClass(%.1f) = %s，期望 %s", c.avg, got, c.want)
+		}
+	}
+}
+
 func TestMPScoreDimensions(t *testing.T) {
 	// 权重为 0 的维度不计分（如温迪不记生命）
 	in := RelicScoreInput{

@@ -330,7 +330,7 @@ func (tr *Translator) scoreRelics(card *dto.CharacterCard, inputs []asset.RelicS
 				mp, _ := asset.ScoreRelicMP(*in, w)
 				r := &card.Relics[i]
 				r.Score = mp.Score
-				r.ScoreCls = asset.RelicClass(mp.Score) // 档位：沿用既有阈值（用户决定先不动）
+				r.ScoreCls = asset.MPRelicClass(mp.Score) // 小助手口径阈值（ACE 40 / MAX 45）
 				r.WordCount = mp.WordCount
 				r.CritScore = mp.CritScore
 				total += mp.Score
@@ -358,6 +358,9 @@ func (tr *Translator) scoreRelics(card *dto.CharacterCard, inputs []asset.RelicS
 	}
 	if scored > 0 {
 		cls, avg := asset.RelicSetGrade(total, scored)
+		if asset.RelicScoreMode() == "mp" {
+			cls, avg = asset.MPSetGrade(total, scored) // 套装档位同样走小助手口径阈值
+		}
 		card.RelicScoreTotal = total
 		card.RelicScoreAvg = avg
 		card.RelicScoreClass = cls

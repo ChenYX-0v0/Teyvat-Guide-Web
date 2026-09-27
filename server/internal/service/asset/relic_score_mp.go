@@ -137,6 +137,37 @@ type MPRelicScore struct {
 	CritScore float64            // 双暴分：暴击率×2 + 暴击伤害（只看副词条）
 }
 
+// mpRelicClasses 小助手口径的分档阈值（2026-09-27 用户定锚点：
+// **ACE 从 40 分起、MAX 从 45 分起**；下档按比例压缩）。
+// ⚠️ 与 miao 那套（relicClasses，ACE<56 / MAX<70）**分开维护**：切换口径时互不影响，
+// 因为两套刻度不同（mp 不计主词条、只有 7 维 ⇒ 天花板更低）。
+var mpRelicClasses = []struct {
+	Name  string
+	Limit float64
+}{
+	{"D", 7}, {"C", 14}, {"B", 21}, {"A", 28},
+	{"S", 33}, {"SS", 37}, {"SSS", 40}, {"ACE", 45},
+}
+
+// MPRelicClass 小助手口径分档：取第一个 avg < Limit 的档；都不满足则 MAX。
+func MPRelicClass(avg float64) string {
+	for _, c := range mpRelicClasses {
+		if avg < c.Limit {
+			return c.Name
+		}
+	}
+	return "MAX"
+}
+
+// MPSetGrade 套装评级：5 件平均分 → (档位, 平均分)。与 miao 的 RelicSetGrade 同构，只是阈值不同。
+func MPSetGrade(total float64, count int) (string, float64) {
+	if count <= 0 {
+		return "D", 0
+	}
+	avg := total / float64(count)
+	return MPRelicClass(avg), avg
+}
+
 // ScoreRelicMP 小助手口径的单件算分（对外入口，供翻译层调用）
 func ScoreRelicMP(in RelicScoreInput, w CharacterRelicWeightMP) (MPRelicScore, bool) {
 	return mpscore(in, w)
