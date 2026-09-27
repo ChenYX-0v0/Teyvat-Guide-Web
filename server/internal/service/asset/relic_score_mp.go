@@ -111,8 +111,13 @@ func mpscore(in RelicScoreInput, weight CharacterRelicWeightMP) (MPRelicScore, b
 	}
 
 	// 主词条：只认暴击率 / 暴击伤害，各 +20（花/羽主词条固定，不计）
+	// 名字容忍 "暴击伤害" 与 "暴击伤害 +62.2%" 两种形式（翻译层给的是纯名，这里做防御）
 	if relicSlotIndex[in.Slot] >= 3 && in.MainStatName != "" {
-		if dim, ok := relicDimByName[in.MainStatName]; ok && mpMainBonusDims[dim] {
+		mainName := in.MainStatName
+		if i := strings.Index(mainName, " +"); i > 0 {
+			mainName = mainName[:i]
+		}
+		if dim, ok := relicDimByName[mainName]; ok && mpMainBonusDims[dim] {
 			res.Score += mpMainBonus
 			res.Dims[dim] += mpMainBonus
 		}

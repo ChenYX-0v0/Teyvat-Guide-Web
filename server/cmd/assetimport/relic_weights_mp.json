@@ -5,6 +5,7 @@
  "mpWeights": [
   {
    "characterId": 10000143,
+   "element": "",
    "name": "薇斯纳",
    "hp": 0,
    "atk": 75,
@@ -19,6 +20,7 @@
   },
   {
    "characterId": 10000140,
+   "element": "",
    "name": "沃雅妮莎",
    "hp": 100,
    "atk": 0,
@@ -33,6 +35,7 @@
   },
   {
    "characterId": 10000150,
+   "element": "",
    "name": "奥黛塔",
    "hp": 0,
    "atk": 75,
@@ -47,6 +50,7 @@
   },
   {
    "characterId": 10000148,
+   "element": "",
    "name": "阿罗夏",
    "hp": 0,
    "atk": 100,
@@ -61,6 +65,7 @@
   },
   {
    "characterId": 10000133,
+   "element": "",
    "name": "桑多涅",
    "hp": 0,
    "atk": 75,
@@ -75,6 +80,7 @@
   },
   {
    "characterId": 10000129,
+   "element": "",
    "name": "洛恩",
    "hp": 0,
    "atk": 70,
@@ -89,6 +95,7 @@
   },
   {
    "characterId": 10000131,
+   "element": "",
    "name": "尼可",
    "hp": 0,
    "atk": 100,
@@ -103,6 +110,7 @@
   },
   {
    "characterId": 10000132,
+   "element": "",
    "name": "布伦妮",
    "hp": 0,
    "atk": 100,
@@ -117,6 +125,7 @@
   },
   {
    "characterId": 10000130,
+   "element": "",
    "name": "莉奈娅",
    "hp": 0,
    "atk": 0,
@@ -131,6 +140,7 @@
   },
   {
    "characterId": 10000128,
+   "element": "",
    "name": "法尔伽",
    "hp": 0,
    "atk": 75,
@@ -145,6 +155,7 @@
   },
   {
    "characterId": 10000126,
+   "element": "",
    "name": "兹白",
    "hp": 0,
    "atk": 0,
@@ -159,6 +170,7 @@
   },
   {
    "characterId": 10000127,
+   "element": "",
    "name": "叶洛亚",
    "hp": 0,
    "atk": 0,
@@ -173,6 +185,7 @@
   },
   {
    "characterId": 10000125,
+   "element": "",
    "name": "哥伦比娅",
    "hp": 100,
    "atk": 0,
@@ -187,6 +200,7 @@
   },
   {
    "characterId": 10000123,
+   "element": "",
    "name": "杜林",
    "hp": 0,
    "atk": 75,
@@ -201,6 +215,7 @@
   },
   {
    "characterId": 10000124,
+   "element": "",
    "name": "雅珂达",
    "hp": 0,
    "atk": 100,
@@ -215,6 +230,7 @@
   },
   {
    "characterId": 10000122,
+   "element": "",
    "name": "奈芙尔",
    "hp": 0,
    "atk": 75,
@@ -229,6 +245,7 @@
   },
   {
    "characterId": 10000120,
+   "element": "",
    "name": "菲林斯",
    "hp": 0,
    "atk": 75,
@@ -243,6 +260,7 @@
   },
   {
    "characterId": 10000119,
+   "element": "",
    "name": "菈乌玛",
    "hp": 0,
    "atk": 0,
@@ -257,6 +275,7 @@
   },
   {
    "characterId": 10000121,
+   "element": "",
    "name": "爱诺",
    "hp": 0,
    "atk": 50,
@@ -271,6 +290,7 @@
   },
   {
    "characterId": 10000116,
+   "element": "",
    "name": "伊涅芙",
    "hp": 0,
    "atk": 75,
@@ -285,6 +305,7 @@
   },
   {
    "characterId": 10000114,
+   "element": "",
    "name": "丝柯克",
    "hp": 0,
    "atk": 75,
@@ -299,6 +320,7 @@
   },
   {
    "characterId": 10000115,
+   "element": "",
    "name": "塔利雅",
    "hp": 100,
    "atk": 0,
@@ -313,6 +335,7 @@
   },
   {
    "characterId": 10000112,
+   "element": "",
    "name": "爱可菲",
    "hp": 0,
    "atk": 75,
@@ -327,6 +350,7 @@
   },
   {
    "characterId": 10000113,
+   "element": "",
    "name": "伊法",
    "hp": 0,
    "atk": 50,
@@ -341,6 +365,7 @@
   },
   {
    "characterId": 10000111,
+   "element": "",
    "name": "瓦雷莎",
    "hp": 0,
    "atk": 75,
@@ -355,6 +380,7 @@
   },
   {
    "characterId": 10000110,
+   "element": "",
    "name": "伊安珊",
    "hp": 0,
    "atk": 100,
@@ -369,6 +395,7 @@
   },
   {
    "characterId": 10000109,
+   "element": "",
    "name": "梦见月瑞希",
    "hp": 0,
    "atk": 0,
@@ -383,6 +410,7 @@
   },
   {
    "characterId": 10000106,
+   "element": "",
    "name": "玛薇卡",
    "hp": 0,
    "atk": 75,
@@ -397,6 +425,7 @@
   },
   {
    "characterId": 10000107,
+   "element": "",
    "name": "茜特菈莉",
    "hp": 0,
    "atk": 0,
@@ -411,6 +440,7 @@
   },
   {
    "characterId": 10000108,
+   "element": "",
    "name": "蓝砚",
    "hp": 0,
    "atk": 100,
@@ -425,6 +455,7 @@
   },
   {
    "characterId": 10000104,
+   "element": "",
    "name": "恰斯卡",
    "hp": 0,
    "atk": 75,
@@ -439,6 +470,7 @@
   },
   {
    "characterId": 10000105,
+   "element": "",
    "name": "欧洛伦",
    "hp": 0,
    "atk": 75,
@@ -453,6 +485,7 @@
   },
   {
    "characterId": 10000103,
+   "element": "",
    "name": "希诺宁",
    "hp": 0,
    "atk": 0,
@@ -467,6 +500,7 @@
   },
   {
    "characterId": 10000101,
+   "element": "",
    "name": "基尼奇",
    "hp": 0,
    "atk": 75,
@@ -481,6 +515,7 @@
   },
   {
    "characterId": 10000102,
+   "element": "",
    "name": "玛拉妮",
    "hp": 100,
    "atk": 0,
@@ -495,6 +530,7 @@
   },
   {
    "characterId": 10000100,
+   "element": "",
    "name": "卡齐娜",
    "hp": 0,
    "atk": 0,
@@ -509,6 +545,7 @@
   },
   {
    "characterId": 10000099,
+   "element": "",
    "name": "艾梅莉埃",
    "hp": 0,
    "atk": 70,
@@ -523,6 +560,7 @@
   },
   {
    "characterId": 10000095,
+   "element": "",
    "name": "希格雯",
    "hp": 100,
    "atk": 0,
@@ -537,6 +575,7 @@
   },
   {
    "characterId": 10000098,
+   "element": "",
    "name": "克洛琳德",
    "hp": 0,
    "atk": 70,
@@ -551,6 +590,7 @@
   },
   {
    "characterId": 10000097,
+   "element": "",
    "name": "赛索斯",
    "hp": 0,
    "atk": 70,
@@ -565,6 +605,7 @@
   },
   {
    "characterId": 10000096,
+   "element": "",
    "name": "阿蕾奇诺",
    "hp": 0,
    "atk": 70,
@@ -579,6 +620,7 @@
   },
   {
    "characterId": 10000094,
+   "element": "",
    "name": "千织",
    "hp": 0,
    "atk": 70,
@@ -593,6 +635,7 @@
   },
   {
    "characterId": 10000093,
+   "element": "",
    "name": "闲云",
    "hp": 0,
    "atk": 100,
@@ -607,6 +650,7 @@
   },
   {
    "characterId": 10000092,
+   "element": "",
    "name": "嘉明",
    "hp": 0,
    "atk": 75,
@@ -621,6 +665,7 @@
   },
   {
    "characterId": 10000091,
+   "element": "",
    "name": "娜维娅",
    "hp": 0,
    "atk": 70,
@@ -635,6 +680,7 @@
   },
   {
    "characterId": 10000090,
+   "element": "",
    "name": "夏沃蕾",
    "hp": 100,
    "atk": 50,
@@ -649,6 +695,7 @@
   },
   {
    "characterId": 10000089,
+   "element": "",
    "name": "芙宁娜",
    "hp": 100,
    "atk": 0,
@@ -663,6 +710,7 @@
   },
   {
    "characterId": 10000088,
+   "element": "",
    "name": "夏洛蒂",
    "hp": 0,
    "atk": 100,
@@ -677,6 +725,7 @@
   },
   {
    "characterId": 10000086,
+   "element": "",
    "name": "莱欧斯利",
    "hp": 0,
    "atk": 75,
@@ -691,6 +740,7 @@
   },
   {
    "characterId": 10000087,
+   "element": "",
    "name": "那维莱特",
    "hp": 100,
    "atk": 0,
@@ -705,6 +755,7 @@
   },
   {
    "characterId": 10000084,
+   "element": "",
    "name": "林尼",
    "hp": 0,
    "atk": 75,
@@ -719,6 +770,7 @@
   },
   {
    "characterId": 10000085,
+   "element": "",
    "name": "菲米尼",
    "hp": 0,
    "atk": 75,
@@ -733,6 +785,7 @@
   },
   {
    "characterId": 10000083,
+   "element": "",
    "name": "琳妮特",
    "hp": 0,
    "atk": 75,
@@ -747,6 +800,7 @@
   },
   {
    "characterId": 10000061,
+   "element": "",
    "name": "绮良良",
    "hp": 100,
    "atk": 55,
@@ -761,6 +815,7 @@
   },
   {
    "characterId": 10000082,
+   "element": "",
    "name": "白术",
    "hp": 100,
    "atk": 0,
@@ -775,6 +830,7 @@
   },
   {
    "characterId": 10000081,
+   "element": "",
    "name": "卡维",
    "hp": 0,
    "atk": 30,
@@ -789,6 +845,7 @@
   },
   {
    "characterId": 10000080,
+   "element": "",
    "name": "米卡",
    "hp": 100,
    "atk": 50,
@@ -803,6 +860,7 @@
   },
   {
    "characterId": 10000079,
+   "element": "",
    "name": "迪希雅",
    "hp": 75,
    "atk": 75,
@@ -817,6 +875,7 @@
   },
   {
    "characterId": 10000078,
+   "element": "",
    "name": "艾尔海森",
    "hp": 0,
    "atk": 75,
@@ -831,6 +890,7 @@
   },
   {
    "characterId": 10000077,
+   "element": "",
    "name": "瑶瑶",
    "hp": 100,
    "atk": 50,
@@ -845,6 +905,7 @@
   },
   {
    "characterId": 10000075,
+   "element": "",
    "name": "流浪者",
    "hp": 0,
    "atk": 75,
@@ -859,6 +920,7 @@
   },
   {
    "characterId": 10000076,
+   "element": "",
    "name": "珐露珊",
    "hp": 0,
    "atk": 55,
@@ -873,6 +935,7 @@
   },
   {
    "characterId": 10000073,
+   "element": "",
    "name": "纳西妲",
    "hp": 0,
    "atk": 55,
@@ -887,6 +950,7 @@
   },
   {
    "characterId": 10000074,
+   "element": "",
    "name": "莱依拉",
    "hp": 100,
    "atk": 55,
@@ -901,6 +965,7 @@
   },
   {
    "characterId": 10000070,
+   "element": "",
    "name": "妮露",
    "hp": 100,
    "atk": 0,
@@ -915,6 +980,7 @@
   },
   {
    "characterId": 10000071,
+   "element": "",
    "name": "赛诺",
    "hp": 0,
    "atk": 75,
@@ -929,6 +995,7 @@
   },
   {
    "characterId": 10000072,
+   "element": "",
    "name": "坎蒂丝",
    "hp": 100,
    "atk": 0,
@@ -943,6 +1010,7 @@
   },
   {
    "characterId": 10000068,
+   "element": "",
    "name": "多莉",
    "hp": 75,
    "atk": 0,
@@ -957,6 +1025,7 @@
   },
   {
    "characterId": 10000069,
+   "element": "",
    "name": "提纳里",
    "hp": 0,
    "atk": 75,
@@ -971,6 +1040,7 @@
   },
   {
    "characterId": 10000067,
+   "element": "",
    "name": "柯莱",
    "hp": 0,
    "atk": 75,
@@ -985,6 +1055,7 @@
   },
   {
    "characterId": 10000059,
+   "element": "",
    "name": "鹿野院平藏",
    "hp": 0,
    "atk": 75,
@@ -999,6 +1070,7 @@
   },
   {
    "characterId": 10000065,
+   "element": "",
    "name": "久岐忍",
    "hp": 100,
    "atk": 0,
@@ -1013,6 +1085,7 @@
   },
   {
    "characterId": 10000060,
+   "element": "",
    "name": "夜兰",
    "hp": 80,
    "atk": 0,
@@ -1027,6 +1100,7 @@
   },
   {
    "characterId": 10000066,
+   "element": "",
    "name": "神里绫人",
    "hp": 50,
    "atk": 75,
@@ -1041,6 +1115,7 @@
   },
   {
    "characterId": 10000058,
+   "element": "",
    "name": "八重神子",
    "hp": 0,
    "atk": 75,
@@ -1055,6 +1130,7 @@
   },
   {
    "characterId": 10000063,
+   "element": "",
    "name": "申鹤",
    "hp": 0,
    "atk": 100,
@@ -1069,6 +1145,7 @@
   },
   {
    "characterId": 10000064,
+   "element": "",
    "name": "云堇",
    "hp": 0,
    "atk": 0,
@@ -1083,6 +1160,7 @@
   },
   {
    "characterId": 10000057,
+   "element": "",
    "name": "荒泷一斗",
    "hp": 0,
    "atk": 50,
@@ -1097,6 +1175,7 @@
   },
   {
    "characterId": 10000055,
+   "element": "",
    "name": "五郎",
    "hp": 0,
    "atk": 50,
@@ -1111,6 +1190,7 @@
   },
   {
    "characterId": 10000050,
+   "element": "",
    "name": "托马",
    "hp": 100,
    "atk": 50,
@@ -1125,6 +1205,7 @@
   },
   {
    "characterId": 10000054,
+   "element": "",
    "name": "珊瑚宫心海",
    "hp": 100,
    "atk": 50,
@@ -1139,6 +1220,7 @@
   },
   {
    "characterId": 10000052,
+   "element": "",
    "name": "雷电将军",
    "hp": 0,
    "atk": 75,
@@ -1153,6 +1235,7 @@
   },
   {
    "characterId": 10000056,
+   "element": "",
    "name": "九条裟罗",
    "hp": 0,
    "atk": 75,
@@ -1167,6 +1250,7 @@
   },
   {
    "characterId": 10000062,
+   "element": "",
    "name": "埃洛伊",
    "hp": 0,
    "atk": 75,
@@ -1181,6 +1265,7 @@
   },
   {
    "characterId": 10000053,
+   "element": "",
    "name": "早柚",
    "hp": 0,
    "atk": 100,
@@ -1195,6 +1280,7 @@
   },
   {
    "characterId": 10000049,
+   "element": "",
    "name": "宵宫",
    "hp": 0,
    "atk": 75,
@@ -1209,6 +1295,7 @@
   },
   {
    "characterId": 10000002,
+   "element": "",
    "name": "神里绫华",
    "hp": 0,
    "atk": 75,
@@ -1223,6 +1310,7 @@
   },
   {
    "characterId": 10000047,
+   "element": "",
    "name": "枫原万叶",
    "hp": 0,
    "atk": 75,
@@ -1237,6 +1325,7 @@
   },
   {
    "characterId": 10000051,
+   "element": "",
    "name": "优菈",
    "hp": 0,
    "atk": 75,
@@ -1251,6 +1340,7 @@
   },
   {
    "characterId": 10000048,
+   "element": "",
    "name": "烟绯",
    "hp": 0,
    "atk": 75,
@@ -1265,6 +1355,7 @@
   },
   {
    "characterId": 10000045,
+   "element": "",
    "name": "罗莎莉亚",
    "hp": 0,
    "atk": 75,
@@ -1279,6 +1370,7 @@
   },
   {
    "characterId": 10000046,
+   "element": "",
    "name": "胡桃",
    "hp": 80,
    "atk": 50,
@@ -1293,6 +1385,7 @@
   },
   {
    "characterId": 10000026,
+   "element": "",
    "name": "魈",
    "hp": 0,
    "atk": 75,
@@ -1307,6 +1400,7 @@
   },
   {
    "characterId": 10000037,
+   "element": "",
    "name": "甘雨",
    "hp": 0,
    "atk": 75,
@@ -1321,6 +1415,7 @@
   },
   {
    "characterId": 10000038,
+   "element": "",
    "name": "阿贝多",
    "hp": 0,
    "atk": 0,
@@ -1335,6 +1430,7 @@
   },
   {
    "characterId": 10000044,
+   "element": "",
    "name": "辛焱",
    "hp": 0,
    "atk": 75,
@@ -1349,6 +1445,7 @@
   },
   {
    "characterId": 10000030,
+   "element": "",
    "name": "钟离",
    "hp": 80,
    "atk": 75,
@@ -1363,6 +1460,7 @@
   },
   {
    "characterId": 10000033,
+   "element": "",
    "name": "达达利亚",
    "hp": 0,
    "atk": 75,
@@ -1377,6 +1475,7 @@
   },
   {
    "characterId": 10000039,
+   "element": "",
    "name": "迪奥娜",
    "hp": 100,
    "atk": 50,
@@ -1391,6 +1490,7 @@
   },
   {
    "characterId": 10000029,
+   "element": "",
    "name": "可莉",
    "hp": 0,
    "atk": 75,
@@ -1405,6 +1505,7 @@
   },
   {
    "characterId": 10000022,
+   "element": "",
    "name": "温迪",
    "hp": 0,
    "atk": 75,
@@ -1419,6 +1520,7 @@
   },
   {
    "characterId": 10000041,
+   "element": "",
    "name": "莫娜",
    "hp": 0,
    "atk": 75,
@@ -1433,6 +1535,7 @@
   },
   {
    "characterId": 10000003,
+   "element": "",
    "name": "琴",
    "hp": 0,
    "atk": 75,
@@ -1447,6 +1550,7 @@
   },
   {
    "characterId": 10000042,
+   "element": "",
    "name": "刻晴",
    "hp": 0,
    "atk": 75,
@@ -1461,6 +1565,7 @@
   },
   {
    "characterId": 10000016,
+   "element": "",
    "name": "迪卢克",
    "hp": 0,
    "atk": 75,
@@ -1475,6 +1580,7 @@
   },
   {
    "characterId": 10000035,
+   "element": "",
    "name": "七七",
    "hp": 0,
    "atk": 100,
@@ -1489,6 +1595,7 @@
   },
   {
    "characterId": 10000005,
+   "element": "",
    "name": "旅行者",
    "hp": 0,
    "atk": 75,
@@ -1503,6 +1610,7 @@
   },
   {
    "characterId": 10000007,
+   "element": "",
    "name": "旅行者",
    "hp": 0,
    "atk": 75,
@@ -1516,7 +1624,428 @@
    "fetchedAt": "2026-09-27"
   },
   {
+   "characterId": 10000005,
+   "element": "风",
+   "name": "旅行者风",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "风",
+   "name": "旅行者风",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "风",
+   "name": "旅行者风",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "风",
+   "name": "旅行者风",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "岩",
+   "name": "旅行者岩",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "岩",
+   "name": "旅行者岩",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "岩",
+   "name": "旅行者岩",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "岩",
+   "name": "旅行者岩",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "雷",
+   "name": "旅行者雷",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "雷",
+   "name": "旅行者雷",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "雷",
+   "name": "旅行者雷",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "雷",
+   "name": "旅行者雷",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "草",
+   "name": "旅行者草",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 55,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "草",
+   "name": "旅行者草",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 55,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "草",
+   "name": "旅行者草",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 55,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "草",
+   "name": "旅行者草",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 55,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "水",
+   "name": "旅行者水",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "水",
+   "name": "旅行者水",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "水",
+   "name": "旅行者水",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "水",
+   "name": "旅行者水",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 0,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "火",
+   "name": "旅行者火",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "火",
+   "name": "旅行者火",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "火",
+   "name": "旅行者火",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "火",
+   "name": "旅行者火",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000005,
+   "element": "冰",
+   "name": "旅行者冰",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000007,
+   "element": "冰",
+   "name": "旅行者冰",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000117,
+   "element": "冰",
+   "name": "旅行者冰",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
+   "characterId": 10000118,
+   "element": "冰",
+   "name": "旅行者冰",
+   "hp": 0,
+   "atk": 75,
+   "def": 0,
+   "cpct": 100,
+   "cdmg": 100,
+   "mastery": 75,
+   "recharge": 0,
+   "source": "提瓦特小助手",
+   "sourceRef": "mini-program 7.1",
+   "fetchedAt": "2026-09-27"
+  },
+  {
    "characterId": 10000023,
+   "element": "",
    "name": "香菱",
    "hp": 0,
    "atk": 75,
@@ -1531,6 +2060,7 @@
   },
   {
    "characterId": 10000043,
+   "element": "",
    "name": "砂糖",
    "hp": 0,
    "atk": 75,
@@ -1545,6 +2075,7 @@
   },
   {
    "characterId": 10000031,
+   "element": "",
    "name": "菲谢尔",
    "hp": 0,
    "atk": 75,
@@ -1559,6 +2090,7 @@
   },
   {
    "characterId": 10000027,
+   "element": "",
    "name": "凝光",
    "hp": 0,
    "atk": 75,
@@ -1573,6 +2105,7 @@
   },
   {
    "characterId": 10000024,
+   "element": "",
    "name": "北斗",
    "hp": 0,
    "atk": 75,
@@ -1587,6 +2120,7 @@
   },
   {
    "characterId": 10000014,
+   "element": "",
    "name": "芭芭拉",
    "hp": 100,
    "atk": 50,
@@ -1601,6 +2135,7 @@
   },
   {
    "characterId": 10000034,
+   "element": "",
    "name": "诺艾尔",
    "hp": 0,
    "atk": 50,
@@ -1615,6 +2150,7 @@
   },
   {
    "characterId": 10000025,
+   "element": "",
    "name": "行秋",
    "hp": 0,
    "atk": 75,
@@ -1629,6 +2165,7 @@
   },
   {
    "characterId": 10000036,
+   "element": "",
    "name": "重云",
    "hp": 0,
    "atk": 75,
@@ -1643,6 +2180,7 @@
   },
   {
    "characterId": 10000015,
+   "element": "",
    "name": "凯亚",
    "hp": 0,
    "atk": 75,
@@ -1657,6 +2195,7 @@
   },
   {
    "characterId": 10000021,
+   "element": "",
    "name": "安柏",
    "hp": 0,
    "atk": 75,
@@ -1671,6 +2210,7 @@
   },
   {
    "characterId": 10000006,
+   "element": "",
    "name": "丽莎",
    "hp": 0,
    "atk": 75,
@@ -1685,6 +2225,7 @@
   },
   {
    "characterId": 10000020,
+   "element": "",
    "name": "雷泽",
    "hp": 0,
    "atk": 75,
@@ -1699,6 +2240,7 @@
   },
   {
    "characterId": 10000032,
+   "element": "",
    "name": "班尼特",
    "hp": 100,
    "atk": 50,
@@ -1713,6 +2255,7 @@
   },
   {
    "characterId": 10000117,
+   "element": "",
    "name": "奇偶·男性",
    "hp": 0,
    "atk": 75,
@@ -1727,6 +2270,7 @@
   },
   {
    "characterId": 10000118,
+   "element": "",
    "name": "奇偶·女性",
    "hp": 0,
    "atk": 75,
