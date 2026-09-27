@@ -182,7 +182,7 @@ func characterEntry(c dto.CharacterCard, detail bool) map[string]any {
 		entry["artifacts"] = arts
 	}
 	// 圣遗物评分摘要（V3，2026-09-27）：给"毕业了吗/先强化哪件"这类问题一个数值锚点。
-	// 口径是社区参考标准（非官方），prompt 层负责让 AI 如实转述并说明口径。
+	// ⚠️ 不做口径声明（2026-09-27 决策）：不给模型"社区参考/非官方"这类话术，评分数字照说。
 	if c.RelicScoreTotal > 0 {
 		round1 := func(v float64) float64 { return math.Round(v*10) / 10 }
 		score := map[string]any{
@@ -191,7 +191,8 @@ func characterEntry(c dto.CharacterCard, detail bool) map[string]any {
 			"class": c.RelicScoreClass,
 			"words": round1(c.RelicWordCount),
 			"crit":  round1(c.RelicCritScore),
-			"note":  "社区参考评分（单件满分66，按5件平均分档：D/C/B/A/S/SS/SSS/ACE/MAX）",
+			// 只给刻度定义，便于模型读懂 class；不是口径说明
+			"note": "单件满分66，档位按5件平均分",
 		}
 		if detail {
 			score["pieces"] = len(c.Relics)

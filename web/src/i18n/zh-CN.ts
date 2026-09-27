@@ -153,8 +153,7 @@ const zhCN = {
   'character.effectiveRolls': '有效词条 {n} 条',
   'character.enhanceTimes': '强化 {n} 次',
   'character.relicScore': '圣遗物评分',
-  'character.relicScoreNote':
-    '社区参考评分（非官方标准）：单件满分 66，按 5 件平均分档 D/C/B/A/S/SS/SSS/ACE/MAX',
+  'character.relicScoreNote': '单件满分 66，按 5 件平均分档 D/C/B/A/S/SS/SSS/ACE/MAX',
   'character.relicWords': '词条 {n}',
   'character.relicCrit': '双暴 {n}',
   'character.recommendTitle': '推荐强化词条',

@@ -158,8 +158,7 @@ const en: Partial<Dict> = {
   'character.effectiveRolls': '{n} effective rolls',
   'character.enhanceTimes': 'Enhanced {n}x',
   'character.relicScore': 'Relic score',
-  'character.relicScoreNote':
-    'Community reference score (unofficial): 66 max per piece, graded D/C/B/A/S/SS/SSS/ACE/MAX by 5-piece average',
+  'character.relicScoreNote': '66 max per piece, graded D/C/B/A/S/SS/SSS/ACE/MAX by 5-piece average',
   'character.relicWords': '{n} rolls',
   'character.relicCrit': 'Crit {n}',
   'character.recommendTitle': 'Recommended Substats',

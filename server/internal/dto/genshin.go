@@ -117,7 +117,7 @@ type RelicInfo struct {
 	// 部位图标：Enka 图床地址（如 .../ui/UI_RelicIcon_15005_4.png），供紧凑卡片展示部位
 	IconURL string `json:"iconUrl,omitempty"`
 	// 圣遗物评分（V3，2026-09-27；无权重配置的角色这些字段缺省为 0/空，前端整块不渲染）
-	Score     float64 `json:"score,omitempty"`     // 单件分（0~66，社区参考口径）
+	Score     float64 `json:"score,omitempty"`     // 单件分（0~66）
 	ScorePct  float64 `json:"scorePct,omitempty"`  // 占该部位理论上限的百分比（0~100）
 	ScoreCls  string  `json:"scoreCls,omitempty"`  // 档位：D/C/B/A/S/SS/SSS/ACE/MAX
 	WordCount float64 `json:"wordCount,omitempty"` // 总词条数（均值口径）
