@@ -110,8 +110,35 @@ const SOURCE = JSON.parse(readFileSync(
 const CHARS = SOURCE.chars
 const MANUAL = SOURCE.manual
 
+// 主词条"可选项"派生规则（2026-09-27 新增）
+//
+// 动机（线上实测）：mainStats 每个部位只能写一个值时，模型会把"推荐"读成"唯一正确"，
+// 于是把旅行者身上**完全合法**的另一件主词条判成"错的"——用户反馈原话：
+// 「先把理之冠换成暴击率主词条，这是唯一不对的一条」✗（角色同时吃双暴时，两条冠都成立）。
+// 做法：写成 "A/B"（渲染层展开为「A 或 B」，见 server/internal/service/ai_context.go），
+//       让模型看得出这是二选一、都成立。
+// 判据只用我们自己的副词条权重（数据驱动，不引入外部依赖）：
+//   · 冠：暴击率与暴击伤害都达到 primary 量级 ⇒ 两条都可选
+//   · 沙：现为攻击力且充能需求同样高 ⇒ 充能沙同样可选
+const CRIT_BOTH_MIN = 6 // 双暴都到这个量级才算"都吃"
+const ER_SAND_MIN = 8 // 充能权重大到这个量级，充能沙才成立
+
+function withAlternatives(mainStats, subs) {
+  const w = Object.fromEntries(subs.map(([k, v]) => [k, v]))
+  const out = { ...mainStats }
+  if ((w[KEY.CRIT] ?? 0) >= CRIT_BOTH_MIN && (w[KEY.CD] ?? 0) >= CRIT_BOTH_MIN) {
+    if (out.circlet === '暴击率') out.circlet = '暴击率/暴击伤害'
+    else if (out.circlet === '暴击伤害') out.circlet = '暴击伤害/暴击率'
+  }
+  if (out.sand === '攻击力' && (w[KEY.ER] ?? 0) >= ER_SAND_MIN) {
+    out.sand = '攻击力/元素充能效率'
+  }
+  return out
+}
+
 function build([id, arch, element, override]) {
   if (MANUAL[id]) {
+    // 人工定稿的条目保持原样：改它要动数据文件 stat_weights_source.json（数据不入代码）
     return {
       characterId: id,
       recommendation: {
@@ -133,7 +160,7 @@ function build([id, arch, element, override]) {
         weight,
         tier: i < 3 ? 'primary' : 'secondary', // 权重前 3 = 主要属性
       })),
-      mainStats: { ...main, ...(override ?? {}) },
+      mainStats: withAlternatives({ ...main, ...(override ?? {}) }, tpl.subs),
     },
   }
 }

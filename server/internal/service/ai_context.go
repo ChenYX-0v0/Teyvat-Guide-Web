@@ -353,7 +353,14 @@ func renderAssetRef(ref CharacterStatRef) string {
 	if len(ref.MainStats) > 0 {
 		mains := make([]string, 0, len(ref.MainStats))
 		for _, slot := range ref.MainStats {
-			mains = append(mains, slot.Slot+" "+slot.Stat)
+			// 多个可选值用「A 或 B」表达：库里写成 "暴击率/暴击伤害" 时，
+			// 必须让模型看出**这是二选一、都成立** —— 否则它会把"推荐"读成"唯一正确"，
+			// 进而把旅行者身上合法的另一件主词条判成"错的"（2026-09-27 实测踩到）
+			stat := slot.Stat
+			if strings.Contains(stat, "/") {
+				stat = strings.Join(strings.Split(stat, "/"), " 或 ")
+			}
+			mains = append(mains, slot.Slot+" "+stat)
 		}
 		b.WriteString("；推荐主词条 " + strings.Join(mains, "，"))
 	}
