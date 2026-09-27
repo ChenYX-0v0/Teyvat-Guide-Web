@@ -335,7 +335,7 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 
 | 服务 | 当前生产 tag | 内容要点 |
 | --- | --- | --- |
-| `teyvat-guide-server` | **`20260927-1458`** | **终局玩法概要**（深渊/剧诗/危战进 AI 上下文）+ **圣遗物评分 V3**（新表 `character_relic_weights` / `character_relic_weight_rules`，权重来源 miao-plugin·MIT，124 角色 + 3 覆盖规则已导入；翻译层算分落进档案快照与 AI 上下文；设计见 `teyvat-docs/ai/08`）<br>**评分不做口径声明**（2026-09-27 决策：AI 回答与界面都不补"社区参考/非官方"）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR**；发版后已执行 `reload?purgeSnapshots=true` |
+| `teyvat-guide-server` | **`20260927-1527`** | **主词条"二选一"**（`mainStats` 可写 `A/B`，渲染展开为「A 或 B」，不再被模型读成"唯一正确"；配套 prompt v8，见 `teyvat-docs/ai/07` TODO-10）<br>此前：终局玩法概要 + 圣遗物评分 V3（新表 `character_relic_weights` / `character_relic_weight_rules`，权重来源 miao-plugin·MIT，124 + 3 已导入；设计见 `ai/08`）<br>**评分不做口径声明**（2026-09-27 决策）<br>⚠️ 走 **save/scp/load**（ECS 免登录 ACR），**未推 ACR** |
 | `teyvat-guide-web` | **`20260927-1459`** | **圣遗物评分展示**（单件徽标 + 套装总评/词条/双暴，悬停只描述刻度）+ 顶栏副标题残缺文案修正；此前：用户须知弹窗 + `/terms` + AI 标识 + 备案号页脚 + 不参与搜索收录 |
 | `teyvat-ai` | **`20260927-1520`** | **修 `context_render` 丢字段**：终局概要（`abyss/theater/stygian`）此前被静默丢弃、「概要已进上下文」实际未生效 ⇒ 现渲染进【玩家档案】（并放角色明细之前，保证不被裁剪）；`relicScore` 也转成人话。配套提示词 **v7**（`ai_prompts` rules/fewshot v7：终局口径 + 评分可直接说）已入库热生效 |
 
@@ -343,6 +343,9 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 > 每次发版前脚本会留一份 `/opt/teyvat-guide/.env.bak-<tag>`；回滚 = 把 `SERVER_IMAGE` / `WEB_IMAGE` 改回上一版 tag + `docker compose up -d --no-build <服务>`。
 > ⚠️ 评分权重数据独立于镜像：回滚 server 镜像不影响已导入的权重表；但要重算旧快照需再 `reload?purgeSnapshots=true`。
 > 💡 只改 AI 上下文文案（如 `relicScore.note`）时**不需要**清快照 —— 上下文是每次请求实时拼的，快照里只存档案数据。
+> ⚠️ 但改**会进快照的资产数据**（如推荐词条 `card.statWeights`）时**必须** `reload?purgeSnapshots=true`：
+> 原因是 `asset.Service` 有**两个实例**（handler 那份被 `import` 刷新、**PlayerService 那份不会**），
+> 且推荐词条会写进档案快照 ⇒ 只 import 不 reload+purge，接口读到的还是旧值（2026-09-27 实测 `0/12` ✗）。
 
 **发一版（三种方式，任选）**：
 
