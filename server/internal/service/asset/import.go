@@ -74,15 +74,37 @@ func (s *Service) Import(p ImportPayload) error {
 		}
 		for _, item := range p.StatWeights {
 			rec := item.Rec
-			// ⚠️ `score`（评分权重）**归后台所有**（2026-09-27 合并后）⇒ 导入必须"只补缺、不覆盖" ✗：
-			// 导入件里通常没有 score 块，而这里用的是 OnConflict UpdateAll —— 直接写会把后台刚编辑的
-			// 评分权重整块抹掉 ✗。规则：库里已有 score 就原样保留 ✓；库里没有才用导入件里的 ✓。
-			if rec.Score == nil {
-				var existing CharacterStatWeights
-				if err := tx.First(&existing, "character_id = ?", item.CharacterID).Error; err == nil && existing.Payload != "" {
-					var old StatRecommendation
-					if err := json.Unmarshal([]byte(existing.Payload), &old); err == nil && old.Score != nil {
-						rec.Score = old.Score
+			// ⚠️ **评分权重就是 `subStats[].weight`，它归后台所有**（2026-09-27）⇒ 导入必须"只补缺、不覆盖" ✗：
+			// 生成器产出的是**老的 10 分制优先级** ✗，一旦直接 UpdateAll，会把后台/迁移后的
+			// 评分权重整片覆盖成 10 分制 ⇒ **分数静默全错** ✗✗。
+			// 规则：① 同 statKey 的行，保留后台的 weight / tier ✓
+			//      ② 后台有、导入件没有的行（含迁移补出来的维度）也要留住 ✓
+			//      ③ 旅行者的 `byElement` 覆盖必须留住 ✓（否则七形态会被算法覆盖成一套 ✗）
+			var existing CharacterStatWeights
+			if err := tx.First(&existing, "character_id = ?", item.CharacterID).Error; err == nil && existing.Payload != "" {
+				var old StatRecommendation
+				if err := json.Unmarshal([]byte(existing.Payload), &old); err == nil {
+					oldByKey := make(map[string]StatWeightItem, len(old.SubStats))
+					for _, s := range old.SubStats {
+						oldByKey[s.StatKey] = s
+					}
+					newByKey := make(map[string]bool, len(rec.SubStats))
+					for i := range rec.SubStats {
+						newByKey[rec.SubStats[i].StatKey] = true
+						if o, ok := oldByKey[rec.SubStats[i].StatKey]; ok {
+							rec.SubStats[i].Weight = o.Weight
+							if o.Tier != "" {
+								rec.SubStats[i].Tier = o.Tier
+							}
+						}
+					}
+					for _, s := range old.SubStats {
+						if s.StatKey != "" && !newByKey[s.StatKey] {
+							rec.SubStats = append(rec.SubStats, s)
+						}
+					}
+					if len(old.ByElement) > 0 {
+						rec.ByElement = old.ByElement
 					}
 				}
 			}

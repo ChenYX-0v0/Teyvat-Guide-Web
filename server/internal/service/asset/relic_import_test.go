@@ -14,9 +14,9 @@ import (
 	"teyvat-guide/server/internal/pkg/database"
 )
 
-// 2026-09-27 合并后：评分权重（payload 的 `score` 块）**归后台所有** ⇒ 导入必须"只补缺、不覆盖" ✗
-// （否则重跑生成器 + 重导入会把后台刚编辑的评分权重整块抹掉；生成器本身也不再产出 score ✓）
-func TestStatWeightImportKeepsScore(t *testing.T) {
+// 2026-09-27：评分权重就是 `subStats[].weight`，**归后台所有** ⇒ 导入必须"只补缺、不覆盖" ✗
+// （生成器产出的是老的 10 分制优先级 ✗；直接覆盖会让**分数静默全错** ✗✗）
+func TestStatWeightImportKeepsAdminWeights(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), "stat_weight_score.db")
 	if err := database.Init(config.DatabaseConfig{Driver: "sqlite", DSN: dsn}); err != nil {
 		t.Fatalf("初始化 sqlite 失败：%v", err)
@@ -37,22 +37,29 @@ func TestStatWeightImportKeepsScore(t *testing.T) {
 	})
 	svc := New(db)
 
-	// ① 模拟"后台编辑过"的 payload（含 score：通用 + 冰主形态）
+	// ① 模拟"后台编辑过 / 迁移后"的 payload：评分权重写在 subStats[].weight（0~100 ✓）+ 元素覆盖
 	fromAdmin := StatRecommendation{
-		SubStats:  []StatWeightItem{{StatKey: "FIGHT_PROP_CRITICAL", Weight: 8}},
-		MainStats: map[string]string{"circlet": "暴击率"},
-		Score: &RelicScorePayload{
-			Dims:      map[string]int{"FIGHT_PROP_CRITICAL": 100},
-			ByElement: map[string]map[string]int{"冰": {"FIGHT_PROP_CRITICAL": 100}},
+		SubStats: []StatWeightItem{
+			{StatKey: "FIGHT_PROP_CRITICAL", Weight: 100, Tier: "primary"},
+			// 迁移时补出来的维度（生成器那份里没有这条 ✓）
+			{StatKey: "FIGHT_PROP_CRITICAL_HURT", Weight: 100, Tier: "primary"},
 		},
+		MainStats: map[string]string{"circlet": "暴击率"},
+		ByElement: map[string]map[string]int{"冰": {"FIGHT_PROP_CRITICAL": 100}},
 	}
 	if err := svc.Import(ImportPayload{StatWeights: []StatWeightImport{{CharacterID: 10000007, Rec: fromAdmin}}}); err != nil {
 		t.Fatalf("首次导入失败：%v", err)
 	}
 
-	// ② 再导入一份**没有 score** 的推荐词条（生成器的常态）⇒ score 必须原样保留 ✓
-	imported := StatRecommendation{SubStats: []StatWeightItem{{StatKey: "FIGHT_PROP_ATTACK_PERCENT", Weight: 10}}}
-	if err := svc.Import(ImportPayload{StatWeights: []StatWeightImport{{CharacterID: 10000007, Rec: imported}}}); err != nil {
+	// ② 再导入**生成器那份**（老 10 分制权重 ✗、且没有 byElement）⇒ 后台的权重/元素覆盖必须留住 ✓
+	generated := StatRecommendation{
+		SubStats: []StatWeightItem{
+			{StatKey: "FIGHT_PROP_CRITICAL", Weight: 8, Tier: "secondary"},      // 覆盖应被忽略 ✗
+			{StatKey: "FIGHT_PROP_ATTACK_PERCENT", Weight: 10, Tier: "primary"}, // 新词条，采纳 ✓
+		},
+		MainStats: map[string]string{"goblet": "攻击力"},
+	}
+	if err := svc.Import(ImportPayload{StatWeights: []StatWeightImport{{CharacterID: 10000007, Rec: generated}}}); err != nil {
 		t.Fatalf("二次导入失败：%v", err)
 	}
 
@@ -64,12 +71,24 @@ func TestStatWeightImportKeepsScore(t *testing.T) {
 	if err := json.Unmarshal([]byte(row.Payload), &got); err != nil {
 		t.Fatalf("解析 payload 失败：%v", err)
 	}
-	if got.Score == nil || got.Score.Dims["FIGHT_PROP_CRITICAL"] != 100 || got.Score.ByElement["冰"] == nil {
-		t.Fatalf("重导入不该冲掉 score，实际 %+v", got.Score)
+	byKey := make(map[string]StatWeightItem, len(got.SubStats))
+	for _, s := range got.SubStats {
+		byKey[s.StatKey] = s
 	}
-	// 推荐词条本身仍应被导入覆盖（只保护 score ✓）
-	if len(got.SubStats) != 1 || got.SubStats[0].StatKey != "FIGHT_PROP_ATTACK_PERCENT" {
-		t.Fatalf("推荐词条应被导入覆盖，实际 %+v", got.SubStats)
+	if w := byKey["FIGHT_PROP_CRITICAL"].Weight; w != 100 {
+		t.Fatalf("后台的评分权重被导入覆盖了 ✗：暴击率 weight=%d（应为 100）", w)
+	}
+	if byKey["FIGHT_PROP_CRITICAL_HURT"].Weight != 100 {
+		t.Fatal("后台补出来的维度被导入删掉了 ✗")
+	}
+	if byKey["FIGHT_PROP_ATTACK_PERCENT"].Weight != 10 {
+		t.Fatal("导入件里的新词条应被采纳 ✓")
+	}
+	if got.ByElement["冰"] == nil {
+		t.Fatal("旅行者的元素覆盖被导入冲掉了 ✗")
+	}
+	if got.MainStats["goblet"] != "攻击力" {
+		t.Fatal("主词条应随导入更新 ✓")
 	}
 }
 
