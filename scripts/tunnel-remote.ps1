@@ -23,6 +23,11 @@
 .PARAMETER Stop
     只停止隧道，不新建。
 
+.PARAMETER Foreground
+    前台模式：ssh 跑在**本进程内**（阻塞），给计划任务 `TeyvatTunnelKeep` 用（见 `scripts\tunnel-keep.cmd`）。
+    ⚠️ 不要从看门狗里用 Start-Process 起 ssh ✗ —— 计划任务结束会把它整棵进程树回收，隧道活不长
+    （2026-09-28 实测踩到）。
+
 .PARAMETER DbHost
     RDS 内网地址。默认脚本内的当前值；换库/换实例时改这里或传参。
 
@@ -41,7 +46,8 @@ param(
     [string]$KeyPath = 'C:\Users\HONOR\Desktop\teyvat-docs\_DEV.pem',
     [string]$DbHost = 'rm-uf6o31bzhf9zy5139.mysql.rds.aliyuncs.com',
     [int]$DbPort = 3306,
-    [switch]$Stop
+    [switch]$Stop,
+    [switch]$Foreground
 )
 
 $ErrorActionPreference = 'Continue'
@@ -99,6 +105,19 @@ $sshArgs = @(
 )
 foreach ($f in $forwards) { $sshArgs += @('-L', ('{0}:{1}' -f $f.Local, $f.Target)) }
 $sshArgs += $SshHost
+
+if ($Foreground) {
+    # 前台模式：**ssh 跑在本进程里**（阻塞直到隧道断开）—— 给计划任务用，见 `scripts\tunnel-keep.cmd`。
+    #
+    # 为什么必须这样 ✗（2026-09-28 踩到）：Windows 的计划任务会给本次运行建一个 job object，
+    # 任务进程结束时**整棵进程树一起被回收** ✓。旧写法是看门狗（每 5 分钟那次任务）用 Start-Process 起
+    # ssh ⇒ 看门狗一退出，隧道立刻被杀 ✗（表现为"隧道刚修好又没了、主服务连不上 13306"✗）。
+    # 改成"任务本身就是隧道进程"后，任务一直处于 Running ⇒ 不会被回收 ✓。
+    # 这里刻意**不做**就绪/连库校验：前台阻塞后它们没法跑 ✓ —— 那些交给看门狗探测（它本来就是干这个的 ✓）。
+    Write-Ok '前台模式：ssh 运行在本进程内（隧道将随本进程存活，由计划任务持有 ✓）'
+    & ssh @sshArgs
+    exit $LASTEXITCODE
+}
 
 $proc = Start-Process -FilePath 'ssh' -ArgumentList $sshArgs -PassThru -WindowStyle Hidden
 foreach ($f in $forwards) {

@@ -225,9 +225,26 @@ try {
         exit 3
     }
 
-    # 重建（tunnel-remote.ps1 自己会先停旧进程 ✓ 转发定义只有一份 ✓）
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $tunnelScript *>&1 | ForEach-Object { Write-Log ("tunnel-remote: {0}" -f $_) 'INFO' }
-    Start-Sleep -Seconds 3
+    # 重建：优先"重启那个常驻计划任务" ✓ —— 隧道必须是**计划任务的顶层进程**，
+    # 否则计划任务结束时会把整棵树回收 ✗（2026-09-28 实测：由本看门狗直接 Start-Process 起的 ssh
+    # 只能活到本次任务结束 ⇒ 隧道反复消失 ✗；详见 tunnel-remote.ps1 里 -Foreground 的注释 ✓）。
+    $keepTask = 'TeyvatTunnelKeep'
+    $hasTask = $false
+    try {
+        & schtasks.exe /Query /TN $keepTask *> $null
+        $hasTask = ($LASTEXITCODE -eq 0)
+    } catch { $hasTask = $false }
+
+    if ($hasTask) {
+        & schtasks.exe /End /TN $keepTask *> $null
+        Start-Sleep -Seconds 1
+        & schtasks.exe /Run /TN $keepTask *> $null
+        Write-Log ("已重启常驻计划任务 {0} ✓" -f $keepTask) 'INFO'
+    } else {
+        Write-Log ('没有常驻任务 {0} ⇒ 退回旧方式直接起 ssh（⚠️ 隧道可能活不过本次任务 ✗）' -f $keepTask) 'WARN'
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $tunnelScript *>&1 | ForEach-Object { Write-Log ("tunnel-remote: {0}" -f $_) 'INFO' }
+    }
+    Start-Sleep -Seconds 4
 
     $after = Invoke-Probe
     $afterMain = ($after | Where-Object { $_.Strong }).Ok
