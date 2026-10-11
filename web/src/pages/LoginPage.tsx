@@ -164,13 +164,12 @@ export default function LoginPage() {
 
         {registering ? (
           <form onSubmit={submitRegister} className="mt-5 space-y-3">
-            {/* 注册须知（小字 ✓）—— 2026-10-11：原「用手机号注册，注册后可直接用手机号登录」已去掉 ✗，
-                改为说明"需要一次性邀请码" ✓。只在服务端确实要求邀请码时显示（requireInvite ✓），
-                否则会出现"要求邀请码但其实没开"的错提示 ✗。 */}
+            {/* 注册须知（普通小字 ✓，**不要套框** ✗）—— 2026-10-11：原「用手机号注册，注册后可直接用手机号登录」
+                已去掉，改为说明"需要一次性邀请码"；用户反馈套框反而不好看 ⇒ 就一行小字 ✓
+                （与原来那行同样式：text-[11px] + text-teyvat-text-4 ✓，左对齐、无边框无底色 ✓）。
+                只在服务端确实要求邀请码时显示（requireInvite ✓），否则会出现"要求邀请码但其实没开"的错提示 ✗。 */}
             {requireInvite && (
-              <p className="rounded-xl border border-teyvat-line bg-white/[0.03] px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
-                {t('login.inviteCodeNotice')}
-              </p>
+              <p className="text-[11px] leading-relaxed text-teyvat-text-4">{t('login.inviteCodeNotice')}</p>
             )}
 
             {/* 邀请码在**手机号上方** ✓：不填就拿不到验证码（服务端同样会拦 ✓） */}
