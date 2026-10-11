@@ -1,11 +1,17 @@
 import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
 import { navItems } from './navItems'
+import UserCard from './UserCard'
 
-/** 桌面端常驻侧栏（<md 不渲染，移动端用 MobileNav 抽屉） */
+/**
+ * 桌面端常驻侧栏（<md 不渲染，移动端用 MobileNav 抽屉）。
+ *
+ * 2026-10-11：改成**列布局**，底部固定一块用户卡片（`UserCard` ✓）——
+ * `mt-auto` 把它压到底部 ✓，卡片点开是"个人信息管理 / 修改密码 / 退出登录" ✓。
+ */
 export default function Sidebar() {
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-teyvat-line bg-black/20 p-3 md:block">
+    <aside className="hidden w-56 shrink-0 border-r border-teyvat-line bg-black/20 p-3 md:flex md:flex-col">
       <nav className="flex flex-col gap-1">
         {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
@@ -27,6 +33,9 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* 用户一栏：贴侧栏底部（mt-auto 在 UserCard 内部 ✓） */}
+      <UserCard />
     </aside>
   )
 }

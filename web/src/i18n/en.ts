@@ -5,6 +5,7 @@ import type { Dict } from './types'
 const en: Partial<Dict> = {
   // Common
   'common.save': 'Save',
+  'common.cancel': 'Cancel',
   'common.expand': 'Expand',
   'common.collapse': 'Collapse',
   'common.loading': 'Loading…',
@@ -26,6 +27,31 @@ const en: Partial<Dict> = {
   'header.close': 'Close',
   'sidebar.home': 'Home',
   'sidebar.chat': 'AI Chat',
+  // Bottom user card in the sidebar / drawer (moved out of the header on 2026-10-11)
+  'user.menu': 'Account menu',
+  'user.fallbackName': 'Traveler',
+  'user.profile': 'Profile',
+  'user.password': 'Change password',
+  // Profile dialog
+  'profile.title': 'Profile',
+  'profile.usernameLabel': 'Username (for sign-in)',
+  'profile.nickname': 'Display name',
+  'profile.nicknameHint': 'Leave empty to show your username; up to 24 characters.',
+  'profile.uidLabel': 'Bound game UID',
+  'profile.notBound': 'Not bound',
+  'profile.goAccount': 'Open account page',
+  'profile.terms': 'View terms',
+  'profile.saved': 'Saved',
+  'profile.loadFailed': 'Could not load account info, please try again',
+  // Change-password dialog
+  'password.title': 'Change password',
+  'password.current': 'Current password',
+  'password.new': 'New password',
+  'password.confirm': 'Confirm new password',
+  'password.submit': 'Save new password',
+  'password.ok': 'Password updated. This device stays signed in.',
+  'password.mismatch': 'The two new passwords do not match',
+  'password.otherDevices': 'Other devices are not signed out automatically; ask the admin to force that.',
   'sidebar.account': 'Account',
   // 'sidebar.wiki': 'Wiki',  <- commented out 2026-09-28: the wiki page is still a placeholder
   //   (no real data), so it is withdrawn from the menu. Route kept: /wiki still works if typed.

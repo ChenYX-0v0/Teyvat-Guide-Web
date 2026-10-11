@@ -1,6 +1,4 @@
-import { Compass, LogOut, Menu } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/useAuthStore'
+import { Compass, Menu } from 'lucide-react'
 import { t } from '@/i18n'
 
 type Props = {
@@ -8,16 +6,14 @@ type Props = {
   onMenuClick: () => void
 }
 
+/**
+ * 顶部栏：**只有品牌与移动端菜单按钮** ✓。
+ *
+ * 2026-10-11：原先右上角的「昵称胶囊 + 退出登录图标」已按用户要求**移到侧栏最底部**
+ * （`layout/UserCard` ✓，桌面侧栏与移动抽屉共用同一块卡片 ✓）——
+ * 头像/昵称/个人信息/改密码/退出登录聚在一处，顶部栏不再散着账号入口 ✓。
+ */
 export default function Header({ onMenuClick }: Props) {
-  const displayName = useAuthStore((s) => s.displayName)
-  const logout = useAuthStore((s) => s.logout)
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
   return (
     <header className="flex items-center justify-between gap-3 border-b border-teyvat-line bg-black/20 px-4 py-3 backdrop-blur sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -41,18 +37,6 @@ export default function Header({ onMenuClick }: Props) {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <span className="max-w-[6rem] truncate rounded-full border border-teyvat-line-strong bg-teyvat-gold/10 px-3 py-1 text-xs text-teyvat-gold-hi sm:max-w-none">
-          {displayName || 'Traveler'}
-        </span>
-        <button
-          onClick={handleLogout}
-          title={t('header.logout')}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teyvat-line text-teyvat-text-3 transition hover:border-err/40 hover:text-err focus-visible:shadow-glow focus-visible:outline-none"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-      </div>
     </header>
   )
 }

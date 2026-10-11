@@ -193,6 +193,82 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	response.OK(c, payload)
 }
 
+// UpdateProfile PUT /api/auth/profile —— 改昵称（需 Bearer Token，2026-10-11）
+//
+// 只开放**昵称**：用户名（手机号）不可改 ✗ —— 它就是登录凭据 ✓；
+// 游戏 UID 绑定走账号页的专用接口 ✓。空串语义 = 清空昵称（前端回落展示用户名 / 脱敏手机号 ✓），
+// 所以**不设 `binding:"required"`** ✗（那会把"清空"判成参数错误 ✓）。
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	uid := c.GetUint("uid")
+	if uid == 0 {
+		response.Fail(c, http.StatusUnauthorized, 401, "未登录")
+		return
+	}
+	var req struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误："+err.Error())
+		return
+	}
+	u, err := h.svc.UpdateDisplayName(uid, req.DisplayName)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			response.Fail(c, http.StatusUnauthorized, 401, "账号不存在")
+		case errors.Is(err, service.ErrUserInvalid):
+			response.BadRequest(c, err.Error())
+		default:
+			logger.L().Errorw("update profile failed", "uid", uid, "err", err)
+			response.Internal(c, "保存失败，请重试")
+		}
+		return
+	}
+	response.OK(c, gin.H{"displayName": u.DisplayName})
+}
+
+// ChangePassword POST /api/auth/password —— 改密码（需 Bearer Token，2026-10-11）
+//
+// ⚠️ 错误码刻意分两档：
+//   - "当前密码不对" / "新密码太短" / "与旧密码相同" ⇒ **400**（表单问题 ✓）。
+//     绝不能给 401 ✗ —— 前端把 401 当登录态失效，会直接把人踢回登录页 ✓，既误导又难用 ✗。
+//   - 未登录 / 账号不存在 ⇒ 401 ✓。
+//
+// ⚠️ 已知边界（写进 docs/web/04 §4.2）：改密**不会吊销其他设备已签发的 Token** ✗ ——
+// JWT 里只有 uid/username/exp，没有"密码版本"位。要做"改密即踢下线"需加列 + 中间件校验，
+// 属独立一块，单独排期 ✓。
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	uid := c.GetUint("uid")
+	if uid == 0 {
+		response.Fail(c, http.StatusUnauthorized, 401, "未登录")
+		return
+	}
+	var req struct {
+		OldPassword string `json:"oldPassword" binding:"required"`
+		NewPassword string `json:"newPassword" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数有误："+err.Error())
+		return
+	}
+	err := h.svc.ChangePassword(uid, req.OldPassword, req.NewPassword)
+	switch {
+	case err == nil:
+		// ⚠️ 只记 uid，**绝不记密码** ✗（日志会进文件、也可能被采集 ✓）
+		logger.L().Infow("password changed", "uid", uid)
+		response.OK(c, gin.H{"changed": true})
+	case errors.Is(err, service.ErrUserNotFound):
+		response.Fail(c, http.StatusUnauthorized, 401, "账号不存在")
+	case errors.Is(err, service.ErrOldPasswordWrong),
+		errors.Is(err, service.ErrPasswordSame),
+		errors.Is(err, service.ErrUserInvalid):
+		response.BadRequest(c, err.Error())
+	default:
+		logger.L().Errorw("change password failed", "uid", uid, "err", err)
+		response.Internal(c, "修改失败，请重试")
+	}
+}
+
 // AcceptTerms POST /api/auth/terms —— 记录用户已同意的用户须知版本（需 Bearer Token）
 //
 // 只接受服务端当前生效版本（`service.CurrentTermsVersion`）：旧页面/伪造请求会被 400 拒绝。

@@ -28,8 +28,26 @@ var (
 	ErrRegisterClosed = errors.New("本站为不公开邀请制，已关闭注册；请联系管理员开通账号")
 	// ErrPhoneTaken 手机号已注册（手机号注册查重，Handler 映射 409）
 	ErrPhoneTaken = errors.New("该手机号已注册，请直接登录")
+	// ErrOldPasswordWrong 改密时"当前密码"填错（Handler 映射 **400** 而不是 401 ✓）：
+	// 401 会被前端当成"登录态失效"⇒ 直接把用户踢到登录页 ✗，而这里只是表单填错了 ✓。
+	ErrOldPasswordWrong = errors.New("当前密码不正确")
+	// ErrPasswordSame 新密码与当前密码相同（改了个寂寞 ⇒ 直说 ✓）
+	ErrPasswordSame = errors.New("新密码不能与当前密码相同")
 	// 注：ErrUserNotFound（用户不存在）定义在 admin_users.go，同一包内复用
 )
+
+// displayNameMaxRunes 昵称上限（**按字符计**、不是字节 ✓，与 preset.go 的口径一致）。
+// model.User.DisplayName 是 size:64 ⇒ 这里留足余量 ✓。
+const displayNameMaxRunes = 24
+
+// validatePassword 密码强度校验（**唯一真源** ✓）：注册 / 后台代建 / 修改密码都走这里，
+// 避免三处各写一遍后规则漂移 ✗（本仓反复强调的口径）。
+func validatePassword(password string) error {
+	if len(password) < 6 {
+		return fmt.Errorf("%w：密码长度至少 6 位", ErrUserInvalid)
+	}
+	return nil
+}
 
 // buildUser 账号参数校验 + bcrypt 哈希 + 组装（**不落库**）。
 // 校验规则的**唯一真源**：用户名注册 / 手机号注册 / 后台代建三条路径都走这里，
@@ -39,8 +57,8 @@ func buildUser(username, password, displayName string) (*model.User, error) {
 	if len(username) < 3 || len(username) > 32 {
 		return nil, fmt.Errorf("%w：用户名长度需为 3~32 个字符", ErrUserInvalid)
 	}
-	if len(password) < 6 {
-		return nil, fmt.Errorf("%w：密码长度至少 6 位", ErrUserInvalid)
+	if err := validatePassword(password); err != nil {
+		return nil, err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -310,6 +328,69 @@ func (s *AuthService) ParseUserID(tokenStr string) (uint, string, error) {
 	uidF, _ := claims["uid"].(float64)
 	username, _ := claims["username"].(string)
 	return uint(uidF), username, nil
+}
+
+// UpdateDisplayName 修改昵称（`PUT /api/auth/profile`，2026-10-11）。
+//
+// 口径：前后空格一律 TrimSpace ✓（否则"小明"与"小明 "会变成两个看起来一样的昵称 ✗）；
+// 空串 = 清空昵称（前端回落到用户名 / 脱敏手机号展示 ✓）；上限按**字符**计 ✓；
+// 值没变就直接返回，不写库（幂等 ✓）。
+func (s *AuthService) UpdateDisplayName(userID uint, displayName string) (*model.User, error) {
+	if userID == 0 {
+		return nil, ErrUserNotFound
+	}
+	name := strings.TrimSpace(displayName)
+	if len([]rune(name)) > displayNameMaxRunes {
+		return nil, fmt.Errorf("%w：昵称最多 %d 个字符", ErrUserInvalid, displayNameMaxRunes)
+	}
+	u, err := s.repo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, ErrUserNotFound
+	}
+	if u.DisplayName == name {
+		return u, nil
+	}
+	if err := s.repo.UpdateDisplayName(userID, name); err != nil {
+		return nil, err
+	}
+	u.DisplayName = name
+	return u, nil
+}
+
+// ChangePassword 修改密码（`POST /api/auth/password`，2026-10-11）：
+// 先验**旧密码**，再按**同一套**强度规则（validatePassword ✓，与注册共用 ⇒ 不会规则漂移 ✗）校验新密码，
+// 最后写入新哈希。
+//
+// ⚠️ 不会吊销既有 Token ✗ —— JWT 里只有 uid/username/exp，没有密码版本位；
+// "改密即踢下线"要加列 + 改中间件，属独立一块（Handler 注释与 docs/web/04 §4.2 都写明了 ✓）。
+func (s *AuthService) ChangePassword(userID uint, oldPassword, newPassword string) error {
+	if userID == 0 {
+		return ErrUserNotFound
+	}
+	u, err := s.repo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return ErrUserNotFound
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(oldPassword)); err != nil {
+		return ErrOldPasswordWrong
+	}
+	if oldPassword == newPassword {
+		return ErrPasswordSame
+	}
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.repo.UpdatePasswordHash(userID, string(hash))
 }
 
 func firstNonEmpty(values ...string) string {

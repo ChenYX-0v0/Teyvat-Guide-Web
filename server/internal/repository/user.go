@@ -158,6 +158,26 @@ func (r *UserRepository) UpdateBinding(userID uint, uid, server string) error {
 		Updates(map[string]any{"genshin_uid": uid, "genshin_server": server}).Error
 }
 
+// UpdateDisplayName 更新昵称（空串 = 清空 ✓；长度校验在服务层，仓储只负责落库 ✓）
+func (r *UserRepository) UpdateDisplayName(id uint, name string) error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Model(&model.User{}).Where("id = ?", id).
+		Update("display_name", name).Error
+}
+
+// UpdatePasswordHash 覆盖密码哈希（改密专用）。
+// ⚠️ 这里只存**哈希**：调用方（service.AuthService.ChangePassword）负责校验旧密码与生成新哈希 ✓，
+// 仓储层不接触明文密码 ✗。
+func (r *UserRepository) UpdatePasswordHash(id uint, hash string) error {
+	if r.db() == nil {
+		return nil
+	}
+	return r.db().Model(&model.User{}).Where("id = ?", id).
+		Update("password_hash", hash).Error
+}
+
 // UpdateTerms 记录用户已同意的用户须知版本与时间（幂等：重复同意只更新版本与时间）
 func (r *UserRepository) UpdateTerms(userID uint, version string, at time.Time) error {
 	if r.db() == nil {

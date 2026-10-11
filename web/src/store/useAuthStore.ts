@@ -27,6 +27,15 @@ interface AuthState {
   /** 记录"我已阅读并同意"（成功后本地版本立即更新，弹窗随之关闭） */
   acceptTerms: () => Promise<void>
 
+  // —— 侧栏用户菜单的两个功能（2026-10-11）——
+  /** 改昵称：成功后同步本地 state 与 localStorage，界面（侧栏卡片）立即刷新 ✓ */
+  updateDisplayName: (name: string) => Promise<string>
+  /**
+   * 改密码。⚠️ 成功后**不动本地登录态** ✓：服务端刻意不吊销既有 Token
+   * （JWT 里没有密码版本位 ⇒ 见 handler/auth.go 的说明），用户继续用当前会话即可 ✓。
+   */
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>
+
   // —— 注册入口可用性（登录页进页面拉一次；null = 还没拿到/拿不到 ⇒ 不显示注册入口 ✓）——
   registerOptions: RegisterOptions | null
   loadRegisterOptions: () => Promise<void>
@@ -131,6 +140,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!version) throw new Error('未获取到用户须知版本，请刷新页面后重试')
     const res = await authApi.acceptTerms(version)
     set({ termsAcceptedVersion: res.version })
+  },
+
+  async updateDisplayName(name) {
+    // 以**服务端返回的值**为准（服务端会 TrimSpace ✓，可能和我传进去的不完全一样）
+    const { displayName } = await authApi.updateProfile(name)
+    localStorage.setItem(NAME_KEY, displayName)
+    set({ displayName })
+    return displayName
+  },
+
+  async changePassword(oldPassword, newPassword) {
+    await authApi.changePassword(oldPassword, newPassword)
+    // 什么都不改：服务端不吊销旧 Token，当前会话照常有效 ✓（要"改密即踢下线"得先给 JWT 加版本位）
   },
 }))
 

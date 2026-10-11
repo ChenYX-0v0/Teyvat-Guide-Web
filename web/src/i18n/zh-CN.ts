@@ -4,6 +4,7 @@
 const zhCN = {
   // 通用
   'common.save': '保存',
+  'common.cancel': '取消',
   'common.expand': '展开',
   'common.collapse': '收起',
   'common.loading': '加载中…',
@@ -24,6 +25,31 @@ const zhCN = {
   'header.close': '关闭',
   'sidebar.home': '首页',
   'sidebar.chat': '智能问答',
+  // 侧栏/抽屉底部的用户卡片（2026-10-11：原先在顶部栏的昵称+退出，移到这里）
+  'user.menu': '账号菜单',
+  'user.fallbackName': '旅行者',
+  'user.profile': '个人信息管理',
+  'user.password': '修改密码',
+  // 个人信息管理弹窗
+  'profile.title': '个人信息管理',
+  'profile.usernameLabel': '用户名（登录用）',
+  'profile.nickname': '昵称',
+  'profile.nicknameHint': '留空则显示用户名；最多 24 个字符。',
+  'profile.uidLabel': '已绑定游戏 UID',
+  'profile.notBound': '未绑定',
+  'profile.goAccount': '去账号信息页',
+  'profile.terms': '查看用户须知',
+  'profile.saved': '已保存',
+  'profile.loadFailed': '读取账号信息失败，请稍后重试',
+  // 修改密码弹窗
+  'password.title': '修改密码',
+  'password.current': '当前密码',
+  'password.new': '新密码',
+  'password.confirm': '确认新密码',
+  'password.submit': '保存新密码',
+  'password.ok': '密码已修改，当前设备无需重新登录。',
+  'password.mismatch': '两次输入的新密码不一致',
+  'password.otherDevices': '其他设备不会被自动退出，若要强制下线请单独告知管理员。',
   'sidebar.account': '账号信息',
   // 'sidebar.wiki': '图鉴',  ← 2026-09-28 注释掉：图鉴页仍是占位（无真实数据），先从菜单撤下 ✗
   //   （路由保留 ⇒ 直接输 /wiki 仍可访问 ✓；做真实数据时把 navItems.ts 那一行与这两条文案一起恢复 ✓）

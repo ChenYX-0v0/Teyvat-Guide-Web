@@ -151,6 +151,12 @@ func New(cfg *config.Config) *gin.Engine {
 			// 用户须知（免责声明）同意留痕：版本号由主服务校验（只接受 CurrentTermsVersion），
 			// 前端"强制阅读 5 秒 → 同意"后调用；服务端存列，作为"已告知"的证据（见 service/terms.go）。
 			authGroup.POST("/terms", middleware.JWTAuth(cfg.Auth, checkBanned), auth.AcceptTerms)
+
+			// 侧栏用户菜单里的两个功能（2026-10-11）：
+			//   改昵称 —— 只动 display_name；用户名（手机号）不可改 ✗、绑定 UID 走账号页专用接口 ✓
+			authGroup.PUT("/profile", middleware.JWTAuth(cfg.Auth, checkBanned), auth.UpdateProfile)
+			//   改密码 —— 先验旧密码；"当前密码不对"返回 **400** ✓（不能 401 ✗，否则前端当登录失效踢人 ✓）
+			authGroup.POST("/password", middleware.JWTAuth(cfg.Auth, checkBanned), auth.ChangePassword)
 		}
 
 		// 管理接口（X-Admin-Key 保护）：资产映射导入 / 缺漏 / 重载

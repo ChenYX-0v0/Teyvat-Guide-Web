@@ -97,4 +97,23 @@ export const authApi = {
   acceptTerms(version: string) {
     return unwrap<{ version: string }>(http.post('/auth/terms', { version }))
   },
+
+  /**
+   * 改昵称（`PUT /api/auth/profile`，2026-10-11）。
+   * 空串 = **清空昵称** ✓（界面回落显示用户名 / 脱敏手机号），所以这里不传空会被服务端当参数错误吗 ✗ —— 不会，
+   * 服务端刻意没给这个字段加 `required` ✓。用户名（手机号）与绑定 UID 不在这里改 ✓（各有专用接口）。
+   */
+  updateProfile(displayName: string) {
+    return unwrap<{ displayName: string }>(http.put('/auth/profile', { displayName }))
+  },
+
+  /**
+   * 改密码（`POST /api/auth/password`，2026-10-11）：服务端先验旧密码，强度规则与注册**同一套** ✓。
+   *
+   * ⚠️ "当前密码不对"返回的是 **400** ✓ 而**不是 401** ✗ —— 401 会被 `api/client` 当成登录态失效、
+   * 直接清凭据跳登录页 ✓；这里只是表单填错，必须按普通错误展示 ✓（契约见 server/internal/handler/auth.go）。
+   */
+  changePassword(oldPassword: string, newPassword: string) {
+    return unwrap<{ changed: boolean }>(http.post('/auth/password', { oldPassword, newPassword }))
+  },
 }

@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
 import { navItems } from './navItems'
+import UserCard from './UserCard'
 import { t } from '@/i18n'
 
 type Props = {
@@ -14,6 +15,9 @@ type Props = {
  * 移动端导航抽屉（<md 使用；桌面用 Sidebar）。
  * 注意：**必须渲染在 Header 之外**——Header 有 `backdrop-blur`，
  * backdrop-filter 会成为 fixed 后代的包含块，抽屉会被关在 header 内部。
+ *
+ * 2026-10-11：底部同样放一块用户卡片（与桌面侧栏**同一组件** ✓）——
+ * 否则账号/退出登录在手机上就没入口了 ✗（它们已从顶部栏移走 ✓）。
  */
 export default function MobileNav({ open, onClose }: Props) {
   const location = useLocation()
@@ -78,6 +82,9 @@ export default function MobileNav({ open, onClose }: Props) {
             </NavLink>
           ))}
         </div>
+
+        {/* 用户一栏：贴抽屉底部；点条目后顺手关掉抽屉（onNavigate ✓） */}
+        <UserCard onNavigate={onClose} />
       </nav>
     </div>
   )
