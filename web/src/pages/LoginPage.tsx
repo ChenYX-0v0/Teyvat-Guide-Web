@@ -148,9 +148,9 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold tracking-wide text-teyvat-gold">
             {t('header.title')}
           </h1>
-          <p className="text-xs text-teyvat-text-3">
-            {registering ? t('login.registerWelcome') : t('login.welcome')}
-          </p>
+          {/* 2026-10-11：注册模式不再重复一句「创建你的旅行者账号」（上方标题已经说明身份 ✓），
+              这个位置只在登录态显示欢迎语 ✓；注册须知统一放到下面的表单顶部 ✓ */}
+          {!registering && <p className="text-xs text-teyvat-text-3">{t('login.welcome')}</p>}
         </div>
 
         {/* 注册关闭时的口径说明（服务端 allow_register=false / 短信未开启）*/}
@@ -164,9 +164,14 @@ export default function LoginPage() {
 
         {registering ? (
           <form onSubmit={submitRegister} className="mt-5 space-y-3">
-            <p className="text-[11px] leading-relaxed text-teyvat-text-4">
-              {t('login.registerPhoneHint')}
-            </p>
+            {/* 注册须知（小字 ✓）—— 2026-10-11：原「用手机号注册，注册后可直接用手机号登录」已去掉 ✗，
+                改为说明"需要一次性邀请码" ✓。只在服务端确实要求邀请码时显示（requireInvite ✓），
+                否则会出现"要求邀请码但其实没开"的错提示 ✗。 */}
+            {requireInvite && (
+              <p className="rounded-xl border border-teyvat-line bg-white/[0.03] px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
+                {t('login.inviteCodeNotice')}
+              </p>
+            )}
 
             {/* 邀请码在**手机号上方** ✓：不填就拿不到验证码（服务端同样会拦 ✓） */}
             {requireInvite && (

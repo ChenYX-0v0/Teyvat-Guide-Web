@@ -35,8 +35,9 @@ const en: Partial<Dict> = {
   // Invite-only deployment (see docs/11 §7.6): notice only, no sign-up entry
   'login.inviteOnly': 'Invite-only: sign-in is limited to invited users',
   'login.inviteHint': "Don't have an account? Ask the admin to create one for you.",
-  // The 4 keys below are kept for the "open registration" mode (not shown while invite-only)
-  'login.registerWelcome': 'Create your traveler account',
+  'login.inviteCodeNotice':
+    'Registration requires a one-time invite code. Please contact the administrator for details.',
+  // The 4 keys below are kept for the "open registration" mode (not shown while invite-only)  // 'login.registerWelcome': 'Create your traveler account',  (removed 2026-10-11: no longer shown on the register form)
   'login.username': 'Username',
   'login.password': 'Password',
   'login.displayName': 'Display name (optional)',
@@ -55,8 +56,7 @@ const en: Partial<Dict> = {
   'login.resendIn': 'Resend in {seconds}s',
   'login.codeSent': 'Code sent — please check your SMS',
   'login.codeSentMock': 'Code generated (mock mode: see server logs)',
-  'login.passwordRule': 'At least 6 characters',
-  'login.registerPhoneHint': 'Sign up with your phone number, then sign in with it',
+  'login.passwordRule': 'At least 6 characters',  // 'login.registerPhoneHint': 'Sign up with your phone number, then sign in with it',  (removed 2026-10-11: no longer shown on the register form)
 
   // Terms & disclaimer — the declaration itself is Chinese-only by design
   // (legal text: the Chinese version prevails); version source of truth is the server.
