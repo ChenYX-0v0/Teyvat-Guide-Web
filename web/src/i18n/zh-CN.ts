@@ -34,7 +34,8 @@ const zhCN = {
   'login.inviteOnly': '本站为不公开邀请制，仅限受邀用户登录',
   'login.inviteHint': '没有账号？请联系管理员开通。',
   'login.inviteCodeNotice': '该网站需使用一次性邀请码进行注册，相关功能请咨询管理员。',
-  // 以下 4 条为"开放注册"模式保留（当前不展示；改回 auth.allow_register=true 时可复用）  // 'login.registerWelcome': '创建你的旅行者账号',  （2026-10-11 去掉：注册页不再重复这句标题）
+  // 以下 4 条为"开放注册"模式保留（当前不展示；改回 auth.allow_register=true 时可复用）
+  // 'login.registerWelcome': '创建你的旅行者账号',  （2026-10-11 去掉：注册页不再重复这句标题）
   'login.username': '用户名',
   'login.password': '密码',
   'login.displayName': '昵称（可选）',
@@ -53,7 +54,8 @@ const zhCN = {
   'login.resendIn': '{seconds} 秒后重发',
   'login.codeSent': '验证码已发送，请查收短信',
   'login.codeSentMock': '验证码已生成（联调模式：验证码见服务端日志）',
-  'login.passwordRule': '密码至少 6 位',  // 'login.registerPhoneHint': '用手机号注册，注册后可直接用手机号登录',  （2026-10-11 去掉：注册页不再重复这句标题）
+  'login.passwordRule': '密码至少 6 位',
+  // 'login.registerPhoneHint': '用手机号注册，注册后可直接用手机号登录',  （2026-10-11 去掉：注册页不再重复这句标题）
 
   // 用户须知（免责声明）——正文见 components/legal/TermsContent.tsx，
   // 版本号真源在主服务 server/internal/service/terms.go（改文案要同步递增版本）

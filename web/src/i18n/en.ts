@@ -37,7 +37,8 @@ const en: Partial<Dict> = {
   'login.inviteHint': "Don't have an account? Ask the admin to create one for you.",
   'login.inviteCodeNotice':
     'Registration requires a one-time invite code. Please contact the administrator for details.',
-  // The 4 keys below are kept for the "open registration" mode (not shown while invite-only)  // 'login.registerWelcome': 'Create your traveler account',  (removed 2026-10-11: no longer shown on the register form)
+  // The 4 keys below are kept for the "open registration" mode (not shown while invite-only)
+  // 'login.registerWelcome': 'Create your traveler account',  (removed 2026-10-11: no longer shown on the register form)
   'login.username': 'Username',
   'login.password': 'Password',
   'login.displayName': 'Display name (optional)',
@@ -56,7 +57,8 @@ const en: Partial<Dict> = {
   'login.resendIn': 'Resend in {seconds}s',
   'login.codeSent': 'Code sent — please check your SMS',
   'login.codeSentMock': 'Code generated (mock mode: see server logs)',
-  'login.passwordRule': 'At least 6 characters',  // 'login.registerPhoneHint': 'Sign up with your phone number, then sign in with it',  (removed 2026-10-11: no longer shown on the register form)
+  'login.passwordRule': 'At least 6 characters',
+  // 'login.registerPhoneHint': 'Sign up with your phone number, then sign in with it',  (removed 2026-10-11: no longer shown on the register form)
 
   // Terms & disclaimer — the declaration itself is Chinese-only by design
   // (legal text: the Chinese version prevails); version source of truth is the server.
