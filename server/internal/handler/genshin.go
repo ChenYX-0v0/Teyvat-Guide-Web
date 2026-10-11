@@ -30,7 +30,12 @@ func NewPlayerHandler(svc *service.PlayerService) *PlayerHandler {
 func (h *PlayerHandler) Player(c *gin.Context) {
 	uid := c.Query("uid")
 	if uid == "" {
-		uid, _, _ = h.svc.Binding(c.GetUint("uid"))
+		// ⚠️ 匿名请求（无 token，uid=0）不要白查一次库 ✗ —— 否则 `Binding(0)` 会打出一条
+		// `SELECT * FROM users WHERE id = 0` + GORM 的 `record not found` 噪音日志 ✓
+		// （2026-10-11 从 access 日志里发现的 ✓）。带上 token 时才去取绑定 ✓。
+		if userID := c.GetUint("uid"); userID != 0 {
+			uid, _, _ = h.svc.Binding(userID)
+		}
 	}
 	if !uidPattern.MatchString(uid) {
 		response.BadRequest(c, "UID 格式有误，应为 9 位数字（或先在账号信息页绑定 UID）")
@@ -47,7 +52,44 @@ func (h *PlayerHandler) Player(c *gin.Context) {
 		response.Fail(c, status, status, message)
 		return
 	}
+
+	// 「已收录角色」累积（2026-10-11，**只增/只改不删** ✓）：
+	// ⚠️ 只在**查询的 UID 正是当前用户绑定的 UID** 时累积 ✓ ——
+	// 否则任何人都能刷任意 UID 把表撑大 ✗，也等于替"别人的号"存了数据 ✗。
+	// 失败不影响查询（service 内部只记日志 ✓）。
+	if boundUID, _, _ := h.svc.Binding(c.GetUint("uid")); boundUID != "" && boundUID == uid {
+		h.svc.CollectCharacters(uid, profile.Characters)
+	}
+
 	response.OK(c, profile)
+}
+
+// Characters GET /api/genshin/characters?uid=197794747 —— 已收录角色（2026-10-11 新增）
+//
+// uid 省略时取当前登录用户绑定的 UID ✓。
+// 与 `/player` 的区别（两个口径别混 ✗）：
+//   - `/player`  = **当前展柜**：快照缓存（TTL 10 分钟 ✓），会随用户换展柜而整体变化 ✓；
+//   - `/characters` = **历史累积的角色池**：换出展柜的角色**不会丢** ✓（只增不删 ✓），
+//     但不在展柜里的那几张卡**停在最后采集时刻** ✓（可能过时 ✗ ⇒ 前端展示 lastSeenAt ✓）。
+func (h *PlayerHandler) Characters(c *gin.Context) {
+	uid := c.Query("uid")
+	if uid == "" {
+		// 同 Player：匿名请求不查绑定 ✓（避免 `WHERE id = 0` 的噪音查询与日志 ✓）
+		if userID := c.GetUint("uid"); userID != 0 {
+			uid, _, _ = h.svc.Binding(userID)
+		}
+	}
+	if !uidPattern.MatchString(uid) {
+		response.BadRequest(c, "UID 格式有误，应为 9 位数字（或先在账号信息页绑定 UID）")
+		return
+	}
+	col, err := h.svc.Characters(uid)
+	if err != nil {
+		logger.L().Warnw("read collected characters failed", "uid", uid, "err", err)
+		response.Internal(c, "读取已收录角色失败")
+		return
+	}
+	response.OK(c, col)
 }
 
 // ---------- 账号 ↔ UID 绑定（需登录） ----------

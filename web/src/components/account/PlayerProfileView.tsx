@@ -5,18 +5,34 @@ import Card from '@/components/common/Card'
 import Chip from '@/components/common/Chip'
 import { elementColor } from '@/utils/elementColor'
 import { t } from '@/i18n'
-import type { PlayerProfile } from '@/types/genshin'
+import type { CollectedCharacter } from '@/api/genshin'
+import type { CharacterCard, PlayerProfile } from '@/types/genshin'
 
 interface Props {
   profile: PlayerProfile
+  /**
+   * 已收录角色池（2026-10-11，**只增/只改不删** ✓，见 `web/04` §4.1 与 `model.PlayerCharacter`）。
+   *
+   * 传了且非空 ⇒ 角色条渲染**累积池** ✓ —— 用户轮换展柜（每轮最多 12 位）导入进来的角色不会消失 ✓；
+   * 没传 / 为空（列表还没拉到、或接口失败）⇒ 退回只显示**当前展柜** ✓（不影响主流程 ✓）。
+   */
+  collected?: CollectedCharacter[]
   /** 受控选中角色：由 AccountPage 持有，悬浮体检面板据此知道"当前在看谁"（设计 §7.5） */
   selectedId: number | null
   onSelect: (id: number) => void
 }
 
-export default function PlayerProfileView({ profile, selectedId, onSelect }: Props) {
-  // 选中角色：重新查询后回落到第一个（旧 id 不在新档案里时自动兜底）
-  const selected = profile.characters.find((c) => c.id === selectedId) ?? profile.characters[0]
+/** 是不是"累积池里的角色"（只有它带 inShowcase / lastSeenAt ✓） */
+function isCollected(c: CharacterCard | CollectedCharacter): c is CollectedCharacter {
+  return 'lastSeenAt' in c
+}
+
+export default function PlayerProfileView({ profile, collected, selectedId, onSelect }: Props) {
+  // 角色条用哪个集合：优先**累积池** ✓，拿不到才退回当前展柜 ✓（两个口径别混 ✗）
+  const pool: (CharacterCard | CollectedCharacter)[] =
+    collected && collected.length > 0 ? collected : profile.characters
+  // 选中角色：重新查询后回落到第一个（旧 id 不在集合里时自动兜底）
+  const selected = pool.find((c) => c.id === selectedId) ?? pool[0]
   // 玩家头部默认折叠：只留「头像 + 昵称 + 等级 + UID」，签名与三个统计点开才看（把首屏留给展柜）
   const [headOpen, setHeadOpen] = useState(false)
 
@@ -105,26 +121,38 @@ export default function PlayerProfileView({ profile, selectedId, onSelect }: Pro
       </Card>
 
       {/* 角色选择条 + 选中角色详情（主从布局） */}
-      {profile.characters.length > 0 ? (
+      {pool.length > 0 ? (
         <div className="space-y-5">
           <div>
-            <h3 className="mb-2 text-sm font-medium text-teyvat-text">
-              {t('profile.charactersCount', { count: profile.characters.length })}
+            <h3 className="text-sm font-medium text-teyvat-text">
+              {t('profile.collectedCount', { count: pool.length })}
             </h3>
-            {/* 只显示头像：一行能放下更多角色、纵向更省（名字/等级见下方角色概要与 title 提示） */}
+            {/* 两个口径都露出来：**已收录总数**（只增不减 ✓）+ **本轮展柜数**（≤12 ✓）
+                ⇒ 用户才知道"换展柜还能继续导入、已收录的不会丢" ✓ */}
+            <p className="mt-0.5 mb-2 text-[11px] leading-relaxed text-teyvat-text-4">
+              {t('profile.showcaseHint', { showcase: profile.characters.length })}
+            </p>
+            {/* 只显示头像：一行能放下更多角色、纵向更省（名字/等级见下方角色概要与 title 提示）；
+                已移出展柜的（inShowcase=false）**整体弱化**标出来 ✓ —— 它的数据停在 lastSeenAt 时刻，可能过时 ✗ */}
             <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-              {profile.characters.map((c) => {
+              {pool.map((c) => {
                 const accent = elementColor(c.element)
                 const isSelected = selected?.id === c.id
+                const out = isCollected(c) && !c.inShowcase
+                const tip = out
+                  ? `${c.name} · Lv.${c.level} · ${t('profile.outOfShowcaseHint', { time: new Date(c.lastSeenAt).toLocaleDateString() })}`
+                  : `${c.name} · Lv.${c.level}`
                 return (
                   <button
                     key={c.id}
                     onClick={() => onSelect(c.id)}
-                    title={`${c.name} · Lv.${c.level}`}
-                    aria-label={`${c.name} · Lv.${c.level}`}
+                    title={tip}
+                    aria-label={tip}
                     aria-pressed={isSelected}
                     className={clsx(
                       'relative shrink-0 rounded-xl border p-0.5 transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
+                      // 已移出展柜：弱化，一眼能看出"这张是历史数据"
+                      out && 'opacity-60',
                       // 未选中用透明边框（而不是去掉边框），切换时不跳动
                       isSelected
                         ? 'border-teyvat-line-strong bg-teyvat-raised'
@@ -183,6 +211,15 @@ export default function PlayerProfileView({ profile, selectedId, onSelect }: Pro
                     {selected.weapon.level}
                     {selected.weapon.affix > 0 &&
                       ` · ${t('character.refine', { n: selected.weapon.affix })}`}
+                  </p>
+                )}
+                {/* 已移出展柜的角色：面板会照旧渲染（历史数据也是数据 ✓），但**必须说清它停在什么时候** ✗
+                    —— 否则用户会以为 Lv/圣遗物是实时的，据此做养成判断就会跑偏 ✓ */}
+                {isCollected(selected) && !selected.inShowcase && (
+                  <p className="w-full text-[11px] leading-relaxed text-teyvat-text-4">
+                    {t('profile.outOfShowcaseHint', {
+                      time: new Date(selected.lastSeenAt).toLocaleDateString(),
+                    })}
                   </p>
                 )}
               </div>

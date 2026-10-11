@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Link2Off, Search, UserRound } from 'lucide-react'
-import { genshinApi, type UIDBinding } from '@/api/genshin'
+import { genshinApi, type CollectedCharacter, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
 import AnalysisFab from '@/components/account/AnalysisFab'
 import Card from '@/components/common/Card'
@@ -17,6 +17,11 @@ export default function AccountPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
+  /**
+   * 已收录角色池（2026-10-11）：**只增 / 只改，永不删** ✓。
+   * 与 `profile.characters`（当前展柜 ✓）是两个口径 —— 用户轮换展柜就能把角色逐步全部导入 ✓。
+   */
+  const [collected, setCollected] = useState<CollectedCharacter[]>([])
   // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
@@ -32,6 +37,7 @@ export default function AccountPage() {
     setError('')
     setNotice('')
     setProfile(null)
+    setCollected([])
     try {
       const p = await genshinApi.player(targetUid.trim())
       setProfile(p)
@@ -40,6 +46,16 @@ export default function AccountPage() {
       track(EVENTS.accountUidQuery, {
         result: p.characters.length > 0 ? 'ok' : 'empty',
       })
+
+      // 顺带拉"已收录角色池"（2026-10-11）：
+      // ⚠️ **失败不打扰用户** ✓ —— 这只是增强（拿到就多显示历史角色）✓，
+      // 拿不到就退回"只显示当前展柜" ✓，不能让主流程（档案展示）跟着失败 ✗。
+      try {
+        const col = await genshinApi.characters(p.uid)
+        setCollected(col.characters)
+      } catch {
+        setCollected([])
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
       track(EVENTS.accountUidQuery, { result: 'failed' })
@@ -84,6 +100,8 @@ export default function AccountPage() {
       if (binding?.uid) resetAnalyzed(binding.uid)
       setBinding({ bound: false })
       setProfile(null)
+      // 角色池是**按游戏 UID** 存的 ✓：解绑后本地不再显示（服务端刻意不删 ✓，换回同一 UID 还在 ✓）
+      setCollected([])
       setUid('')
       setNotice(t('account.unbindSuccess'))
       track(EVENTS.accountUnbind)
@@ -91,6 +109,10 @@ export default function AccountPage() {
       setError(e instanceof Error ? e.message : t('errors.unknown'))
     }
   }, [binding])
+
+  // 角色条与体检面板都用这个集合：优先已收录池 ✓，拿不到才退回当前展柜 ✓
+  const pool: CollectedCharacter[] | NonNullable<PlayerProfile['characters']> =
+    collected.length > 0 ? collected : (profile?.characters ?? [])
 
   return (
     // 底部留出悬浮体检按钮的位置，避免它压住最后一排圣遗物
@@ -171,14 +193,20 @@ export default function AccountPage() {
       )}
 
       {profile && (
-        <PlayerProfileView profile={profile} selectedId={selectedId} onSelect={setSelectedId} />
+        <PlayerProfileView
+          profile={profile}
+          collected={collected}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
       )}
 
-      {/* 悬浮体检入口：未绑定 UID 时置灰而不是隐藏（用户需要看到"为什么不能问"） */}
+      {/* 悬浮体检入口：未绑定 UID 时置灰而不是隐藏（用户需要看到"为什么不能问"）；
+          可选角色用**已收录池** ⇒ 换出展柜的老角色也能做体检 ✓ */}
       <AnalysisFab
         uid={binding?.uid ?? ''}
-        characters={profile?.characters ?? []}
-        character={profile?.characters.find((c) => c.id === selectedId) ?? profile?.characters[0]}
+        characters={pool}
+        character={pool.find((c) => c.id === selectedId) ?? pool[0]}
       />
     </div>
   )

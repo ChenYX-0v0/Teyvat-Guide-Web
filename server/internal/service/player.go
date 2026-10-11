@@ -135,6 +135,81 @@ func (s *PlayerService) saveSnapshot(p *dto.PlayerProfile) {
 	logger.L().Infow("player snapshot saved", "uid", p.UID, "bytes", len(raw))
 }
 
+// CollectCharacters 采集本轮展柜角色到「已收录角色」表（**只增 / 只改，永不删** ✓，2026-10-11）。
+//
+// 调用范围由 handler 保证：**仅当查询的 UID 正是当前用户绑定的 UID** 时才调 ✓
+//   —— 否则任何人都能刷任意 UID 把表撑大 ✗，也等于替"别人的号"存了数据 ✗。
+//
+// 写两笔：① upsert 本轮见到的角色 ✓（`first_seen_at` 冲突时**不覆盖** ✓）；
+// ② 把不在本轮展柜里的行 `in_showcase` 置 false ✓ —— **这是标记，不是删除** ✓，
+// 用户换回展柜时那行还在 ✓（这正是"换个展柜就把所有角色导进来"的实现方式 ✓）。
+// 失败只记日志：采集是**附带收益** ✓，绝不该让查询本身失败 ✗（与快照写入同一口径 ✓）。
+func (s *PlayerService) CollectCharacters(uid string, cards []dto.CharacterCard) {
+	if uid == "" || len(cards) == 0 {
+		return
+	}
+	now := time.Now()
+	rows := make([]model.PlayerCharacter, 0, len(cards))
+	keep := make([]int64, 0, len(cards))
+	for _, c := range cards {
+		raw, err := json.Marshal(c)
+		if err != nil {
+			logger.L().Warnw("marshal collected character failed", "uid", uid, "id", c.ID, "err", err)
+			continue
+		}
+		rows = append(rows, model.PlayerCharacter{
+			UID:         uid,
+			CharacterID: c.ID,
+			Card:        string(raw),
+			InShowcase:  true,
+			FirstSeenAt: now, // ⚠️ 冲突时不覆盖 ⇒ 这个值只在**首次**落库时生效 ✓
+			LastSeenAt:  now,
+		})
+		keep = append(keep, c.ID)
+	}
+	if len(rows) == 0 {
+		return
+	}
+	if err := s.repo.UpsertCharacters(rows); err != nil {
+		logger.L().Warnw("upsert collected characters failed", "uid", uid, "err", err)
+		return
+	}
+	if err := s.repo.MarkCharactersOutOfShowcase(uid, keep); err != nil {
+		logger.L().Warnw("mark characters out of showcase failed", "uid", uid, "err", err)
+		return
+	}
+	logger.L().Infow("collected showcase characters", "uid", uid, "seen", len(rows))
+}
+
+// Characters 读取该 UID 已收录的全部角色（展柜中的在前 ✓、同组内按最近见到倒序 ✓）。
+// 表未启用 / 无记录时返回**空集合**（不是错误 ✓）—— 前端据此显示"还没有收录记录" ✓。
+func (s *PlayerService) Characters(uid string) (*dto.CharacterCollection, error) {
+	rows, err := s.repo.ListCharacters(uid)
+	if err != nil {
+		return nil, err
+	}
+	out := &dto.CharacterCollection{UID: uid, Characters: make([]dto.CollectedCharacter, 0, len(rows))}
+	for _, r := range rows {
+		var card dto.CharacterCard
+		if err := json.Unmarshal([]byte(r.Card), &card); err != nil {
+			// 单行解析失败只跳过这一行（老数据 / 结构变更），不影响整份列表 ✓
+			logger.L().Warnw("unmarshal collected character failed", "uid", uid, "id", r.CharacterID, "err", err)
+			continue
+		}
+		out.Characters = append(out.Characters, dto.CollectedCharacter{
+			CharacterCard: card,
+			InShowcase:    r.InShowcase,
+			FirstSeenAt:   r.FirstSeenAt,
+			LastSeenAt:    r.LastSeenAt,
+		})
+		if r.InShowcase {
+			out.ShowcaseCount++
+		}
+	}
+	out.Total = len(out.Characters)
+	return out, nil
+}
+
 // Snapshot 读取已落库的档案快照（不发起上游查询）
 func (s *PlayerService) Snapshot(uid string) (*model.PlayerProfileSnapshot, error) {
 	return s.repo.GetSnapshot(uid)

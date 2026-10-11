@@ -177,7 +177,11 @@ const zhCN = {
   'profile.statsAchievements': '成就达成',
   'profile.statsAvatars': '展柜角色',
   'profile.statsWorldLevel': '世界等级',
-  'profile.charactersCount': '展柜角色（{count}）',
+  // 'profile.charactersCount'（「展柜角色（N）」）已于 2026-10-11 改造：角色条改为渲染**累积池**，
+  // 所以改用下面两条（已收录总数 + 本轮展柜数）。两个口径都要露出来，用户才知道"换展柜还能再导入" ✓
+  'profile.collectedCount': '已收录角色（{count}）',
+  'profile.showcaseHint': '本轮展柜 {showcase} 位 · 换展柜可继续导入，已收录的不会丢',
+  'profile.outOfShowcaseHint': '已在展柜外 · 数据截至 {time}（换回展柜即可刷新）',
   'profile.noSignature': '这个人很懒，什么都没写',
   'profile.partialFailed': '部分名称映射缺失，已记录待补录',
   'profile.statsTitle': '角色面板',

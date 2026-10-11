@@ -132,6 +132,9 @@ func New(cfg *config.Config) *gin.Engine {
 		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth, checkBanned))
 		{
 			genshin.GET("/player", player.Player)
+			// 已收录角色（2026-10-11）：**只增/只改不删** 的角色池 —— 用户换展柜可逐步导入全部角色 ✓
+			// 与 /player 的区别：/player 是"当前展柜"（快照缓存），这里是"历史累积" ✓
+			genshin.GET("/characters", player.Characters)
 			genshin.GET("/player-snapshot", player.Snapshot)
 			genshin.POST("/binding", player.Bind)
 			genshin.GET("/binding", player.GetBinding)
@@ -225,6 +228,9 @@ func autoMigrate() {
 		&model.ChatMessage{},
 		&model.PresetQA{},
 		&model.PlayerProfileSnapshot{},
+		// 已收录角色（2026-10-11）：**只增/只改不删** 的角色池 ✓
+		// ⚠️ 与快照分表是刻意的：purge-snapshots 清的是缓存，**不该把用户攒的角色池一起清掉** ✗
+		&model.PlayerCharacter{},
 		&model.User{},
 		&model.AIPrompt{},
 		&model.UsageEvent{}, // 埋点明细（shared-docs/07）

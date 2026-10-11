@@ -1,6 +1,10 @@
 package dto
 
-import "teyvat-guide/server/internal/service/asset"
+import (
+	"time"
+
+	"teyvat-guide/server/internal/service/asset"
+)
 
 // PlayerProfile 玩家档案（Enka 数据源）
 type PlayerProfile struct {
@@ -43,6 +47,32 @@ type StygianSummary struct {
 	Index   int `json:"index"`   // 难度 / 期序号（Enka 原值）
 	Seconds int `json:"seconds"` // 用时（秒）
 	ID      int `json:"id"`      // 关卡 id（Enka 原值）
+}
+
+// CharacterCollection 玩家「已收录角色」集合（2026-10-11）。
+//
+// 口径（用户明确要求）：**只增/只改，不删** ✓ —— 游戏里展柜最多 12 位 ✓，
+// 用户通过反复更换展柜，可以把自己的角色**逐步全部导入**进来 ✓。
+// 落库见 model.PlayerCharacter（与档案快照**分表** ✓，快照被清空不影响这里 ✓）。
+type CharacterCollection struct {
+	UID string `json:"uid"`
+	// Total 已收录总数（只增不减 ✓）
+	Total int `json:"total"`
+	// ShowcaseCount 其中**当前仍在展柜**里的数量（≤12 ✓，其余是历史上见过但已移出的 ✓）
+	ShowcaseCount int `json:"showcaseCount"`
+	// Characters 展柜中的在前 ✓，同组内按最近见到倒序 ✓
+	Characters []CollectedCharacter `json:"characters"`
+}
+
+// CollectedCharacter 已收录角色 = 角色卡 + 收录元信息 ✓
+// （嵌入 CharacterCard ⇒ JSON 平铺 ✓，前端可以直接当角色卡用 ✓）
+type CollectedCharacter struct {
+	CharacterCard
+	// InShowcase 当前是否在展柜里（false ⇒ 数据停在 LastSeenAt 那一刻 ✓，可能过时 ✗）
+	InShowcase bool `json:"inShowcase"`
+	// FirstSeenAt / LastSeenAt 首次收录 / 最近一次在展柜里见到的时间 ✓
+	FirstSeenAt time.Time `json:"firstSeenAt"`
+	LastSeenAt  time.Time `json:"lastSeenAt"`
 }
 
 // CharacterCard 展柜角色卡

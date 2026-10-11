@@ -184,7 +184,11 @@ const en: Partial<Dict> = {
   'profile.statsAchievements': 'Achievements',
   'profile.statsAvatars': 'Showcase',
   'profile.statsWorldLevel': 'World Level',
-  'profile.charactersCount': 'Showcase Characters ({count})',
+  // 'profile.charactersCount' ("Showcase Characters (N)") reworked 2026-10-11: the strip now renders the
+  // accumulated pool, so it uses the two keys below (total collected + current showcase).
+  'profile.collectedCount': 'Collected Characters ({count})',
+  'profile.showcaseHint': '{showcase} in showcase now · swap it to import more — nothing is dropped',
+  'profile.outOfShowcaseHint': 'Not in showcase · data as of {time} (put it back to refresh)',
   'profile.noSignature': 'This traveler left nothing here',
   'profile.partialFailed': 'Some name mappings are missing and queued for update',
   'profile.statsTitle': 'Character Stats',
