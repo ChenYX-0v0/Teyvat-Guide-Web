@@ -178,14 +178,14 @@ logger.L().Errorw("chat failed", "err", err)
   - 只允许走 `PlayerService.StatWeightsForQuestion`（名字命中用 `asset.CharactersMentioned`，**长名优先**，否则「雷电将军」会被更短的名字抢先）+ `ai_context.go` 的 `BuildAssetSummary` 渲染，不要另写一套查表/渲染；
   - 资料文本独立预算 `referenceTokenBudget=400`、最多 `maxReferenceCharacters=2` 个角色——与玩家档案的 `ctxTokenBudget=1500` 是**两笔账**，二者共用 AI 服务的上下文预算（AI 服务超预算时会整条丢弃末尾角色）；
   - 库里没有数据的角色必须显式渲染成「本服暂无该角色的资料（不得凭记忆给出数值）」——这是 AI 服务侧「资料外不编造」规则生效的前提；
-  - 词条名翻译复用 `enka.TranslateStatRecommendation`（与玩家档案同一实现）；部位中文名从 `asset_relic_slots` 表取，**禁止硬编码中文部位名**；
+  - 词条名翻译复用 `enka.TranslateStatRecommendation`（与玩家档案同一实现）；部位中文名从 **`relic_slots`** 表取（⚠️ 表名**无 `asset_` 前缀** ✗，旧称 `asset_relic_slots` 已废 ✓），**禁止硬编码中文部位名**；
   - 渲染文本必须顺序稳定（不要直接遍历 map），否则同一问题每次文本不同，会破坏上游前缀缓存的可复现性。
 
 ## 4.7 玩家查询（Enka 数据源）
 
 数据来自 Enka.Network（`internal/service/enka/`，免登录免风控），映射数据存 MySQL（`internal/service/asset/`）。
 
-- **禁止在代码中硬编码**角色/武器/圣遗物名称等游戏资产映射——一律入 `asset_*` 映射表，通过管理接口导入，未命中走 fallback 并记入 `missings` 表。
+- **禁止在代码中硬编码**角色/武器/圣遗物名称等游戏资产映射——一律入**映射表**（⚠️ 表名**无 `asset_` 前缀** ✗：`characters`/`weapons`/`relic_sets`/`text_map_entries`/`prop_maps`/`affixes`… 见 `teyvat-docs/shared/02-资产映射管理（AS-IS）.md` §3，那是 2026-09-27 校正后的口径），通过管理接口导入，未命中走 fallback 并记入 `missings` 表。
 - Enka 响应的数值字段大量是**字符串形式的数字**，模型统一用 `json.Number` 接收；新增字段时先 curl 真实返回值确认类型。
 - 翻译层 `enka/translate.go` 依赖 `asset.Service`（内存 map），映射数据更新后调用 `Import`（自动 reload）或 `POST /api/admin/assets/reload`。
 - 管理接口使用 `X-Admin-Key` 头鉴权（值为 `auth.admin_key`，未配置时回落 `auth.jwt_secret`）；**禁止把 admin_key 与 jwt_secret 混用**——后者泄露即可伪造任意用户 Token。外部系统/后台管理系统只下发 admin_key，且必须走内网或 HTTPS。禁止回传密钥、禁止无鉴权暴露。
