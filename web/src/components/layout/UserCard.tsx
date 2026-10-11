@@ -67,13 +67,6 @@ export default function UserCard({ onNavigate }: Props) {
     navigate('/login', { replace: true })
   }
 
-  /** 弹窗里要跳页面（账号信息 / 用户须知）时：先关弹窗与抽屉，再跳 ✓ */
-  const goPage = (path: string) => {
-    setModal(null)
-    onNavigate?.()
-    navigate(path)
-  }
-
   return (
     <div ref={boxRef} className="relative mt-auto">
       {menuOpen ? (
@@ -106,11 +99,7 @@ export default function UserCard({ onNavigate }: Props) {
         />
       </button>
 
-      <ProfileModal
-        open={modal === 'profile'}
-        onClose={() => setModal(null)}
-        onNavigate={goPage}
-      />
+      <ProfileModal open={modal === 'profile'} onClose={() => setModal(null)} />
       <PasswordModal open={modal === 'password'} onClose={() => setModal(null)} />
     </div>
   )

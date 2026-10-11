@@ -32,13 +32,13 @@ const zhCN = {
   'user.password': '修改密码',
   // 个人信息管理弹窗
   'profile.title': '个人信息管理',
-  'profile.usernameLabel': '用户名（登录用）',
+  'profile.account': '账号',
   'profile.nickname': '昵称',
-  'profile.nicknameHint': '留空则显示用户名；最多 24 个字符。',
   'profile.uidLabel': '已绑定游戏 UID',
   'profile.notBound': '未绑定',
-  'profile.goAccount': '去账号信息页',
-  'profile.terms': '查看用户须知',
+  // 2026-10-11 按用户要求精简：'profile.usernameLabel'（用户名（登录用））→ 'profile.account'（账号）；
+  // 并去掉 'profile.nicknameHint'（昵称下方那行说明小字）与 'profile.goAccount' / 'profile.terms'
+  // （底部两个按钮）—— 角色绑定与条款在左侧导航、页脚另有入口，不必在这个小弹窗里再兜一圈 ✓
   'profile.saved': '已保存',
   'profile.loadFailed': '读取账号信息失败，请稍后重试',
   // 修改密码弹窗

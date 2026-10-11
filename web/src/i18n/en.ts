@@ -34,13 +34,12 @@ const en: Partial<Dict> = {
   'user.password': 'Change password',
   // Profile dialog
   'profile.title': 'Profile',
-  'profile.usernameLabel': 'Username (for sign-in)',
+  'profile.account': 'Account',
   'profile.nickname': 'Display name',
-  'profile.nicknameHint': 'Leave empty to show your username; up to 24 characters.',
   'profile.uidLabel': 'Bound game UID',
   'profile.notBound': 'Not bound',
-  'profile.goAccount': 'Open account page',
-  'profile.terms': 'View terms',
+  // Trimmed 2026-10-11 at the user's request: usernameLabel → account ("Account"); dropped
+  // nicknameHint and the goAccount / terms buttons (both already live in the nav and footer).
   'profile.saved': 'Saved',
   'profile.loadFailed': 'Could not load account info, please try again',
   // Change-password dialog
