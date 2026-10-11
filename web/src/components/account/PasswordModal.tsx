@@ -16,8 +16,11 @@ type Props = {
  * "当前密码对不对"**只能由服务端判** ✓ —— 而且服务端刻意用 400 而不是 401 ✓，
  * 所以我们这里是普通的错误提示，**不会把人踢到登录页** ✓（契约见 handler/auth.go）。
  *
- * ⚠️ 成功后**不重新登录** ✓：服务端不吊销既有 Token（JWT 里没有密码版本位 ✓），
- * 当前设备继续可用 ✓；其他设备也不会被自动登出 —— 这一点在界面上如实告知 ✓（不装作做到了 ✗）。
+ * ⚠️ 成功后**不重新登录** ✓：服务端不吊销既有 Token（JWT 里没有密码版本位 ✓），当前设备继续可用 ✓。
+ *
+ * 2026-10-11 按用户要求：**去掉**了原先那行"其他设备不会被自动退出…"的小字提示 ✗。
+ * ⚠️ 去掉的只是**界面提示** —— **后端行为一点没变**（改密仍不影响其他设备的 Token ✓）：
+ * 这条边界仍写在 `web/04` §3 与 `shared/04` §2.6 里 ✓，别因为界面不提醒就以为已经踢下线了 ✗。
  */
 export default function PasswordModal({ open, onClose }: Props) {
   const changePassword = useAuthStore((s) => s.changePassword)
@@ -130,8 +133,6 @@ export default function PasswordModal({ open, onClose }: Props) {
 
         {error ? <p className="text-xs text-err">{error}</p> : null}
         {ok ? <p className="text-xs text-ok">{t('password.ok')}</p> : null}
-
-        <p className="text-[11px] leading-relaxed text-teyvat-text-4">{t('password.otherDevices')}</p>
       </form>
     </Modal>
   )

@@ -50,7 +50,9 @@ const en: Partial<Dict> = {
   'password.submit': 'Save new password',
   'password.ok': 'Password updated. This device stays signed in.',
   'password.mismatch': 'The two new passwords do not match',
-  'password.otherDevices': 'Other devices are not signed out automatically; ask the admin to force that.',
+  // 'password.otherDevices' removed 2026-10-11 at the user's request: only the on-screen notice is
+  // gone, the behaviour is unchanged (changing the password still does NOT revoke tokens on other
+  // devices). The boundary stays documented in ../shared/04 §2.6 and ../web/04 §3.
   'sidebar.account': 'Account',
   // 'sidebar.wiki': 'Wiki',  <- commented out 2026-09-28: the wiki page is still a placeholder
   //   (no real data), so it is withdrawn from the menu. Route kept: /wiki still works if typed.
