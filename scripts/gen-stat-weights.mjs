@@ -93,9 +93,13 @@ const ARCHETYPES = {
     main: { sand: '生命值', goblet: '生命值', circlet: '生命值' },
   },
   // 通用充能辅助
+  // ⚠️ 2026-10-12 修正：这一档原先杯/冠是照**输出**写的（元素增伤 + 暴击率）✗ ⇒
+  // 只要角色被定成这个原型，哪怕他是纯拐 / 盾 / 奶，杯上也自动挂了元素增伤（用户实测反馈）✗。
+  // 现在杯默认【攻击力】（拐大多按攻击力给增益 ✓），冠留【暴击率】（少数确实吃暴击的：
+  // 九条裟罗 / 珐露珊 / 柯莱 ✓）。逐角色定稿一律走 stat_weights_source.json 的 overrides ✓。
   SUP_ER: {
     subs: [[KEY.ER, 10], [KEY.ATK_P, 8], [KEY.CRIT, 6], [KEY.HP_P, 4], [KEY.EM, 2]],
-    main: { sand: '元素充能效率', goblet: '{E}元素伤害加成', circlet: '暴击率' },
+    main: { sand: '元素充能效率', goblet: '攻击力', circlet: '暴击率' },
   },
 }
 
@@ -109,6 +113,16 @@ const SOURCE = JSON.parse(readFileSync(
   new URL('../server/cmd/assetimport/stat_weights_source.json', import.meta.url), 'utf8'))
 const CHARS = SOURCE.chars
 const MANUAL = SOURCE.manual
+
+// 月曜（月感电/月绽放/月结晶）与星烁（星超导/星扩散）反应**不吃元素伤害加成**（2026-10-12 联网核实，
+// 见 docs）⇒ 名单里的角色不许挂元素增伤杯。名单是**数据**（放 stat_weights_source.json ✓，不入代码 ✓）。
+const NO_ELEM_GOBLET = new Set(SOURCE.noElementGoblet ?? [])
+// 名单内角色该拿什么杯：按原型赖以吃饭的属性给（输出原型 → 攻击/生命/防御/精通）
+const NO_ELEM_FALLBACK_BY_ARCH = {
+  ATK_C: '攻击力', HP_C: '生命值', DEF_C: '防御力', EM_C: '元素精通', ER_C: '攻击力', SUP_ER: '攻击力',
+}
+// 逐角色主词条定稿：**最后**套用，优先于原型与 withAlternatives 的二选一展开 ✓
+const OVERRIDES = SOURCE.overrides ?? {}
 
 // 主词条"可选项"派生规则（2026-09-27 新增）
 //
@@ -149,7 +163,9 @@ function build([id, arch, element, override]) {
       characterId: id,
       recommendation: {
         subStats: MANUAL[id].subStats.map(([statKey, weight, tier]) => ({ statKey, weight, tier })),
-        mainStats: MANUAL[id].mainStats,
+        // ⚠️ 2026-10-12：overrides 仍然**最后套用** ✓（主词条的定稿处就在那里）——
+        // 否则 manual 块与 overrides 会各说一套、互相矛盾（菲林斯就踩到过）✗。
+        mainStats: { ...MANUAL[id].mainStats, ...(OVERRIDES[id] ?? {}) },
       },
     }
   }
@@ -158,6 +174,10 @@ function build([id, arch, element, override]) {
   const main = Object.fromEntries(
     Object.entries(tpl.main).map(([slot, v]) => [slot, v.replaceAll('{E}', element)]),
   )
+  // 月曜 / 星烁体系：不吃元素增伤 ⇒ 元素增伤杯换成该原型的非元素主词条（2026-10-12）
+  if (NO_ELEM_GOBLET.has(id) && main.goblet.includes('元素伤害加成')) {
+    main.goblet = NO_ELEM_FALLBACK_BY_ARCH[arch] ?? '攻击力'
+  }
   return {
     characterId: id,
     recommendation: {
@@ -166,7 +186,8 @@ function build([id, arch, element, override]) {
         weight,
         tier: i < 3 ? 'primary' : 'secondary', // 权重前 3 = 主要属性
       })),
-      mainStats: withAlternatives({ ...main, ...(override ?? {}) }, tpl.subs),
+      // 顺序：原型 → 二选一展开 → 逐角色 overrides 定稿（定稿优先级最高 ✓，保证与库一致 ✓）
+      mainStats: { ...withAlternatives({ ...main, ...(override ?? {}) }, tpl.subs), ...(OVERRIDES[id] ?? {}) },
     },
   }
 }
