@@ -170,7 +170,10 @@ const zhCN = {
   'account.queryTitle': '查询玩家档案',
   'account.queryPlaceholder': '输入 9 位游戏 UID，如 197794747',
   // 'account.forceRefresh' 已于 2026-09-28 移除（档案一律走服务端快照，前端不再暴露绕过缓存的开关 ✓）
-  'account.bind': '绑定 {uid} 到我的账号',
+  // 'account.bind'（"绑定 {uid} 到我的账号"）已于 2026-10-12 移除 ✗ ——
+  // 现在是**查询成功即自动绑定**（口径 A ✓），界面上不再需要"第二次点击"的绑定入口 ✓。
+  // ⚠️ 后端 `POST /api/genshin/binding` **仍然保留** ✓：老 bundle（浏览器缓存）还在发它 ✗。
+  'account.queryAutoBindHint': '查询成功后会把这个 UID 绑定到你的账号（可在展开「已绑定 UID」后解绑或换绑）。',
   'account.bindSuccess': '绑定成功，UID {uid} 已与账号一对一关联，下次进入自动加载。',
   'account.unbind': '解绑',
   'account.unbindSuccess': '已解除绑定。',

@@ -64,7 +64,14 @@ export const genshinApi = {
     return unwrap<UIDBinding>(http.get('/genshin/binding'))
   },
 
-  /** 绑定 UID 到当前账号（绑定前后端会实查验证） */
+  /**
+   * 绑定 UID 到当前账号（绑定前后端会实查验证）。
+   *
+   * ⚠️ 2026-10-12 起**界面不再调用它** ✓ —— 查询成功即由**服务端**自动绑定（口径 A ✓，
+   * 见 `pages/AccountPage` 的 doQuery）。保留它有两个理由：
+   * ① 用户浏览器里缓存的老 bundle 仍在发这个请求 ✗，删了那些页面会"点绑定报 404" ✓；
+   * ② 显式绑定本身是合法入口 ✓（后端 `POST /api/genshin/binding` 也没删 ✓），只是当前 UI 用不上 ✓。
+   */
   bindUID(uid: string, server = 'cn_gf01') {
     return unwrap<UIDBinding>(http.post('/genshin/binding', { uid, server }))
   },

@@ -27,6 +27,11 @@ func NewPlayerHandler(svc *service.PlayerService) *PlayerHandler {
 // Player GET /api/genshin/player?uid=197794747[&refresh=true]
 // uid 省略时取当前登录用户绑定的 UID（未登录且未绑定则报参数错误）
 // 默认优先返回本地快照；refresh=true 强制调 Enka 上游并更新快照
+//
+// ⚠️ 2026-10-12（用户口径 A）：**登录用户查询成功即自动绑定该 UID** ✓ ——
+// 省掉"查到档案后再点一次绑定"那一步 ✓；查别的 UID 即**改绑**（代价用户已确认 ✓）。
+// 绑定点刻意放在**档案取回来之后** ✓：查一个不存在 / 未公开的 UID 不会把账号绑过去 ✗。
+// 匿名（无 token）行为**完全不变** ✓ —— 没有账号可绑 ✓。
 func (h *PlayerHandler) Player(c *gin.Context) {
 	uid := c.Query("uid")
 	if uid == "" {
@@ -51,6 +56,19 @@ func (h *PlayerHandler) Player(c *gin.Context) {
 		}
 		response.Fail(c, status, status, message)
 		return
+	}
+
+	// 登录用户**查询成功即自动绑定**该 UID（2026-10-12 口径 A ✓）。
+	// ⚠️ 顺序要紧：必须放在下面"已收录角色累积"**之前** ✓ —— 那段的门槛是"查的 UID == 已绑定的 UID"，
+	// 先绑上，第一次查询才能顺带把该 UID 的角色池累积进来 ✓（否则第一次查既不绑也不累积 ✗）。
+	// 绑定失败**不影响本次查询** ✓（查询是主流程、绑定是顺带 ✓）—— 只记日志 ✓。
+	if userID := c.GetUint("uid"); userID != 0 {
+		changed, err := h.svc.AutoBind(userID, uid)
+		if err != nil {
+			logger.L().Warnw("auto bind uid failed", "user", userID, "gameUid", uid, "err", err)
+		} else if changed {
+			logger.L().Infow("uid auto bound on query", "user", userID, "gameUid", uid)
+		}
 	}
 
 	// 「已收录角色」累积（2026-10-11，**只增/只改不删** ✓）：
@@ -117,7 +135,7 @@ func (h *PlayerHandler) Bind(c *gin.Context) {
 	}
 	server := req.Server
 	if server == "" {
-		server = "cn_gf01"
+		server = service.DefaultGenshinServer // 与自动绑定共用一份默认值 ✓
 	}
 	if err := h.svc.BindUID(c.Request.Context(), userID, req.UID, server); err != nil {
 		logger.L().Warnw("bind uid failed", "user", userID, "uid", req.UID, "err", err)

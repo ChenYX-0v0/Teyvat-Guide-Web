@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Link2Off, Search, UserRound } from 'lucide-react'
 import { genshinApi, type CollectedCharacter, type UIDBinding } from '@/api/genshin'
@@ -25,6 +25,9 @@ export default function AccountPage() {
   // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
+  // binding 的"上一帧"镜像：`doQuery` 是 useCallback([])（闭包会读到旧的 binding ✗），
+  // 而"查询后是否**新产生**了绑定"必须拿旧值比 ⇒ 用 ref 才拿得到当前值 ✓（2026-10-12 口径 A ✓）
+  const bindingRef = useRef<UIDBinding | null>(null)
   // 账号信息默认折叠：只留「标题 + 已绑定 UID」，解绑点开才出现（手机上把首屏留给展柜与圣遗物）
   const [infoOpen, setInfoOpen] = useState(false)
 
@@ -46,6 +49,22 @@ export default function AccountPage() {
       track(EVENTS.accountUidQuery, {
         result: p.characters.length > 0 ? 'ok' : 'empty',
       })
+
+      // 2026-10-12（口径 A）：**查询成功即自动绑定** ✓ —— 服务端在返回档案**之前**就把该 UID 绑到账号上了 ✓，
+      // 这里把结果同步回界面（否则会出现"服务端已绑、界面还显示未绑定"的错位 ✗）。
+      // ⚠️ 只在**绑定真的变了**时才提示 ✓ —— 反复查同一个已绑的 UID，不该每次都弹一次"绑定成功" ✗。
+      try {
+        const b = await genshinApi.binding()
+        const prev = bindingRef.current?.uid ?? ''
+        setBinding(b)
+        bindingRef.current = b
+        if (b.bound && b.uid && b.uid !== prev) {
+          setNotice(t('account.bindSuccess', { uid: b.uid }))
+          track(EVENTS.accountUidBind)
+        }
+      } catch {
+        // 同步失败不影响档案展示 ✓（服务端已绑 ✓；下次进页面以 /binding 为准 ✓）
+      }
 
       // 顺带拉"已收录角色池"（2026-10-11）：
       // ⚠️ **失败不打扰用户** ✓ —— 这只是增强（拿到就多显示历史角色）✓，
@@ -70,26 +89,22 @@ export default function AccountPage() {
       .binding()
       .then((b) => {
         setBinding(b)
+        bindingRef.current = b
         if (b.bound && b.uid) void doQuery(b.uid)
       })
-      .catch(() => setBinding(null))
+      .catch(() => {
+        setBinding(null)
+        bindingRef.current = null
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const query = useCallback(() => doQuery(uid), [doQuery, uid])
 
-  const bind = useCallback(async () => {
-    setError('')
-    setNotice('')
-    try {
-      const b = await genshinApi.bindUID(uid.trim())
-      setBinding(b)
-      setNotice(t('account.bindSuccess', { uid: b.uid ?? uid.trim() }))
-      track(EVENTS.accountUidBind)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('errors.unknown'))
-    }
-  }, [uid])
+  // 2026-10-12（口径 A）：原先那个「绑定 {uid} 到我的账号」的**第二次点击已删掉** ✗ ——
+  // 现在查询成功即由**服务端**自动绑定 ✓（见 doQuery），前端不再需要一个单独的绑定动作 ✓。
+  // ⚠️ 后端 `POST /api/genshin/binding` **保留** ✓：用户浏览器里缓存的旧 bundle 还在发它 ✗，
+  // 删接口只会让那些页面"点绑定报 404" ✓。
 
   const unbind = useCallback(async () => {
     setError('')
@@ -99,6 +114,7 @@ export default function AccountPage() {
       // 解绑 = 换了账号：体检记账随之清空（设计 §4.4）
       if (binding?.uid) resetAnalyzed(binding.uid)
       setBinding({ bound: false })
+      bindingRef.current = { bound: false }
       setProfile(null)
       // 角色池是**按游戏 UID** 存的 ✓：解绑后本地不再显示（服务端刻意不删 ✓，换回同一 UID 还在 ✓）
       setCollected([])
@@ -154,7 +170,7 @@ export default function AccountPage() {
         )}
       </div>
 
-      {/* 未绑定：显示查询卡（查询成功后可绑定） */}
+      {/* 未绑定：显示查询卡（**查询成功即自动绑定** ✓，2026-10-12 口径 A） */}
       {!binding?.bound && (
         <Card className="p-5">
           <h3 className="text-sm font-medium text-teyvat-text">{t('account.queryTitle')}</h3>
@@ -171,14 +187,12 @@ export default function AccountPage() {
               {loading ? t('common.querying') : t('common.query')}
             </Button>
           </div>
-          {uid.trim() && profile && (
-            <button
-              onClick={bind}
-              className="mt-2 text-xs text-teyvat-gold transition duration-150 hover:text-teyvat-gold-hi focus-visible:shadow-glow focus-visible:outline-none"
-            >
-              {t('account.bind', { uid: uid.trim() })}
-            </button>
-          )}
+          {/* 2026-10-12（口径 A）：这里原先有个"绑定 {uid} 到我的账号"的第二次点击 —— 已删掉 ✗，
+              查询成功即自动绑定 ✓。改成**事先告知**的一行小字：让用户知道"查询"会顺手绑定 ✓
+              （不搞暗箱操作 ✗；反悔路径也在文案里写明：展开「已绑定 UID」可解绑 ✓）。 */}
+          <p className="mt-2 text-[11px] leading-relaxed text-teyvat-text-4">
+            {t('account.queryAutoBindHint')}
+          </p>
         </Card>
       )}
 

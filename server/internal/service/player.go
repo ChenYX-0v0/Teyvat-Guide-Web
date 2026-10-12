@@ -138,7 +138,8 @@ func (s *PlayerService) saveSnapshot(p *dto.PlayerProfile) {
 // CollectCharacters 采集本轮展柜角色到「已收录角色」表（**只增 / 只改，永不删** ✓，2026-10-11）。
 //
 // 调用范围由 handler 保证：**仅当查询的 UID 正是当前用户绑定的 UID** 时才调 ✓
-//   —— 否则任何人都能刷任意 UID 把表撑大 ✗，也等于替"别人的号"存了数据 ✗。
+//
+//	—— 否则任何人都能刷任意 UID 把表撑大 ✗，也等于替"别人的号"存了数据 ✗。
 //
 // 写两笔：① upsert 本轮见到的角色 ✓（`first_seen_at` 冲突时**不覆盖** ✓）；
 // ② 把不在本轮展柜里的行 `in_showcase` 置 false ✓ —— **这是标记，不是删除** ✓，
@@ -283,12 +284,48 @@ func (s *PlayerService) mainStatLabels(main map[string]string) []StatSlotRef {
 
 // ---------- 账号 ↔ 游戏 UID 绑定（一对一） ----------
 
+// DefaultGenshinServer 绑定时的默认区服 —— 显式绑定（BindUID）与自动绑定（AutoBind）**共用一份** ✓，
+// 免得两处各写一遍字面量后漂移 ✗。
+const DefaultGenshinServer = "cn_gf01"
+
 // BindUID 将 UID 绑定到用户：绑定前先通过 Enka 实查验证 UID 存在且档案公开
 func (s *PlayerService) BindUID(ctx context.Context, userID uint, uid, server string) error {
 	if _, err := s.enka.FetchProfile(ctx, uid); err != nil {
 		return err // UID 不存在 / 未公开 / 上游异常，均拒绝绑定
 	}
 	return s.userRepo.UpdateBinding(userID, uid, server)
+}
+
+// AutoBind **查询成功后自动绑定**该 UID（2026-10-12 用户口径 A ✓）：省掉"查完再点一次绑定"那一步 ✓。
+//
+// 与 BindUID 的区别：**不再向 Enka 复查一次** ✓ —— 调用点（`handler/genshin.go` 的 `Player`）
+// 刚刚成功取回了该 UID 的档案，已经证明"UID 真实存在且档案公开" ✓；再查一次纯属多打一次上游 ✗。
+// 也正因如此，调用点必须放在**档案取回来之后** ✓ —— 查一个不存在 / 未公开的 UID 绝不能把账号绑过去 ✗。
+//
+// 幂等与换绑（口径 A 的代价，用户已确认 ✓）：
+//   - 已绑的是**同一个** UID ⇒ **不写库**，返回 changed=false ✓（每次查询都写一遍纯属噪音 ✗）；
+//   - 绑的是**别的** UID ⇒ **改绑** ✓；
+//   - `server` 沿用原有值 ✓（换绑时别顺手把它清空 ✗），从未绑过则用 DefaultGenshinServer ✓；
+//   - `userID == 0`（未登录）或 uid 为空 ⇒ 直接返回 ✓ —— **匿名查询的行为完全不变** ✓。
+func (s *PlayerService) AutoBind(userID uint, uid string) (changed bool, err error) {
+	if userID == 0 || uid == "" {
+		return false, nil
+	}
+	curUID, curServer, err := s.Binding(userID)
+	if err != nil {
+		return false, err
+	}
+	if curUID == uid {
+		return false, nil
+	}
+	server := curServer
+	if server == "" {
+		server = DefaultGenshinServer
+	}
+	if err := s.userRepo.UpdateBinding(userID, uid, server); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Binding 查询用户绑定的 UID（未绑定时返回空串）
