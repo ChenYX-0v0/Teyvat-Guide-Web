@@ -167,6 +167,16 @@ func (h *PlayerHandler) GetBinding(c *gin.Context) {
 	response.OK(c, gin.H{"bound": true, "uid": uid, "server": server})
 }
 
+// ContextStatus GET /api/genshin/context-status —— 聊天页用：派蒙现在能不能看到我的角色？
+//
+// 2026-10-12 新增：用户报"智能问答页面取不到绑定 UID 的角色信息"，排查发现
+// 「未绑定 / 上游失败 / 展柜为空」三条路径对用户是同一个结果且**毫无提示** ✗ ⇒
+// 聊天页进页面时调一次这个接口，把原因说清楚（未绑定就去绑 / 展柜空就换回展柜 ✓）。
+// 未登录时返回 bound=false ✓（与 Player 一样不做 `WHERE id = 0` 的噪音查询 ✓）。
+func (h *PlayerHandler) ContextStatus(c *gin.Context) {
+	response.OK(c, h.svc.ContextStatus(c.GetUint("uid")))
+}
+
 // Unbind DELETE /api/genshin/binding —— 解除绑定
 func (h *PlayerHandler) Unbind(c *gin.Context) {
 	userID := c.GetUint("uid")

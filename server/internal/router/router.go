@@ -146,6 +146,9 @@ func New(cfg *config.Config) *gin.Engine {
 			genshin.POST("/binding", player.Bind)
 			genshin.GET("/binding", player.GetBinding)
 			genshin.DELETE("/binding", player.Unbind)
+			// 聊天页用：**派蒙现在能不能看到我的角色**（2026-10-12 新增 ✓，见 dto.PlayerContextStatus）。
+			// 口径：只读本地（绑定 + 快照 + 已收录池 ✓），**不查上游** ✗ —— 前端进聊天页就会调它。
+			genshin.GET("/context-status", player.ContextStatus)
 		}
 
 		authGroup := api.Group("/auth")

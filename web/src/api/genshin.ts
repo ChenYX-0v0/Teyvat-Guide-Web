@@ -8,6 +8,25 @@ export interface UIDBinding {
 }
 
 /**
+ * 聊天页用：**派蒙能不能看到你的角色**（`GET /api/genshin/context-status`，2026-10-12 ✓）。
+ *
+ * `ready=false` 时的 `reason` 就是"看不到"的原因 ✓，前端据此给出可操作的提示：
+ *   - `not_bound`  ⇒ 去账号页绑定 UID ✓
+ *   - `no_profile` ⇒ 没有档案也没有历史收录（多为**展柜为空/不公开** ✓）⇒ 提示换回展柜 ✓
+ */
+export interface PlayerContextStatus {
+  bound: boolean
+  uid?: string
+  /** 聊天是否会带上角色信息（= 已绑定 且「有快照 或 有已收录池」✓；上游临时失败不算 false ✓） */
+  ready: boolean
+  /** 原因码：'' | 'not_bound' | 'no_profile' */
+  reason?: 'not_bound' | 'no_profile' | ''
+  hasSnapshot: boolean
+  /** 已收录角色数（兜底数据来源 ✓） */
+  collectedCount: number
+}
+
+/**
  * 已收录角色 = 角色卡 + 收录元信息（2026-10-11）。
  * ⚠️ `inShowcase=false` 表示它**已经不在展柜里** ⇒ 这张卡停在 `lastSeenAt` 那一刻 ✓（可能过时 ✗），
  * 界面上要如实标出"数据截至 …" ✓，别让人以为它是实时的 ✗。
@@ -62,6 +81,19 @@ export const genshinApi = {
   /** 查询当前登录用户绑定的 UID（未绑定时 bound=false） */
   binding() {
     return unwrap<UIDBinding>(http.get('/genshin/binding'))
+  },
+
+  /**
+   * 聊天页用：**派蒙现在能不能看到你的角色**（`GET /api/genshin/context-status`，2026-10-12 新增 ✓）。
+   *
+   * 为什么需要它：此前"聊天没有角色信息"有**三条不同原因**（没绑定 / 上游查询失败 / 展柜为空 ✓），
+   * 但对用户是**同一个结果**、且没有任何提示 ✗ —— 用户报障时连自己都判断不出是哪一条 ✓。
+   * 进聊天页时调一次，把原因和"下一步去哪做"说清楚 ✓。
+   *
+   * ⚠️ 服务端只读本地 ✓（绑定 + 快照 + 已收录角色池），**不查 Enka** ✗ ⇒ 便宜，放心调用 ✓。
+   */
+  contextStatus() {
+    return unwrap<PlayerContextStatus>(http.get('/genshin/context-status'))
   },
 
   /**

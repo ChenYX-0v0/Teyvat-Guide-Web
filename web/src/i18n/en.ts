@@ -168,6 +168,10 @@ const en: Partial<Dict> = {
   'chat.presetLogin': 'Sign in to start chatting',
   'chat.presetEmpty': 'Preset Q&A is unavailable right now, please try again later',
   'chat.loginRequired': 'Please sign in before asking Paimon',
+  // 2026-10-12: chat-page banner "Paimon cannot see your characters" (reason + next step)
+  'chat.ctxNotBound': 'No game UID linked yet, so Paimon cannot see your characters.',
+  'chat.ctxNoProfile': 'Your showcase is empty or private, so Paimon cannot see your characters.',
+  'chat.ctxAction': 'Open account page',
   'chat.delete': 'Delete',
   'chat.deleteConfirm': 'Delete this session?',
   'chat.deleteFailed': 'Delete failed, please try again',

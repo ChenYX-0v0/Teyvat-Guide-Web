@@ -342,6 +342,38 @@ func (s *PlayerService) Unbind(userID uint) error {
 	return s.userRepo.UpdateBinding(userID, "", "")
 }
 
+// ContextStatus 给聊天页用的轻量状态：**派蒙现在能不能看到你的角色**（2026-10-12 ✓）。
+//
+// 口径（别改成查上游 ✗）：只读本地 —— 绑定 ✓ + 档案快照 ✓ + 已收录角色池 ✓。
+// 之所以算上"池子"：聊天侧有兜底（上游失败 / 展柜为空时用池子拼档案 ✓），
+// 所以"有池子"就意味着**聊天能带上角色信息** ✓ —— 状态与真实行为保持一致 ✓。
+func (s *PlayerService) ContextStatus(userID uint) dto.PlayerContextStatus {
+	st := dto.PlayerContextStatus{Reason: "not_bound"}
+	if userID == 0 {
+		return st
+	}
+	uid, _, err := s.Binding(userID)
+	if err != nil || uid == "" {
+		return st
+	}
+	st.Bound = true
+	st.UID = uid
+
+	if p, err := s.cachedProfile(uid); err == nil && p != nil && len(p.Characters) > 0 {
+		st.HasSnapshot = true
+	}
+	if col, err := s.Characters(uid); err == nil && col != nil {
+		st.CollectedCount = len(col.Characters)
+	}
+	st.Ready = st.HasSnapshot || st.CollectedCount > 0
+	if !st.Ready {
+		st.Reason = "no_profile"
+	} else {
+		st.Reason = ""
+	}
+	return st
+}
+
 // MissingAssets 缺漏清单
 func (s *PlayerService) MissingAssets(limit int) ([]asset.Missing, error) {
 	return s.assets.MissingList(limit)

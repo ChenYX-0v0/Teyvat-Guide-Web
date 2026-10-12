@@ -116,6 +116,17 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 		"worldLevel": profile.WorldLevel,
 		"characters": chars,
 	}
+
+	// ⚠️ 2026-10-12：兜底档案（Source="collected"，来自「已收录角色池」）**不是实时展柜** ✓
+	// ⇒ 必须在上下文里写明，否则模型会把历史面板当当前面板说 ✗（与「档案中未提供」同一个口径：
+	// 宁可显式说明，也不要让模型猜 ✓）。⚠️ 必须放在 map 之后 —— 放前面会编译不过 ✗（今天踩过 ✓）。
+	if profile.Source == "collected" {
+		note := "这些角色来自历史收录，不是当前展柜的实时面板"
+		if profile.CollectedAt != "" {
+			note += "（数据截至 " + profile.CollectedAt + "）"
+		}
+		player["dataNote"] = note
+	}
 	// 终局玩法概要（2026-09-27 新增，Enka playerInfo 直读）：深渊 / 剧诗 / 危战**只有概要**，
 	// 没有每间队伍与怪物阵容。缺失时写成一句话而**不是省略字段**——省略会让模型看空，
 	// 进而凭记忆编造（与 V2.3「库里没有就显式说没有」同一个教训）。

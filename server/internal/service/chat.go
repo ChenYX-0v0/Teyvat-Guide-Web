@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"teyvat-guide/server/internal/config"
+	"teyvat-guide/server/internal/dto"
 	"teyvat-guide/server/internal/model"
 	"teyvat-guide/server/internal/pkg/logger"
 	"teyvat-guide/server/internal/repository"
@@ -348,25 +349,84 @@ func (s *ChatService) buildContext(ctx context.Context, userID uint, question st
 
 // buildPlayerContext 玩家档案上下文（V1）：仅对「已登录且已绑定 UID」的用户生效
 // 任何失败都不阻塞对话（缺上下文只是回答不够个性化）
+//
+// ⚠️ 2026-10-12 修（用户报"聊天页取不到绑定 UID 的角色信息"✓）：此前这里有**三处静默放弃** ✗ ——
+//  ① 没绑定 ⇒ 直接 return nil（**不留任何日志** ✗）；② 上游查询失败 ⇒ 只 warn、角色信息整个丢 ✗；
+//  ③ 展柜为空 ⇒ BuildPlayerContext 返回 nil ✗。三者对用户是**同一个结果**（派蒙看不到角色）✗，
+//  却都不说为什么 ✓ ⇒ 现在：**能兜底就兜底**（用「已收录角色池」✓）、**放弃就留痕**（Info/Warn ✓）。
 func (s *ChatService) buildPlayerContext(ctx context.Context, userID uint, question string) *RequestContext {
 	if userID == 0 || s.players == nil {
 		return nil
 	}
+
 	uid, _, err := s.players.Binding(userID)
-	if err != nil || uid == "" {
+	if err != nil {
+		// ③ 留痕：读绑定失败（此前完全无痕 ✗）
+		logger.L().Warnw("ai context skipped: read binding failed", "user", userID, "err", err)
 		return nil
 	}
+	if uid == "" {
+		// ③ 留痕：未绑定。这不是错误（用户可能刚解绑 ✓），但**必须留下痕迹**，
+		// 否则"聊天没有角色信息"这件事在日志里查不到原因 ✗（今晚排查就卡在这 ✓）。
+		logger.L().Infow("ai context skipped: no bound uid", "user", userID)
+		return nil
+	}
+
 	profile, err := s.players.Query(ctx, uid, false) // 优先命中快照缓存
 	if err != nil {
-		logger.L().Warnw("build ai context failed: query profile", "user", userID, "uid", uid, "err", err)
+		// ① 兜底：上游挂了也应该认得"你的角色"✓（池子里是最近一次成功查询见过的 ✓）
+		logger.L().Warnw("ai context: query profile failed, fall back to collected pool",
+			"user", userID, "uid", uid, "err", err)
+		profile = s.collectedProfile(uid)
+	}
+	// ① 展柜为空（私有 / 没摆）时同样兜底 —— 此前这条也直接放弃 ✗
+	if profile == nil || len(profile.Characters) == 0 {
+		if p := s.collectedProfile(uid); p != nil {
+			logger.L().Infow("ai context: showcase empty, fall back to collected pool",
+				"user", userID, "uid", uid, "collected", len(p.Characters))
+			profile = p
+		}
+	}
+	if profile == nil || len(profile.Characters) == 0 {
+		// ③ 留痕：查到了、但一个角色都没有，且池子也是空的
+		logger.L().Infow("ai context skipped: no showcase and empty collected pool", "user", userID, "uid", uid)
 		return nil
 	}
+
 	rc := BuildPlayerContext(profile, question)
 	if rc == nil {
+		logger.L().Infow("ai context skipped: builder returned nil", "user", userID, "uid", uid)
 		return nil
 	}
-	logger.L().Infow("ai context attached", "user", userID, "uid", uid, "goal", rc.Goal)
+	logger.L().Infow("ai context attached", "user", userID, "uid", uid, "goal", rc.Goal, "source", profile.Source)
 	return rc
+}
+
+// collectedProfile 用「已收录角色池」拼一份**最小档案**（兜底专用 ✓，2026-10-12）。
+//
+// 池子 = 该 UID **历次成功查询**见过的角色（只增不删 ✓，换出展柜也不丢 ✓）⇒
+// 上游抽风 / 展柜为空时，用它比"什么都给不出来"强 ✓。
+// ⚠️ 它**不是实时面板** ⇒ Source 标成 "collected" ✓，由 BuildPlayerContext 在上下文里写明
+// 「数据来自历史收录」✓ —— 否则模型会把历史面板当当前面板讲 ✗。
+func (s *ChatService) collectedProfile(uid string) *dto.PlayerProfile {
+	col, err := s.players.Characters(uid)
+	if err != nil || col == nil || len(col.Characters) == 0 {
+		return nil
+	}
+	cards := make([]dto.CharacterCard, 0, len(col.Characters))
+	lastSeen := ""
+	for _, c := range col.Characters {
+		cards = append(cards, c.CharacterCard)
+		if d := c.LastSeenAt.Format("2006-01-02"); d > lastSeen {
+			lastSeen = d
+		}
+	}
+	return &dto.PlayerProfile{
+		Source:     "collected",
+		UID:        uid,
+		Characters: cards,
+		CollectedAt: lastSeen, // 供上下文标注"截至何时"✓
+	}
 }
 
 func trim(s string) string {

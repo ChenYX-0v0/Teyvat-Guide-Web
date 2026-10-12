@@ -161,6 +161,10 @@ const zhCN = {
   'chat.presetLogin': '登录后开始对话',
   'chat.presetEmpty': '预设问答暂时取不到，稍后再试',
   'chat.loginRequired': '请先登录再向派蒙提问',
+  // 2026-10-12：聊天页「派蒙看不到你的角色」提示条（说清原因 + 给出下一步 ✓）
+  'chat.ctxNotBound': '还没绑定游戏 UID，派蒙看不到你的角色。',
+  'chat.ctxNoProfile': '你的展柜是空的或未公开，派蒙暂时看不到角色数据。',
+  'chat.ctxAction': '去账号页处理',
   'chat.delete': '删除',
   'chat.deleteConfirm': '删除这条会话？',
   'chat.deleteFailed': '删除失败，请重试',

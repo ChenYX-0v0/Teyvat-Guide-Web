@@ -18,6 +18,9 @@ type PlayerProfile struct {
 	AvatarURL    string          `json:"avatarUrl,omitempty"`
 	Characters   []CharacterCard `json:"characters"`
 	Warnings     []string        `json:"warnings,omitempty"`
+	// CollectedAt 仅当 Source="collected" 时填：角色数据来自「已收录角色池」的最后收录日期
+	// （2026-10-12 新增，聊天兜底用 ✓ —— 上游失败 / 展柜为空时用它拼一份非实时档案 ✓）
+	CollectedAt string `json:"collectedAt,omitempty"`
 
 	// 终局玩法概要（2026-09-27 新增）：Enka playerInfo 直读，**只有概要、没有明细**。
 	// 玩家隐藏战绩时这里为 nil（"没有" ≠ "0 层/0 星"）。

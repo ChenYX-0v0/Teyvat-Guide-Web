@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MessagesSquare, Plus } from 'lucide-react'
 import MessageBubble from '@/components/chat/MessageBubble'
 import ChatInput from '@/components/chat/ChatInput'
@@ -6,6 +7,7 @@ import PresetQaPanel from '@/components/chat/PresetQaPanel'
 import SessionList from '@/components/chat/SessionList'
 import { useChatStore } from '@/store/useChatStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { genshinApi, type PlayerContextStatus } from '@/api/genshin'
 import { buttonClass } from '@/utils/buttonStyles'
 import { t } from '@/i18n'
 
@@ -28,11 +30,39 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   // 移动端：历史会话抽屉（桌面端由常驻侧栏承担，不需要这个状态）
   const [sessionsOpen, setSessionsOpen] = useState(false)
+  /**
+   * 「派蒙能不能看到我的角色」（2026-10-12 新增 ✓，`GET /api/genshin/context-status`）。
+   *
+   * 用户报障"聊天页取不到绑定 UID 的角色信息"时，排查发现**三条不同原因**
+   * （没绑定 / 上游查询失败 / 展柜为空 ✓）对用户是**同一个结果**，且界面上**毫无提示** ✗。
+   * ⇒ 进页面时问一次，把原因和下一步说清楚 ✓。
+   * ⚠️ 服务端只读本地 ✓（不查 Enka ✗）⇒ 便宜；请求失败则静默（少一行提示，不打扰对话 ✓）。
+   */
+  const [ctxStatus, setCtxStatus] = useState<PlayerContextStatus | null>(null)
 
   // 恢复上次会话（仅登录用户）+ 会话列表；匿名则拉预设问答
   useEffect(() => {
     void restore()
   }, [restore, token])
+
+  useEffect(() => {
+    if (!token) {
+      setCtxStatus(null)
+      return
+    }
+    let alive = true
+    genshinApi
+      .contextStatus()
+      .then((s) => {
+        if (alive) setCtxStatus(s)
+      })
+      .catch(() => {
+        if (alive) setCtxStatus(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [token])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -89,6 +119,22 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+
+        {/* 「派蒙看不到你的角色」提示条（2026-10-12）：只在**确实看不到**时出现 ✓，
+            并给出可操作的下一步（去账号页绑定 / 说明展柜为空 ✓）—— 替代此前的静默 ✗ */}
+        {ctxStatus && !ctxStatus.ready && (
+          <div className="flex flex-wrap items-center gap-x-1 border-b border-teyvat-line bg-teyvat-gold/[0.07] px-4 py-2 text-xs text-teyvat-text-2 sm:px-6">
+            <span>
+              {ctxStatus.reason === 'no_profile' ? t('chat.ctxNoProfile') : t('chat.ctxNotBound')}
+            </span>
+            <Link
+              to="/account"
+              className="text-teyvat-gold underline-offset-2 transition-colors hover:underline"
+            >
+              {t('chat.ctxAction')}
+            </Link>
+          </div>
+        )}
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
           {hasEarlier && (
