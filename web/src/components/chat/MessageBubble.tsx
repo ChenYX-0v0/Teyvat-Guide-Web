@@ -2,6 +2,7 @@ import { Bot, User } from 'lucide-react'
 import clsx from 'clsx'
 import type { ChatMessage } from '@/types'
 import { t } from '@/i18n'
+import { renderAnswer } from '@/utils/renderAnswer'
 
 interface Props {
   message: ChatMessage
@@ -46,8 +47,13 @@ export default function MessageBubble({ message, caret }: Props) {
           </span>
         ) : (
           <>
-            {message.content}
-            {caret && <span className="caret-breathe" />}
+            {/*
+              按行渲染（2026-10-12，见 teyvat-docs/ai/07 TODO-17）：
+              助手回答里的行首分点做悬挂缩进，长解释类回答扫读起来清楚得多。
+              纯文本协议，不是 Markdown —— 不引任何 Markdown 库（流式安全 + 无 XSS 面）。
+              用户消息保持原样插值 ✓（用户不该被我们的排版规则改写 ✓）。
+            */}
+            {isUser ? message.content : renderAnswer(message.content, caret ? <span className="caret-breathe" /> : null)}
             {message.error && (
               <p className={clsx('text-xs text-warn/90', message.content && 'mt-1.5')}>
                 {message.error}
