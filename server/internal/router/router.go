@@ -87,6 +87,8 @@ func New(cfg *config.Config) *gin.Engine {
 	// 会话管理（C 端，需登录）：列表 / 明细 / 重命名
 	chatSession := handler.NewChatSessionHandler(service.NewChatSessionService())
 	assetHandler := handler.NewAssetHandler(assets, playerSvc)
+	// 功能反馈（2026-10-12）：侧栏用户卡片「功能反馈」提交的意见 ⇒ 落库专表 feedbacks ✓
+	feedback := handler.NewFeedbackHandler(service.NewFeedbackService())
 	// 用户管理（内网）：封禁状态同时用于鉴权中间件（既有 Token 立即失效）
 	userAdminSvc := service.NewUserAdminService()
 	internalUser := handler.NewInternalUserHandler(userAdminSvc)
@@ -127,6 +129,11 @@ func New(cfg *config.Config) *gin.Engine {
 			sessions.PATCH("/:sessionId", chatSession.Rename)
 			sessions.DELETE("/:sessionId", chatSession.Delete)
 		}
+
+		// 功能反馈（2026-10-12）：侧栏用户卡片里的「功能反馈」提交入口。
+		// **强制登录** ✓：反馈必须能回溯到人（`user_id` 只从 Token 取 ✓，前端传的 userId 一律不认 ✗）——
+		// 否则"一堆无法回复的匿名文本"，运营价值等于零 ✓（理由同 /sessions ✓）。
+		api.POST("/feedback", middleware.JWTAuth(cfg.Auth, checkBanned), feedback.Submit)
 
 		// 玩家查询：可选鉴权（带 Token 时 uid 可省略，自动用绑定 UID）
 		genshin := api.Group("/genshin", middleware.JWTAuthOptional(cfg.Auth, checkBanned))
@@ -236,6 +243,7 @@ func autoMigrate() {
 		&model.UsageEvent{}, // 埋点明细（shared-docs/07）
 		&model.UsageDaily{}, // 埋点按天聚合（看板读它）
 		&model.InviteCode{}, // 邀请码（2026-09-28，注册的第二道门）
+		&model.Feedback{},   // 功能反馈（2026-10-12，侧栏用户卡片提交的用户意见）
 		&asset.Character{},
 		&asset.Weapon{},
 		&asset.RelicSet{},

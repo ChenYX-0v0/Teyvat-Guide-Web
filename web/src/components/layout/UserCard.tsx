@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronUp, KeyRound, LogOut, UserRound } from 'lucide-react'
+import { ChevronUp, KeyRound, LogOut, MessageSquarePlus, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import clsx from 'clsx'
 import ProfileModal from '@/components/account/ProfileModal'
 import PasswordModal from '@/components/account/PasswordModal'
+import FeedbackModal from '@/components/account/FeedbackModal'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 
@@ -17,10 +18,11 @@ type Props = {
  * 侧栏/抽屉**底部**的用户卡片（2026-10-11，用户要求）。
  *
  * 形态：一块近似长方形、贴底的卡片 ✓（`mt-auto` 由调用方的列布局压到底部）；
- * 点击后向上弹出三个功能 —— **个人信息管理 / 修改密码 / 退出登录** ✓。
+ * 点击后向上弹出四个功能 —— **个人信息管理 / 修改密码 / 功能反馈 / 退出登录** ✓
+ * （功能反馈是 2026-10-12 加的 ✓，提交后落库 `feedbacks` 专表，见 `account/FeedbackModal.tsx`）。
  *
  * 为什么用"向上弹的浮层"而不是居中弹窗 ✗：卡片本身就在屏幕底部，
- * 向下弹会被视口裁掉 ✓。三个功能里，前两个再各自开一个 `Modal`（表单要空间 ✓），
+ * 向下弹会被视口裁掉 ✓。前三个功能各自再开一个 `Modal`（表单要空间 ✓），
  * 退出登录直接执行（不值得再弹一次确认 —— 本站在登录页有明确入口，误点成本低 ✓）。
  *
  * 桌面侧栏（`Sidebar`）与移动抽屉（`MobileNav`）**共用这一个组件** ✓，
@@ -32,7 +34,7 @@ export default function UserCard({ onNavigate }: Props) {
   const navigate = useNavigate()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [modal, setModal] = useState<'profile' | 'password' | null>(null)
+  const [modal, setModal] = useState<'profile' | 'password' | 'feedback' | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
 
   // 点外部 / Esc 关掉浮层（浮层不是 Modal：它没有遮罩，不该锁页面 ✓）
@@ -55,7 +57,7 @@ export default function UserCard({ onNavigate }: Props) {
   // 昵称可能是空的（用户清空过 ✓）⇒ 回落展示，别显示成一片空白 ✗
   const name = displayName || t('user.fallbackName')
 
-  const openModal = (which: 'profile' | 'password') => {
+  const openModal = (which: 'profile' | 'password' | 'feedback') => {
     setMenuOpen(false)
     setModal(which)
   }
@@ -73,6 +75,11 @@ export default function UserCard({ onNavigate }: Props) {
         <div className="absolute bottom-full left-0 mb-2 w-full overflow-hidden rounded-xl border border-teyvat-line-strong bg-teyvat-panel shadow-panel">
           <MenuRow icon={UserRound} label={t('user.profile')} onClick={() => openModal('profile')} />
           <MenuRow icon={KeyRound} label={t('user.password')} onClick={() => openModal('password')} />
+          <MenuRow
+            icon={MessageSquarePlus}
+            label={t('user.feedback')}
+            onClick={() => openModal('feedback')}
+          />
           <div className="h-px bg-teyvat-line" />
           <MenuRow icon={LogOut} label={t('header.logout')} onClick={doLogout} danger />
         </div>
@@ -101,6 +108,7 @@ export default function UserCard({ onNavigate }: Props) {
 
       <ProfileModal open={modal === 'profile'} onClose={() => setModal(null)} />
       <PasswordModal open={modal === 'password'} onClose={() => setModal(null)} />
+      <FeedbackModal open={modal === 'feedback'} onClose={() => setModal(null)} />
     </div>
   )
 }

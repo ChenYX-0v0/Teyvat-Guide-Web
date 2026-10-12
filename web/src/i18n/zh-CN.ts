@@ -5,6 +5,7 @@ const zhCN = {
   // 通用
   'common.save': '保存',
   'common.cancel': '取消',
+  'common.close': '关闭',
   'common.expand': '展开',
   'common.collapse': '收起',
   'common.loading': '加载中…',
@@ -30,6 +31,7 @@ const zhCN = {
   'user.fallbackName': '旅行者',
   'user.profile': '个人信息管理',
   'user.password': '修改密码',
+  'user.feedback': '功能反馈',
   // 个人信息管理弹窗
   'profile.title': '个人信息管理',
   'profile.account': '账号',
@@ -52,6 +54,26 @@ const zhCN = {
   // 'password.otherDevices'（"其他设备不会被自动退出…"）已于 2026-10-11 按用户要求移除 ✓
   // ⚠️ 去掉的只是**这行界面提示** ✗ —— 后端行为一点没变（改密仍不吊销其他设备已签发的 Token ✓）；
   // 这条边界仍记在 ../shared/04 §2.6 与 ../web/04 §3，别因为界面不提醒就以为已经踢下线了 ✗。
+  // 功能反馈（2026-10-12）：侧栏用户卡片的第三个功能，提交后落库 feedbacks 专表 ✓
+  // ⚠️ 'feedback.rule' 里的 5~500 必须与 server/internal/service/feedback.go 的
+  // feedbackMinRunes / feedbackMaxRunes **同一组数字** ✓ —— 前端只是提示，真正把关在服务端 ✓
+  'feedback.title': '功能反馈',
+  'feedback.intro': '遇到问题、或有想加的功能，都可以写在这里 —— 会记在你的账号名下，方便我们回复。',
+  'feedback.category': '类型',
+  'feedback.cat.bug': '功能异常',
+  'feedback.cat.suggest': '功能建议',
+  'feedback.cat.experience': '体验意见',
+  'feedback.cat.other': '其他',
+  'feedback.content': '具体内容',
+  'feedback.placeholder': '请描述你遇到的问题、或者想要的功能…',
+  'feedback.rule': '5~500 字；请勿填写密码等敏感信息。',
+  'feedback.contact': '联系方式（选填）',
+  'feedback.contactPlaceholder': '方便回复时留（邮箱 / 其他）',
+  'feedback.submit': '提交',
+  'feedback.ok': '已收到，感谢你的反馈！',
+  'feedback.okHint': '内容会记在你的账号名下；需要回复时我们会用你留的联系方式联系你。',
+  'feedback.again': '再提一条',
+  'feedback.tooShort': '内容太短了，请至少写 5 个字',
   'sidebar.account': '账号信息',
   // 'sidebar.wiki': '图鉴',  ← 2026-09-28 注释掉：图鉴页仍是占位（无真实数据），先从菜单撤下 ✗
   //   （路由保留 ⇒ 直接输 /wiki 仍可访问 ✓；做真实数据时把 navItems.ts 那一行与这两条文案一起恢复 ✓）

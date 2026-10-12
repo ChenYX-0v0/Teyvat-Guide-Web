@@ -6,6 +6,7 @@ const en: Partial<Dict> = {
   // Common
   'common.save': 'Save',
   'common.cancel': 'Cancel',
+  'common.close': 'Close',
   'common.expand': 'Expand',
   'common.collapse': 'Collapse',
   'common.loading': 'Loading…',
@@ -32,6 +33,7 @@ const en: Partial<Dict> = {
   'user.fallbackName': 'Traveler',
   'user.profile': 'Profile',
   'user.password': 'Change password',
+  'user.feedback': 'Send feedback',
   // Profile dialog
   'profile.title': 'Profile',
   'profile.account': 'Account',
@@ -53,6 +55,27 @@ const en: Partial<Dict> = {
   // 'password.otherDevices' removed 2026-10-11 at the user's request: only the on-screen notice is
   // gone, the behaviour is unchanged (changing the password still does NOT revoke tokens on other
   // devices). The boundary stays documented in ../shared/04 §2.6 and ../web/04 §3.
+  // Feedback (2026-10-12): third entry in the sidebar user card; rows land in the `feedbacks` table.
+  // The 5–500 range below must match server/internal/service/feedback.go (the server is authoritative).
+  'feedback.title': 'Send feedback',
+  'feedback.intro':
+    'Found a problem, or have an idea for a feature? Write it here — it is saved under your account so we can reply.',
+  'feedback.category': 'Type',
+  'feedback.cat.bug': 'Something is broken',
+  'feedback.cat.suggest': 'Feature request',
+  'feedback.cat.experience': 'Experience / UX',
+  'feedback.cat.other': 'Other',
+  'feedback.content': 'Details',
+  'feedback.placeholder': 'Describe the problem you hit, or the feature you would like…',
+  'feedback.rule': '5–500 characters; please do not include passwords or other secrets.',
+  'feedback.contact': 'Contact (optional)',
+  'feedback.contactPlaceholder': 'Email or anything else, for a reply',
+  'feedback.submit': 'Submit',
+  'feedback.ok': 'Received — thanks for the feedback!',
+  'feedback.okHint':
+    'It is stored with your account; if a reply is needed we will use the contact you left.',
+  'feedback.again': 'Send another',
+  'feedback.tooShort': 'Too short — please write at least 5 characters',
   'sidebar.account': 'Account',
   // 'sidebar.wiki': 'Wiki',  <- commented out 2026-09-28: the wiki page is still a placeholder
   //   (no real data), so it is withdrawn from the menu. Route kept: /wiki still works if typed.
