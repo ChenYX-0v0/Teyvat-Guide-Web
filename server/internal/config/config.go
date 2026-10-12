@@ -222,9 +222,13 @@ func setDefaults(v *viper.Viper) {
 	// 邀请码（注册的第二道门）：默认关闭 ⇒ 行为与以前一致 ✓；开启即"没码注册不了" ✓
 	v.SetDefault("auth.require_invite_code", false)
 	// 配额与并发闸门（口径见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §2）
-	v.SetDefault("quota.daily_tokens_per_user", 100000) // 每用户每自然日 10 万 token；0 = 不限
-	v.SetDefault("quota.daily_tokens_global", 0)        // 全站日预算（熔断）；0 = 关闭
-	v.SetDefault("quota.max_concurrent_per_user", 2)    // 同一用户同时进行中的请求数；0 = 不限
+	// 2026-10-12 按用户要求上调：10 万 → **100 万** ✓（原值 10 万是在"邀请制小圈子"口径下定档的，
+	// 实测正常用户很难摸到；上调后基本只有异常刷量才会触发 429 ✓）。
+	// ⚠️ 线上真源是 `/opt/teyvat-guide/.env` 的 `TEYVAT_QUOTA_DAILY_TOKENS_PER_USER`（已显式设 1000000 ✓），
+	// 这里的默认值只在**没配该环境变量**时生效 ✓ —— 以后调额改 .env 即可，不必重发镜像 ✓。
+	v.SetDefault("quota.daily_tokens_per_user", 1000000) // 每用户每自然日 100 万 token；0 = 不限
+	v.SetDefault("quota.daily_tokens_global", 0)         // 全站日预算（熔断）；0 = 关闭
+	v.SetDefault("quota.max_concurrent_per_user", 2)     // 同一用户同时进行中的请求数；0 = 不限
 	// 分钟级滑窗限速（L4）：拦住"短时间反复刷"（越界提问几乎不花 token，日额度拦不住 ✗）
 	v.SetDefault("quota.max_requests_per_minute", 20)  // 每分钟请求数；0 = 不限
 	v.SetDefault("quota.whitelist_user_ids", []uint{}) // 同理：注册默认值，键才会被 Unmarshal 认到
