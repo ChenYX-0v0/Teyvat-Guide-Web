@@ -32,10 +32,17 @@ const flag = (ok) => (ok ? '✓' : '✗')
 line('A) 行数与参照（shared/02 §3 的 2026-10-12 实测）')
 const EXPECT = {
   characters: 124, weapons: 255, relic_sets: 65, relic_set_effects: 128, relic_slots: 5,
-  text_map_entries: 498, prop_maps: 24, fight_props: 15, affixes: 350,
+  text_map_entries: 498, prop_maps: 24, fight_props: 17, affixes: 350,
   character_stat_weights: 124, character_relic_weights: 124, character_relic_weights_mp: 152,
-  character_relic_weight_rules: 9, missings: 96,
+  character_relic_weight_rules: 9, missings: 125,
 }
+// 已知例外（体检时不要再当缺陷报 ✗）：
+//   - relic_set_effects：套装 15012「祭风之人」**没有 2/4 件效果** ✓ —— 2026-10-12 联网核对：
+//     biligame wiki 搜不到该套装（同族的祭火/祭水/祭雷/祭冰之人是"元素祭司"单件套，
+//     效果形如「受到的X元素附着效果持续时间减少40%」✓），而**风元素不存在附着递减机制**
+//     ⇒ 判定为游戏里未实装的无效果占位，**补内容等于编造** ✗ ⇒ 保持空 ✓
+//   - fight_props 由 15 增至 17（2026-10-12 补 26=治疗加成 / 27=受治疗加成 ✓）；
+//     missings 由 96 变 125（体检发现 182 条里有 57 条是"已修好但没归档"的历史项，已精确清掉 ✓）
 for (const [t, want] of Object.entries(EXPECT)) {
   const [r] = await q('SELECT COUNT(*) c FROM `' + t + '`')
   const ok = r.c === want
