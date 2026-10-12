@@ -74,7 +74,12 @@ func (s *Service) Import(p ImportPayload) error {
 		}
 		for _, item := range p.StatWeights {
 			rec := item.Rec
-			// ⚠️ **评分权重就是 `subStats[].weight`，它归后台所有**（2026-09-27）⇒ 导入必须"只补缺、不覆盖" ✗：
+			// ⚠️ **`subStats[].weight` 归后台所有**（2026-09-27）⇒ 导入必须"只补缺、不覆盖" ✗：
+			//    ⚠️ 更正（2026-10-12）：本注释原写"**评分权重就是 `subStats[].weight`**" —— **已过期** ✗。
+			//    评分（`ScoreRelic`）走的是 `character_relic_weights`（10 维，另一个表 ✓），
+			//    **不读这里的 weight** ✓（见 relic_score.go 的 `baseRelicWeight`，以及 model.go 里两张表的语义说明 ✓）。
+			//    这里的 weight 只影响**推荐词条的排序/展示与 AI 上下文** ✓ —— 但它仍是后台的人工数据，
+			//    所以"只补缺、不覆盖"的规则**不变** ✓。
 			// 生成器产出的是**老的 10 分制优先级** ✗，一旦直接 UpdateAll，会把后台/迁移后的
 			// 评分权重整片覆盖成 10 分制 ⇒ **分数静默全错** ✗✗。
 			// 规则：① 同 statKey 的行，保留后台的 weight / tier ✓
