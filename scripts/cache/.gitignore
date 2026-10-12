@@ -1,0 +1,6 @@
+# 攻略页原始 wikitext 缓存：**不入库** ✗
+#   - 体量大（128 页 ≈ 3~4 MB）、可随时重抓（scripts/fetch-character-guides.mjs ✓）
+#   - 它只是"提炼攻略卡"的中间产物；真正要入库/提交的是提炼结果 ✓
+#   - 留着本地是为了：重跑不打上游 ✓、增量更新按 revid/hash 比对 ✓
+*
+!.gitignore
