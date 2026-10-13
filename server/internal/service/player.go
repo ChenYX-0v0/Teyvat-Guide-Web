@@ -299,6 +299,9 @@ func (s *PlayerService) SummaryForQuestion(question string) (string, SummaryStat
 	}
 
 	// ① 机制卡：先算，因为攻略卡要据此**去掉配队思路结论** ✓
+	//   ⚠️ 阶段③（2026-10-13 铺全量后）起：**有机制卡就丢配队思路** ✗ —— 包括 draft 卡 ✓。
+	//   理由见 ai/07 TODO-20 护栏 3：用户要的不是"背某页列的队"✗，而是"按事实自己推"✓；
+	//   自动卡虽然只是初稿 ✓，但它给的是**逐字校验过的原句** ✓，比反向索引拼出来的"常被编入…"更可靠 ✓。
 	hit := s.MechanicsForQuestion(question)
 	stats.MechanicCards = len(hit.Characters)
 	stats.Rules = hit.Rules

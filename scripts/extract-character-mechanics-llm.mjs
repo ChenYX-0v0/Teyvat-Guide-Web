@@ -1,0 +1,299 @@
+// 用模型从缓存的攻略页**抽取**角色机制卡初稿（阶段③ 铺全量，见 teyvat-docs/ai/07 TODO-20）
+//
+//   node scripts/extract-character-mechanics-llm.mjs                # 全部（可重复跑：已抽过的跳过 ✓）
+//   node scripts/extract-character-mechanics-llm.mjs --limit 5      # 先抽 5 位试水
+//   node scripts/extract-character-mechanics-llm.mjs --names 胡桃,钟离 --force
+//   node scripts/extract-character-mechanics-llm.mjs --dry 胡桃     # 只打印提示词与返回（不写盘 ✓）
+//
+// ⚠️ 为什么敢用模型抽 ✗：**每一条都必须带 `quote`（逐字原文）** ✓，脚本会把 quote 拿回页面里
+//   做**子串校验** ✓，校验不过的条目**直接丢弃** ✓（并计数 ✓）。⇒ 模型只能"搬运"，编出来的
+//   内容进不了库 ✓✓。分桶/归类可能有偏差，但句子是真的 ✓（库里落成 review=draft ✓，不覆盖人工卡 ✓）。
+//
+// 数据流：scripts/cache/guides_raw/*.wiki → 本脚本 → scripts/data/character_mechanics_auto.json
+//         → cd server && go run ./cmd/mechanicsimport（跳过已有人工卡的角色 ✓）
+import fs from 'node:fs'
+import path from 'node:path'
+
+const RAW = path.resolve('scripts/cache/guides_raw')
+const OUT = path.resolve('scripts/data/character_mechanics_auto.json')
+// ⚠️ args 必须在最前 ✗（下面 ENV_FILE 就要用；const 有 TDZ，写后面会直接报错 ✓）
+const args = process.argv.slice(2)
+
+// 取 --flag value（找不到返回 null ✓）
+function args6(flag) {
+  const i = args.indexOf(flag)
+  return i === -1 ? null : args[i + 1]
+}
+
+const ENV_FILE = path.resolve(args6('--env') ?? '../AI派蒙服务器/ai-service/.env')
+
+const namesArg = args6('--names') ? args6('--names').split(',').map((s) => s.trim()) : null
+const limit = args6('--limit') ? Number(args6('--limit')) : 0
+const force = args.includes('--force')
+const dry = args6('--dry')
+const CONCURRENCY = Number(args6('--concurrency') ?? 3)
+
+// ---------------------------------------------------------------- 模型配置（从 AI 服务的 .env 读，不落任何密钥到日志 ✓）
+function loadLLMConfig() {
+  const txt = fs.readFileSync(ENV_FILE, 'utf8')
+  const get = (k) => {
+    const m = new RegExp('^' + k + '=(.*)$', 'm').exec(txt)
+    return m ? m[1].trim().replace(/^["']|["']$/g, '') : ''
+  }
+  const key = get('DEEPSEEK_API_KEY')
+  if (!key) throw new Error('DEEPSEEK_API_KEY 为空：' + ENV_FILE)
+  return {
+    key,
+    base: (get('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com').replace(/\/$/, ''),
+    model: get('LLM_MODEL') || 'deepseek-flash',
+  }
+}
+
+// ---------------------------------------------------------------- 页面清洗（与 extract-character-guides.mjs 同源的精简版）
+const stripComments = (t) => t.replace(/<!--[\s\S]*?-->/g, '')
+
+function cleanWiki(text) {
+  let t = text ?? ''
+  t = t.replace(/\{\{颜色\|[^|]*\|([^{}|]*)\}\}/g, '$1')
+  t = t.replace(/\{\{图标(?:\/小)?\|([^{}]*)\}\}/g, (_, seg) => {
+    const parts = seg.split('|').map((s) => s.trim()).filter(Boolean)
+    return (parts[1] ?? parts[0] ?? '').replace(/^\d件套$/, '')
+  })
+  t = t.replace(/^\s*!.*$/gm, '').replace(/^\s*\|[+\-].*$/gm, '')
+  t = t.replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, '$1').replace(/\[\[([^\]]*)\]\]/g, '$1')
+  t = t.replace(/\{\{[^{}]*\}\}/g, '')
+  t = t.replace(/'''?/g, '').replace(/<[^>]*>/g, '')
+  return t.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n')
+}
+
+function section(text, title, level = 2) {
+  const re = new RegExp('^={' + level + '}\\s*' + title + '\\s*={' + level + '}\\s*$', 'm')
+  const m = re.exec(text)
+  if (!m) return ''
+  const rest = text.slice(m.index + m[0].length)
+  const end = rest.search(new RegExp('^={2,' + level + '}[^=]', 'm'))
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
+// 参与抽取的章节（机制事实基本都在这里 ✓）；每节截断，控制单次请求体积 ✓
+//
+// ⚠️ 章节**分工**很关键 ✗（2026-10-13 实测踩到）：把「阵容搭配」与本人机制混在一起抽，
+//   模型会把**队友**的能力写成本角色的 provides ✗（胡桃卡里出现"玉璋护盾…全队抗性降低 20%"= 钟离的 ✓）
+//   ⇒ 摘录里显式分区：本人机制章节 / 阵容章节，并告诉模型后者的内容只归 points ✓
+const SELF_SECTIONS = ['角色定位', '技能解析', '命之座', '玩法分析', '角色特点']
+const TEAM_SECTIONS = ['阵容搭配']
+const SECTION_MAX = 4000
+
+function buildExcerpt(raw) {
+  const collect = (list) =>
+    list
+      .map((sec) => {
+        const body = cleanWiki(section(raw, sec, 2)).trim()
+        return body ? `### ${sec}\n${body.slice(0, SECTION_MAX)}` : ''
+      })
+      .filter(Boolean)
+      .join('\n\n')
+  const self = collect(SELF_SECTIONS)
+  const team = collect(TEAM_SECTIONS)
+  const parts = []
+  if (self) parts.push(`【本角色机制章节】（provides / cannot / limits / needs 只能来自这里）\n${self}`)
+  if (team) parts.push(`【阵容搭配章节】（只有 points 可以来自这里；其中**队友**的能力不算本角色的 provides）\n${team}`)
+  return parts.join('\n\n')
+}
+
+const SYSTEM = `你是《原神》的资料整理员。任务：从给定的攻略页摘录中，提取该角色的**机制事实**，输出严格 JSON。
+
+铁律（违反即作废）：
+1. 只允许使用给定摘录里的内容；**禁止**补充任何摘录之外的常识、推测或你自己的记忆。
+2. 每一条都**必须**带 quote 字段：从给定摘录里**逐字连续复制**的原文片段（12~60 字，不要改写、不要省略号、不要拼接不相邻的句子）。做不到逐字引用，就不要输出这一条。
+3. 只写机制，不写结论。禁止出现"值得培养""建议抽""适合当主C的队伍""强度如何"这类评价。
+4. **只写本角色自己的机制**：摘录里提到的队友（钟离的护盾、芙宁娜的增伤、班尼特的加攻…）不是本角色的能力，禁止写进 provides / cannot / limits / needs ✗。队友与阵容相关的内容只能写进 points（联动要点）✓。
+5. 每个类别没有就输出空数组；宁可少写，也不要编。
+6. 不用 Markdown，纯 JSON。
+
+输出格式（严格 JSON，不要任何多余文字）：
+{
+  "provides": [{"kind": "给什么加成（短语）", "to": "给谁", "condition": "条件（可省略）", "scale": "按什么算（可省略）", "quote": "原文片段"}],
+  "cannot":   [{"text": "明确做不到/不适用什么", "quote": "原文片段"}],
+  "limits":   [{"text": "成立前提或边界", "quote": "原文片段"}],
+  "needs":    [{"text": "自己需要什么（充能/队友/站场时间等）", "quote": "原文片段"}],
+  "points":   [{"text": "与队友/队伍的联动要点", "quote": "原文片段"}]
+}`
+
+// ---------------------------------------------------------------- quote 校验（防幻觉的关键 ✓）
+const norm = (s) => (s ?? '').replace(/\s+/g, '').replace(/[，。；、：:（）()「」『』“”"']/g, '')
+function verified(items, pageNorm, key) {
+  const ok = []
+  let dropped = 0
+  for (const it of items ?? []) {
+    const q = typeof it === 'string' ? it : it?.quote
+    if (!q || norm(q).length < 8 || !pageNorm.includes(norm(q))) {
+      dropped++
+      continue
+    }
+    if (key === 'provides') {
+      const kind = (it.kind ?? '').trim()
+      if (!kind) {
+        dropped++
+        continue
+      }
+      ok.push({ kind, to: it.to?.trim() || undefined, condition: it.condition?.trim() || undefined, scale: it.scale?.trim() || undefined, evidence: q.trim() })
+    } else {
+      const text = (it.text ?? it).toString().trim()
+      if (!text) {
+        dropped++
+        continue
+      }
+      ok.push({ text, evidence: q.trim() })
+    }
+  }
+  return { ok, dropped }
+}
+
+async function callModel(cfg, excerpt, name) {
+  const body = {
+    model: cfg.model,
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: `角色：${name}\n\n【攻略页摘录】\n${excerpt}` },
+    ],
+    temperature: 0.2,
+    stream: false,
+    response_format: { type: 'json_object' },
+  }
+  const res = await fetch(`${cfg.base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}` },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`)
+  const data = await res.json()
+  const content = data?.choices?.[0]?.message?.content ?? ''
+  const usage = data?.usage ?? {}
+  return { json: JSON.parse(content), usage }
+}
+
+// ---------------------------------------------------------------- 主流程
+const cfg = loadLLMConfig()
+const manifest = JSON.parse(fs.readFileSync(path.resolve('scripts/cache/guides.manifest.json'), 'utf8'))
+let titles = Object.keys(manifest.pages)
+if (namesArg) titles = titles.filter((t) => namesArg.some((n) => t === n + '/攻略' || t.startsWith(n + '/')))
+
+// 已有结果（支持重复跑：抽过的跳过 ✓）
+let out = { _meta: {}, characters: [] }
+if (fs.existsSync(OUT)) {
+  try {
+    const prev = JSON.parse(fs.readFileSync(OUT, 'utf8'))
+    out.characters = prev.characters ?? []
+  } catch {
+    /* 坏了就从头来 ✓ */
+  }
+}
+const done = new Set(out.characters.map((c) => c.name))
+const save = () => {
+  out._meta = {
+    extractedAt: new Date().toISOString(),
+    count: out.characters.length,
+    source: 'biligame wiki 攻略页 → 模型抽取 + **逐字 quote 校验** ✓（每条都能在页面里原样找到 ✓）',
+    review: 'review=draft：模型抽取的初稿，未经人工复核 ✓（落库时不覆盖人工卡 ✓）',
+    stats: out._meta.stats ?? {},
+  }
+  fs.writeFileSync(OUT, JSON.stringify(out, null, 2), 'utf8')
+}
+
+const jobs = titles
+  .map((title) => ({ title, name: title.replace(/\/攻略$/, '').replace(/\/.*$/, '') }))
+  .filter((j) => j.name !== '旅行者')
+  .filter((j) => !done.has(j.name) || force)
+if (limit) jobs.splice(limit)
+
+console.log(`  模型 ${cfg.model}｜待抽 ${jobs.length} 位｜已有 ${done.size} 位｜并发 ${CONCURRENCY}`)
+
+const stats = { dropped: 0, verified: 0, failed: 0 }
+let idx = 0
+async function worker() {
+  while (idx < jobs.length) {
+    const job = jobs[idx++]
+    const file = path.join(RAW, job.title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
+    if (!fs.existsSync(file)) continue
+    const pageText = cleanWiki(stripComments(fs.readFileSync(file, 'utf8')))
+    const excerpt = buildExcerpt(stripComments(fs.readFileSync(file, 'utf8')))
+    if (!excerpt.trim()) {
+      console.log(`   [跳过] ${job.name}（没有可用的机制章节 ✓）`)
+      continue
+    }
+    try {
+      const { json } = await callModel(cfg, excerpt, job.name)
+      const pageNorm = norm(pageText)
+      const buckets = {}
+      let drop = 0
+      for (const [key, field] of [
+        ['provides', 'provides'],
+        ['cannot', 'cannot'],
+        ['limits', 'limits'],
+        ['needs', 'needs'],
+        ['points', 'points'],
+      ]) {
+        const { ok, dropped } = verified(json[field], pageNorm, key)
+        drop += dropped
+        buckets[key] = ok
+      }
+      const card = {
+        name: job.name,
+        provides: buckets.provides.map((x) => ({ kind: x.kind, ...(x.to ? { to: x.to } : {}), ...(x.condition ? { condition: x.condition } : {}), ...(x.scale ? { scale: x.scale } : {}), evidence: x.evidence })),
+        cannot: buckets.cannot.map((x) => x.text),
+        limits: buckets.limits.map((x) => x.text),
+        needs: buckets.needs.map((x) => x.text),
+        points: buckets.points.map((x) => x.text),
+        _review: '模型抽取 + 逐字校验（初稿，未人工复核）',
+        _draft: true,
+        _auto: true,
+        evidenceIndex: { page: job.title, note: '每条均带 evidence = 页面原句片段（已逐字校验 ✓）' },
+      }
+      const total = (b) => Object.values(b).reduce((n, v) => n + (Array.isArray(v) ? v.length : 0), 0)
+      if (!total(buckets)) {
+        console.log(`   [空] ${job.name}（校验后 0 条 ✓ 不落库）`)
+        continue
+      }
+      // 同一角色重复抽时覆盖（--force ✓）
+      const at = out.characters.findIndex((c) => c.name === job.name)
+      if (at === -1) out.characters.push(card)
+      else out.characters[at] = card
+      stats.dropped += drop
+      const kept = total(buckets)
+      stats.verified += kept
+      console.log(
+        `   ${job.name.padEnd(10)} 提供${buckets.provides.length} 做不到${buckets.cannot.length} 限制${buckets.limits.length} 需要${buckets.needs.length} 要点${buckets.points.length}` +
+          (drop ? `（丢弃 ${drop} 条校验不过 ✗）` : ''),
+      )
+      out._meta.stats = stats
+      save()
+    } catch (e) {
+      stats.failed++
+      console.log(`   [失败] ${job.name}：${String(e.message).slice(0, 120)}`)
+    }
+  }
+}
+
+if (dry) {
+  const job = { title: dry + '/攻略', name: dry }
+  const file = path.join(RAW, dry + '_攻略.wiki')
+  if (!fs.existsSync(file)) throw new Error('没有缓存页：' + file)
+  const raw = stripComments(fs.readFileSync(file, 'utf8'))
+  const excerpt = buildExcerpt(raw)
+  console.log(`  --- 摘录（${excerpt.length} 字）---\n` + excerpt.slice(0, 1200) + '\n  …')
+  const { json } = await callModel(cfg, excerpt, dry)
+  console.log('  --- 模型返回（原始）---\n' + JSON.stringify(json, null, 1).slice(0, 2000))
+  const pageNorm = norm(cleanWiki(raw))
+  for (const field of ['provides', 'cannot', 'limits', 'needs', 'points']) {
+    const { ok, dropped } = verified(json[field], pageNorm, field)
+    console.log(`  [${field}] 通过 ${ok.length} / 丢弃 ${dropped}`)
+    for (const x of ok.slice(0, 3)) console.log('     ✓ ' + JSON.stringify(x).slice(0, 140))
+  }
+  process.exit(0)
+}
+
+await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+save()
+console.log(`\n  完成：${out.characters.length} 位 → ${OUT}`)
+console.log(`  校验通过条目 ${stats.verified}；**被丢弃（引用对不上原文）${stats.dropped}**；失败 ${stats.failed}`)

@@ -83,6 +83,11 @@ type contextRow struct {
 
 func main() {
 	file := flag.String("file", filepath.Join("..", "scripts", "data", "character_mechanics.json"), "机制卡 JSON 路径")
+	// 自动抽取的初稿（阶段③ 铺全量 ✓，由 scripts/extract-character-mechanics-llm.mjs 生成 ✓）：
+	// review=draft ✓；**绝不覆盖人工卡** ✗（见 importCards 的守卫 ✓）；文件不存在就跳过 ✓
+	autoFile := flag.String("auto-file", filepath.Join("..", "scripts", "data", "character_mechanics_auto.json"),
+		"自动抽取的机制卡初稿 JSON（可选 ✓）")
+	noAuto := flag.Bool("no-auto", false, "不导入自动初稿（只导人工卡 ✓）")
 	only := flag.String("only", "", "只导入这些角色（逗号分隔；默认全部）")
 	dryRun := flag.Bool("dry-run", false, "只打印将写什么，不写库")
 	probe := flag.String("probe", "", "排障：拿一个问题跑一次完整 summary 组装，打印真正会注入给模型的文本")
@@ -128,9 +133,26 @@ func main() {
 		return
 	}
 
+	// 先读自动初稿（可选 ✓）：名字要**一起**送进 characters 查询 ✓，
+	// 否则只在初稿里出现的角色会被误判成"不在 characters 表里"✗
+	var autoCards []map[string]any
+	if !*noAuto {
+		if rawAuto, err := os.ReadFile(*autoFile); err == nil {
+			var af mechanicsFile
+			if err := json.Unmarshal(rawAuto, &af); err != nil {
+				fmt.Fprintf(os.Stderr, "解析自动卡失败：%v\n", err)
+				os.Exit(1)
+			}
+			autoCards = af.Characters
+			fmt.Printf("  自动初稿：%d 位（%s）\n", len(autoCards), filepath.Base(*autoFile))
+		} else {
+			fmt.Printf("  （没有自动初稿文件 %s ⇒ 只导人工卡 ✓）\n", *autoFile)
+		}
+	}
+
 	// 名字 → characters.id（角色 id 是 Enka avatarId ✓，JSON 里只存名字 ✓）
-	names := make([]string, 0, len(mf.Characters))
-	for _, c := range mf.Characters {
+	names := make([]string, 0, len(mf.Characters)+len(autoCards))
+	for _, c := range append(append([]map[string]any{}, mf.Characters...), autoCards...) {
 		if n := cardString(c["name"]); n != "" {
 			names = append(names, n)
 		}
@@ -155,56 +177,16 @@ func main() {
 		}
 	}
 
-	var writtenCh, unchangedCh, skippedCh, writtenRu, unchangedRu int
-	for _, card := range mf.Characters {
-		name := cardString(card["name"])
-		if name == "" || (len(onlySet) > 0 && !onlySet[name]) {
-			continue
-		}
-		id, ok := idByName[name]
-		if !ok {
-			fmt.Printf("  [跳过] %-8s 不在 characters 表里（先补资产映射 ✓）\n", name)
-			skippedCh++
-			continue
-		}
-
-		facts, err := factsJSON(card)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "序列化 %s 的机制卡失败：%v\n", name, err)
-			os.Exit(1)
-		}
-		row := model.CharacterMechanic{
-			CharacterID: id,
-			Name:        name,
-			Facts:       facts,
-			Review:      reviewOf(card),
-		}
-		row.ContentHash = hashParts(row.Name, row.Facts, row.Review)
-
-		var existing model.CharacterMechanic
-		found := db.Where("character_id = ?", id).Limit(1).Find(&existing).RowsAffected > 0
-		if found && existing.ContentHash == row.ContentHash {
-			fmt.Printf("  [未变] %-8s id=%-9d 事实 %4d 字（%s）\n", name, id, len([]rune(row.Facts)), row.Review)
-			unchangedCh++
-			continue
-		}
-		action := "新增"
-		if found {
-			action = "更新"
-		}
-		fmt.Printf("  [%s] %-8s id=%-9d 事实 %4d 字（%s）\n", action, name, id, len([]rune(row.Facts)), row.Review)
-		if *dryRun {
-			continue
-		}
-		if err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "character_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"name", "facts", "review", "content_hash", "updated_at"}),
-		}).Create(&row).Error; err != nil {
-			fmt.Fprintf(os.Stderr, "写入 %s 失败：%v\n", name, err)
-			os.Exit(1)
-		}
-		writtenCh++
+	// ① 人工卡（reviewed / draft ✓）
+	writtenCh, unchangedCh, skippedCh := importCards(db, mf.Characters, idByName, onlySet, *dryRun, "curated")
+	// ② 自动初稿（review=auto ✓）—— 已有人工卡的角色会被跳过 ✓（绝不覆盖 ✗）
+	autoWritten, autoUnchanged, autoSkipped := 0, 0, 0
+	if len(autoCards) > 0 {
+		fmt.Printf("  --- 自动初稿（review=auto ✓，不覆盖人工卡 ✗）---\n")
+		autoWritten, autoUnchanged, autoSkipped = importCards(db, autoCards, idByName, onlySet, *dryRun, "auto")
 	}
+
+	var writtenRu, unchangedRu int
 
 	for _, r := range mf.Rules {
 		key := strings.TrimSpace(r.ID)
@@ -255,8 +237,8 @@ func main() {
 		writtenRu++
 	}
 
-	fmt.Printf("  完成：角色卡 写入 %d / 未变 %d / 跳过 %d；规则 写入 %d / 未变 %d（dry-run=%v）\n",
-		writtenCh, unchangedCh, skippedCh, writtenRu, unchangedRu, *dryRun)
+	fmt.Printf("  完成：人工卡 写入 %d / 未变 %d / 跳过 %d；自动初稿 写入 %d / 未变 %d / 跳过(含保护) %d；规则 写入 %d / 未变 %d（dry-run=%v）\n",
+		writtenCh, unchangedCh, skippedCh, autoWritten, autoUnchanged, autoSkipped, writtenRu, unchangedRu, *dryRun)
 }
 
 // factsJSON 把一张卡序列化成**只含事实**的 JSON：剥掉下划线开头的元字段（_review / _draft ✓）、
@@ -278,8 +260,79 @@ func factsJSON(card map[string]any) (string, error) {
 	return string(b), nil
 }
 
+// importCards 把一份卡片数组写进 character_mechanics：幂等 ✓ + **绝不覆盖人工卡** ✗。
+//
+// reviewKind：`curated`（人工卡 ✓，按 `_review`/`_draft` 定 reviewed|draft）/ `auto`（自动抽取 ✓，写 auto）。
+// 返回 写入 / 未变 / 跳过 三个计数。
+//
+// ⚠️ 三态的意义（2026-10-13 踩到后补的 ✗）：人工卡里也有 **draft**（初稿待复核 ✓）——
+// 它同样**不能被自动卡盖掉** ✗（人工写的 6 张初稿比自动抽取更准 ✓）。
+// ⇒ 守卫是"库里已存在、且不是 auto ⇒ 跳过" ✓，而不是只看 reviewed ✗。
+func importCards(db *gorm.DB, cards []map[string]any, idByName map[string]int64, onlySet map[string]bool, dryRun bool, reviewKind string) (written, unchanged, skipped int) {
+	for _, card := range cards {
+		name := cardString(card["name"])
+		if name == "" || (len(onlySet) > 0 && !onlySet[name]) {
+			continue
+		}
+		id, ok := idByName[name]
+		if !ok {
+			fmt.Printf("  [跳过] %-8s 不在 characters 表里（先补资产映射 ✓）\n", name)
+			skipped++
+			continue
+		}
+
+		facts, err := factsJSON(card)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "序列化 %s 的机制卡失败：%v\n", name, err)
+			os.Exit(1)
+		}
+		row := model.CharacterMechanic{
+			CharacterID: id,
+			Name:        name,
+			Facts:       facts,
+			Review:      reviewOf(card),
+		}
+		if reviewKind == "auto" {
+			row.Review = "auto" // 自动抽取的标记 ✓（与人工的 reviewed / draft 区分开 ✓）
+		}
+		row.ContentHash = hashParts(row.Name, row.Facts, row.Review)
+
+		var existing model.CharacterMechanic
+		found := db.Where("character_id = ?", id).Limit(1).Find(&existing).RowsAffected > 0
+		if found && reviewKind == "auto" && existing.Review != "auto" {
+			fmt.Printf("  [保护] %-8s id=%-9d 库里是人工卡（%s）⇒ 不覆盖 ✓\n", name, id, existing.Review)
+			skipped++
+			continue
+		}
+		if found && existing.ContentHash == row.ContentHash {
+			fmt.Printf("  [未变] %-8s id=%-9d 事实 %4d 字（%s）\n", name, id, len([]rune(row.Facts)), row.Review)
+			unchanged++
+			continue
+		}
+		action := "新增"
+		if found {
+			action = "更新"
+		}
+		fmt.Printf("  [%s] %-8s id=%-9d 事实 %4d 字（%s）\n", action, name, id, len([]rune(row.Facts)), row.Review)
+		if dryRun {
+			continue
+		}
+		if err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "character_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name", "facts", "review", "content_hash", "updated_at"}),
+		}).Create(&row).Error; err != nil {
+			fmt.Fprintf(os.Stderr, "写入 %s 失败：%v\n", name, err)
+			os.Exit(1)
+		}
+		written++
+	}
+	return written, unchanged, skipped
+}
+
 func reviewOf(card map[string]any) string {
-	if s := cardString(card["_review"]); strings.Contains(s, "待复核") || card["_draft"] == true {
+	s := cardString(card["_review"])
+	// 自动初稿的 `_review` 写的是「自动抽取（初稿，未人工复核）」✓ ⇒ 一并认成 draft ✓
+	if strings.Contains(s, "待复核") || strings.Contains(s, "未人工复核") || strings.Contains(s, "初稿") || card["_draft"] == true {
 		return "draft"
 	}
 	return "reviewed"

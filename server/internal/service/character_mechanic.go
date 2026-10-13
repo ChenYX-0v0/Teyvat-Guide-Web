@@ -36,6 +36,15 @@ const (
 	maxMechanicRules = 2
 	// maxMechanicRulesChars 全局规则整段上限 ✓（规则正文比角色卡长，单独设额度 ✓）
 	maxMechanicRulesChars = 800
+
+	// mechanicIncludeDraft 是否注入**非人工**的机制卡（review=draft 初稿 / review=auto 自动抽取 ✓）。
+	// 阶段③ 铺全量后的口径：**注入** ✓。
+	//
+	// 依据（2026-10-13）：自动卡由模型从攻略页抽取 ✓，但**每条都带 evidence 且经逐字校验**
+	// （引用必须能在页面里原样找到 ✓，编的内容进不来 ✓）；不完整是良性的 ✓
+	// （提示词 v12 第 41 条：块里没写的不许用常识补 ✗）。
+	// ⚠️ 万一出现质量事故，把它改成 false ✓ ⇒ **只注入 review=reviewed 的人工卡**（一步回退 ✓）。
+	mechanicIncludeDraft = true
 )
 
 // MechanicHit 一次机制注入的结果。
@@ -77,8 +86,14 @@ func (m *MechanicStore) ForQuestion(assets *asset.Service, question string) Mech
 			break
 		}
 		// ⚠️ 用 Find 而不是 First：First 查不到会打红色错误日志 ✗，而"这位还没机制卡"是正常情况 ✓
+		query := m.db.Where("character_id = ?", c.ID)
+		if !mechanicIncludeDraft {
+			// 回退口径：**只认人工确认过的卡** ✓
+			// （review 有三态：reviewed=人工确认 ✓ / draft=人工初稿 ✓ / auto=模型抽取 ✓）
+			query = query.Where("review = ?", "reviewed")
+		}
 		var row model.CharacterMechanic
-		if err := m.db.Where("character_id = ?", c.ID).Limit(1).Find(&row).Error; err != nil || row.ID == 0 {
+		if err := query.Limit(1).Find(&row).Error; err != nil || row.ID == 0 {
 			continue
 		}
 		budget := maxMechanicCharsPerCard
@@ -163,7 +178,9 @@ func triggersMatched(lowerQuestion, triggers string) bool {
 // mechanicFacts 机制卡里真正要注入的**事实**字段（与 scripts/data/character_mechanics.json 对齐 ✓）。
 // ⚠️ 刻意**没有** evidence / _review / evidenceIndex 字段 ✗ —— 那些只进表与后台 ✓。
 type mechanicFacts struct {
-	Provides    []map[string]any `json:"provides"`
+	Provides []map[string]any `json:"provides"`
+	// Points 与队友/队伍的联动要点（**自动卡的散文句** ✓；人工卡一般不用它 ✓）
+	Points      []string         `json:"points"`
 	Cannot      []string         `json:"cannot"`
 	Limits      []string         `json:"limits"`
 	Needs       []string         `json:"needs"`
@@ -178,7 +195,7 @@ type mechanicFacts struct {
 // renderMechanic 把一张机制卡渲染成注入文本。
 //
 // 段顺序 = **优先级**（越靠前越优先；超上限时从后往前丢 ✓）：
-// 「能不能进这队 / 提供什么 / 缺什么」最能改变答案 ⇒ 提供 > 做不到 > 需要 > 边界 >
+// 「能不能进这队 / 提供什么 / 缺什么」最能改变答案 ⇒ 提供 > 做不到 > 要点 > 需要 > 边界 >
 // 挂元素 > 共鸣 > 抗打断 > 护盾 > 冲突 > 基数。
 func renderMechanic(row model.CharacterMechanic, budget int) string {
 	var f mechanicFacts
@@ -189,6 +206,7 @@ func renderMechanic(row model.CharacterMechanic, budget int) string {
 	segments := []struct{ label, text string }{
 		{"提供", renderProvides(f.Provides)},
 		{"做不到", renderList(f.Cannot)},
+		{"要点", renderList(f.Points)},
 		{"需要", renderList(f.Needs)},
 		{"边界", renderList(f.Limits)},
 		{"挂元素", renderApplication(f.Application)},
