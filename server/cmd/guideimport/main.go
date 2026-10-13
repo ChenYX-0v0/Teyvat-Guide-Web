@@ -84,7 +84,10 @@ type guideCard struct {
 	Team       string     `json:"team"`
 	TeamFrom   string     `json:"teamFrom"`
 	Graduation string     `json:"graduation"`
-	Notes      string     `json:"notes"`
+	// GraduationSource 毕业线来源备查 ✓（wiki 小节名 / 外部面板页 URL ✓）——
+	// 只进表与后台 ✗，不进注入文本 ✓（不署名 ✓）
+	GraduationSource string `json:"graduationSource"`
+	Notes            string `json:"notes"`
 }
 
 // ---------------------------------------------------------------- 渲染（结构化槽位 → 注入用的整段文本）
@@ -148,7 +151,7 @@ func parseTime(s string) time.Time {
 func contentHash(row model.CharacterGuide) string {
 	payload := strings.Join([]string{
 		row.Name, row.Role, row.Talents, row.WeaponPick, row.RelicPick,
-		row.TeamPick, row.TeamFrom, row.Graduation, row.Notes,
+		row.TeamPick, row.TeamFrom, row.Graduation, row.GraduationSource, row.Notes,
 		row.SourceURL, row.SourceRev, row.FetchedAt.UTC().Format(time.RFC3339),
 	}, "\x1f")
 	sum := sha256.Sum256([]byte(payload))
@@ -218,7 +221,7 @@ func main() {
 
 	updateCols := []string{
 		"name", "role", "talents", "weapon_pick", "relic_pick",
-		"team_pick", "team_from", "graduation", "notes",
+		"team_pick", "team_from", "graduation", "graduation_source", "notes",
 		"source_url", "source_rev", "fetched_at", "content_hash", "updated_at",
 	}
 
@@ -235,19 +238,20 @@ func main() {
 		}
 
 		row := model.CharacterGuide{
-			CharacterID: id,
-			Name:        c.Name,
-			Role:        c.Role,
-			Talents:     c.Talents,
-			WeaponPick:  renderWeapon(c.WeaponPick),
-			RelicPick:   renderRelic(c.RelicPick),
-			TeamPick:    c.Team,
-			TeamFrom:    c.TeamFrom,
-			Graduation:  c.Graduation,
-			Notes:       c.Notes,
-			SourceURL:   c.SourceURL,
-			SourceRev:   string(c.SourceRev),
-			FetchedAt:   parseTime(c.FetchedAt),
+			CharacterID:      id,
+			Name:             c.Name,
+			Role:             c.Role,
+			Talents:          c.Talents,
+			WeaponPick:       renderWeapon(c.WeaponPick),
+			RelicPick:        renderRelic(c.RelicPick),
+			TeamPick:         c.Team,
+			TeamFrom:         c.TeamFrom,
+			Graduation:       c.Graduation,
+			GraduationSource: c.GraduationSource,
+			Notes:            c.Notes,
+			SourceURL:        c.SourceURL,
+			SourceRev:        string(c.SourceRev),
+			FetchedAt:        parseTime(c.FetchedAt),
 		}
 		row.ContentHash = contentHash(row)
 

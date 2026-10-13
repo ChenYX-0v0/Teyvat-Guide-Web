@@ -249,6 +249,23 @@ function pickGraduation(sources) {
   return { text: '', from: '' }
 }
 
+// ---------------------------------------------------------------- 外部面板兜底（TODO-18 的 graduationExternal ✓）
+// 背景：128 篇 wiki 攻略页里只有约 89 篇写了达标线 ✗（其余的「阵容搭配」小节是空的 ✓，见 --why-empty ✓）。
+// 外部补法（2026-10-14，用户点头："从别的地方抓一下，抓转载的也可以，不署名就没事" ✓）：
+//   scripts/fetch-graduation-external.mjs  抓页面（缓存 ✓）
+//   scripts/extract-graduation-external.mjs 抽「指标：数值」⇒ character_graduation_external.json ✓
+//   **只在 wiki 摘不到时才用外部** ✓（wiki 是本项目一贯的可溯源来源 ✓，优先它 ✓）
+//   ⇒ 注入文本里**不出现任何来源/署名** ✗；URL 只落进 `graduation_source` 列备查 ✓（后台可见 ✓）
+const EXT_FILE = path.resolve('scripts/data/character_graduation_external.json')
+let EXT_MAP = new Map()
+try {
+  const ext = JSON.parse(fs.readFileSync(EXT_FILE, 'utf8'))
+  EXT_MAP = new Map(ext.characters.map((c) => [c.name, c]))
+  console.log(`  外部面板兜底：${EXT_MAP.size} 位（${path.basename(EXT_FILE)}）`)
+} catch {
+  console.log('  外部面板兜底：没有文件 ⇒ 只用 wiki（跑 fetch/extract-graduation-external.mjs 可补 ✓）')
+}
+
 // 取某个二级/三级标题下的正文（到下一个同级或更高级标题为止）
 function section(text, title, level = 2) {
   const re = new RegExp('^={' + level + '}\\s*' + title + '\\s*={' + level + '}\\s*$', 'm')
@@ -345,6 +362,8 @@ const seenIn = (name) => {
 const cards = []
 // --why-empty 的收集器（诊断用 ✓）
 const emptyDiag = []
+// 外部兜底命中数（诊断用 ✓：为 0 就说明一条都没用上 ✗）
+let extFilled = 0
 for (const title of titles) {
   const file = path.join(RAW, title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
   if (!fs.existsSync(file)) { console.log(`   [缺缓存] ${title}`); continue }
@@ -363,6 +382,21 @@ for (const title of titles) {
   // 毕业线：先算（explain 模式要用 ✓）
   const gradSources = graduationSources({ raw, ci, b0, relics, weapons })
   const grad = pickGraduation(gradSources)
+  // wiki 摘不到 ⇒ 用外部面板兜底 ✓（并如实记来源；**这条来源不会进注入文本** ✗）
+  //
+  // ⚠️ 2026-10-14 定：**wiki 只摘到"散文句"时，外部面板优先** ✓ ——
+  //   理由：wiki 从「阵容搭配」摘到的是**面板表行**（`暴击率/暴击伤害：70%/180%以上` ✓ 最优 ✓）；
+  //   而从「词条推荐理由 / 角色定位」摘到的是**散文**（"治疗…低于 70% 时"✗ 参考价值低 ✓）。
+  //   外部（转载汇总 ✓）给的就是指标:数值 ✓ ⇒ 这种情况换成外部更可用 ✓。
+  const wikiIsStatLines = grad.from === '阵容搭配'
+  const ext = EXT_MAP.get(charName)
+  if ((!grad.text || !wikiIsStatLines) && ext) {
+    grad.text = ext.text
+    grad.from = '外部面板参考'
+    grad.source = `${ext.sourceUrl}（采集于 ${String(ext.fetchedAt).slice(0, 10)}；社区参考值，非官方 ✓）`
+    extFilled++
+    console.log(`   [外部兜底] ${charName.padEnd(6)} ${ext.text}`)
+  }
   if (whyEmpty) {
     if (grad.text) continue // 只报"空"的 ✓
     const pageLabel = title.replace(/\/攻略$/, '') // 旅行者/风 这种带形态的要能区分 ✓
@@ -480,7 +514,9 @@ for (const title of titles) {
     graduation: clipSent(grad.text, 240),
     // graduationFrom 是哪一节摘出来的（只进表与后台 ✓，不进注入文本 ✗）
     graduationFrom: grad.from,
-    graduationSource: 'biligame wiki 攻略页内文摘录（该页没有"毕业面板"小节 ✓；数值=社区口径，非官方 ✓）',
+    graduationSource:
+      grad.source ??
+      'biligame wiki 攻略页内文摘录（该页没有"毕业面板"小节 ✓；数值=社区口径，非官方 ✓）',
     // ⑦ 注意事项：从定位与词条理由里挑带"数值阈值"的句子
     // ⑦ 注意事项：**换口径**（2026-10-13）—— 原来与 graduation 抢同一段文本 ⇒ 两张卡内容重叠 ✗
     //   现在只挑"命座 / 手法 / 误区"这类**行动建议**句（数值阈值句归 graduation ✓），并剔掉带百分号的，

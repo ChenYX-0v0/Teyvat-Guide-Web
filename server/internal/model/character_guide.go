@@ -26,7 +26,10 @@ type CharacterGuide struct {
 	// TeamFrom 这条配队从哪来：page=本页原文 ✓ / reverse=从其他角色攻略页反推（该页自己没写）✓
 	TeamFrom   string `gorm:"size:16" json:"teamFrom"`
 	Graduation string `gorm:"type:text" json:"graduation"` // 毕业线（数值=社区口径，非官方 ✓）
-	Notes      string `gorm:"type:text" json:"notes"`      // 注意事项（命座 / 手法 / 误区）
+	// GraduationSource 毕业线**来源备查**（wiki 哪一节 / 外部面板页 URL ✓）。
+	// ⚠️ 只进表与后台 ✗ —— 绝不拼进发给模型的文本 ✓（用户 2026-10-14：转载可用但不署名 ✓）
+	GraduationSource string `gorm:"size:512" json:"graduationSource"`
+	Notes            string `gorm:"type:text" json:"notes"` // 注意事项（命座 / 手法 / 误区）
 
 	SourceURL   string    `gorm:"size:512" json:"sourceUrl"`
 	SourceRev   string    `gorm:"size:32" json:"sourceRev"`
