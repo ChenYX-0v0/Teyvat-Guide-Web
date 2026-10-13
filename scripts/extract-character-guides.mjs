@@ -394,9 +394,17 @@ for (const title of titles) {
     else if (teamNumeric === 0) bucket = 'B. 「阵容搭配」有文字，但没有"指标：数值"的面板行'
     else bucket = 'C. 「阵容搭配」有数值句，但被判为机制/装备/过长等（口径问题，可复核）'
 
-    emptyDiag.push({ name: pageLabel, bucket, hasText: hasText.length, diag, teamChars, teamNumeric })
+    // 主缺因：把所有来源的拒因合起来取最多的那个 ✓（空来源不计 ✓）
+    const whyAll = {}
+    for (const d of diag) {
+      const ex = thresholdExplain(gradSources.find((s) => s[0] === d.label)?.[1] ?? '')
+      for (const r of ex.rejected) whyAll[r.why] = (whyAll[r.why] || 0) + 1
+    }
+    const mainWhy = Object.entries(whyAll).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '页面里没有可摘的机制/数值句'
+    emptyDiag.push({ name: pageLabel, bucket, hasText: hasText.length, diag, teamChars, teamNumeric, mainWhy })
+    console.log(`\n  ${pageLabel} ⇒ ${mainWhy}`)
     console.log(
-      `\n  【${pageLabel}】${bucket}\n     可用来源 ${hasText.length}/4（共 ${diag.reduce((n, d) => n + d.chars, 0)} 字）；阵容搭配 ${teamChars} 字/${teamNumeric} 条数值句`,
+      `  【${pageLabel}】${bucket}\n     可用来源 ${hasText.length}/4（共 ${diag.reduce((n, d) => n + d.chars, 0)} 字）；阵容搭配 ${teamChars} 字/${teamNumeric} 条数值句`,
     )
     for (const d of hasText) {
       console.log(`     · ${d.label}：${d.chars} 字 / 拒 ${d.rejected} 句（${d.topWhy || '—'}）例：${d.sample.slice(0, 44)}`)
