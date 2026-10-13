@@ -525,6 +525,13 @@ func (s *Service) CharactersMentioned(question string) []Character {
 			}
 		}
 	}
+	// 错别字容错（2026-10-14 ✓，用户报障：问「伊涅**夫**怎么配队」✗，库里叫「伊涅**芙**」✓
+	//   ⇒ 机制卡 / 攻略卡 / 词条**全都没带上** ✓ ⇒ 模型只剩展柜面板、只能老实说"没吃透" ✓）。
+	//   ⚠️ 只在"这个名字精确匹配没中"时才试 ✓；一次提问**只补一个**角色 ✗（防连锁误匹配 ✓）。
+	if c, asked, ok := s.fuzzyMention(q, matched); ok {
+		logger.L().Infow("character matched by fuzzy name", "asked", asked, "name", c.Name)
+		matched = append(matched, c)
+	}
 	// ⚠️ 按名字去重（保留 **ID 最大** 的那个 ✓）—— 2026-10-14 实测到的坑 ✗：
 	//   `characters` 表里**有两行都叫「旅行者」**（10000005 / 10000007 ✓，Enka 的那两个 avatarId ✓）
 	//   ⇒ ① 问"旅行者"时同一个角色被算两次（词条 2 位 ✗）；
@@ -552,6 +559,76 @@ func containsCharacter(list []Character, name string) bool {
 		}
 	}
 	return false
+}
+
+// fuzzyMinNameRunes 只有 **≥3 个字**的名字才启用错别字容错 ✓
+//
+//	两字名差一个字就是另一个名字了 ✗（「胡桃」vs「胡图」）⇒ 宁可不认，也不乱认 ✓
+const fuzzyMinNameRunes = 3
+
+// fuzzyStopRunes 虚词：与名字差一个字、且差的就是这几个字时，**不算错别字** ✗
+//
+//	（否则「那维莱**的**怎么练」会把「那维莱特」认下来 ✓ —— 那是句式不是错字 ✓）
+var fuzzyStopRunes = map[rune]bool{
+	'的': true, '了': true, '吗': true, '呢': true, '啊': true, '吧': true,
+	'嗯': true, '哦': true, '呀': true, '嘛': true, '么': true, '是': true,
+}
+
+// fuzzyMention 在提问里找「与某个角色名同长度、只差 1 个字」的写法 ✓（**调用方须持有读锁** ✓）。
+//
+// 用途（2026-10-14 用户报障 ✓）：中文输入法下「伊涅芙」常被打成「伊涅夫」✗，
+//
+//	而名字匹配是精确的 ⇒ 机制卡 / 攻略卡 / 词条整条链全断 ✓（模型只剩展柜面板 ✓）。
+//
+// 三条安全边界（改之前先读 ✓）：
+//  1. 只在**精确匹配没命中**这个名字时才试 ✓（写对的名字行为一字不变 ✓）；
+//  2. ≥3 个字 ＋ 同长度 ＋ **只差 1 个字** ＋ 差的那个不是虚词 ✓（见 fuzzyStopRunes ✓）；
+//  3. `already` 里的名字不参与 ✓（已命中/已被形态别名补过的不会再认 ✗）；
+//     调用侧再限制"一次提问只补一个" ✓。
+//
+// 确定性 ✗：候选按「名字长度倒序 → 字典序」取第一个 ✓ —— map 遍历无序，不能让结果随机 ✓
+func (s *Service) fuzzyMention(question string, already []Character) (Character, string, bool) {
+	q := []rune(question)
+	type cand struct {
+		c    Character
+		text string
+	}
+	cands := make([]cand, 0, 4)
+	for _, c := range s.characters {
+		name := c.Name
+		nr := []rune(name)
+		if len(nr) < fuzzyMinNameRunes || containsCharacter(already, name) {
+			continue
+		}
+		for i := 0; i+len(nr) <= len(q); i++ {
+			diff, diffRune := 0, rune(0)
+			for k := range nr {
+				if q[i+k] != nr[k] {
+					diff++
+					diffRune = q[i+k]
+					if diff > 1 {
+						break
+					}
+				}
+			}
+			if diff != 1 || fuzzyStopRunes[diffRune] {
+				continue
+			}
+			cands = append(cands, cand{c: c, text: string(q[i : i+len(nr)])})
+			break // 一个名字只取最靠前的一处 ✓
+		}
+	}
+	if len(cands) == 0 {
+		return Character{}, "", false
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		li, lj := len([]rune(cands[i].c.Name)), len([]rune(cands[j].c.Name))
+		if li != lj {
+			return li > lj
+		}
+		return cands[i].c.Name < cands[j].c.Name
+	})
+	return cands[0].c, cands[0].text, true
 }
 
 // travelerCharacter 取「旅行者」那一行（**调用方必须已持有读锁** ✓）。

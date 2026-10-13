@@ -75,6 +75,84 @@ func TestCharactersMentionedTravelerAliases(t *testing.T) {
 	}
 }
 
+// fuzzyService 造一组用于容错测试的角色（含 3 字名与 2 字名各一 ✓）
+func fuzzyService() *Service {
+	return &Service{
+		characters: map[int64]Character{
+			10000120: {ID: 10000120, Name: "伊涅芙"},
+			10000087: {ID: 10000087, Name: "那维莱特"},
+			10000046: {ID: 10000046, Name: "胡桃"},
+		},
+	}
+}
+
+func namesOf(list []Character) []string {
+	out := make([]string, 0, len(list))
+	for _, c := range list {
+		out = append(out, c.Name)
+	}
+	return out
+}
+
+// 错别字容错（2026-10-14 用户报障 ✓）：问「伊涅**夫**怎么配队」✗ 也必须命中「伊涅**芙**」✓
+// —— 不命中就整条链断掉（机制卡 / 攻略卡 / 词条全没有 ✓，模型只能老实说不知道 ✓）。
+func TestCharactersMentionedFuzzyTypo(t *testing.T) {
+	s := fuzzyService()
+	got := s.CharactersMentioned("伊涅夫怎么配队")
+	if len(got) != 1 || got[0].Name != "伊涅芙" {
+		t.Fatalf("错别字「伊涅夫」应命中「伊涅芙」，实际：%+v", namesOf(got))
+	}
+}
+
+// ① 写对的名字**行为一字不变** ✓（这条最重要 ✓：不能因为加了容错就把正常路径改了 ✓）
+// ② 连跑多次结果稳定 ✓
+func TestCharactersMentionedFuzzyDoesNotAffectExact(t *testing.T) {
+	s := fuzzyService()
+	for i := 0; i < 20; i++ {
+		got := s.CharactersMentioned("伊涅芙怎么配队")
+		if len(got) != 1 || got[0].Name != "伊涅芙" {
+			t.Fatalf("正确名字只该命中一个，实际：%+v", namesOf(got))
+		}
+		if other := s.CharactersMentioned("胡桃怎么练"); len(other) != 1 || other[0].Name != "胡桃" {
+			t.Fatalf("短名角色不受影响，实际：%+v", namesOf(other))
+		}
+	}
+}
+
+// 不许乱认 ✗ 之一：**两字名不启用容错** ✓（差一个字就是另一个名字了 ✓）
+func TestCharactersMentionedFuzzySkipsShortNames(t *testing.T) {
+	s := fuzzyService()
+	if got := s.CharactersMentioned("胡逃怎么练"); len(got) != 0 {
+		t.Fatalf("两字名不该走容错，实际：%+v", namesOf(got))
+	}
+}
+
+// 不许乱认 ✗ 之二：**虚词不算错别字** ✓（句式的"的"不能被当成名字的错字 ✓）
+func TestCharactersMentionedFuzzySkipsStopRunes(t *testing.T) {
+	s := fuzzyService()
+	if got := s.CharactersMentioned("那维莱的圣遗物怎么选"); len(got) != 0 {
+		t.Fatalf("虚词差异不该命中，实际：%+v", namesOf(got))
+	}
+}
+
+// 一次提问**只补一个**角色 ✓（防连锁误匹配 ✓）；且精确命中与容错**可以并存** ✓
+func TestCharactersMentionedFuzzyOnlyOnePerQuestion(t *testing.T) {
+	s := fuzzyService()
+
+	// 两个错别字 ⇒ 只认一个（按"长名优先"取那维莱特 ✓，结果确定 ✓）
+	one := s.CharactersMentioned("伊涅夫和那维来特怎么配队")
+	if len(one) != 1 || one[0].Name != "那维莱特" {
+		t.Fatalf("两个错别字时只该补一个（长名优先），实际：%+v", namesOf(one))
+	}
+
+	// 精确命中 ＋ 一个错别字 ⇒ 两者都要给 ✓（"胡桃和伊涅夫"⇒ 伊涅芙 ＋ 胡桃 ✓）
+	// 顺序照既有口径 **长名优先** ✓（伊涅芙 3 字 在前 ✓）
+	both := s.CharactersMentioned("胡桃和伊涅夫怎么配队")
+	if len(both) != 2 || both[0].Name != "伊涅芙" || both[1].Name != "胡桃" {
+		t.Fatalf("精确 ＋ 容错应各命中一个（长名优先），实际：%+v", namesOf(both))
+	}
+}
+
 // 同名两行（`characters` 表里「旅行者」= 10000005 与 10000007 ✓）⇒ 必须**确定性**取 ID 最大那个 ✓
 //
 // 2026-10-14 实测到的抖动 ✗：取"map 迭代先撞到的"那一行 ⇒ 有时落到 10000005（没有攻略卡 ✗）
