@@ -23,6 +23,8 @@ const namesArg = args.includes('--names') ? args[args.indexOf('--names') + 1].sp
 const OUT = path.resolve(args.includes('--out') ? args[args.indexOf('--out') + 1] : 'scripts/data/character_guides.json')
 // --explain 角色名：只打印这个角色**各来源**摘出的阈值句（排障用 ✓，不写文件 ✓）
 const explainArg = args.includes('--explain') ? args[args.indexOf('--explain') + 1].trim() : null
+// --why-empty：列出**毕业线为空**的角色，并说明"缺的是什么"（逐来源统计拒因 ✓，不写文件 ✓）
+const whyEmpty = args.includes('--why-empty')
 
 // ---------------------------------------------------------------- wikitext 清洗
 const stripComments = (t) => t.replace(/<!--[\s\S]*?-->/g, '')
@@ -126,7 +128,11 @@ const PANEL_WORDS = /(双暴|暴击率|暴击伤害|暴伤|元素精通|精通|�
 // **机制/动作描述词**：出现这些基本可以断定不是"面板门槛" ✗（避免把技能说明当毕业线 ✓）
 const MECHANIC_WORDS = /(施放|召唤|进入|退出|附着|元素微粒|概率|命座|天赋|元素战技|持续\d|秒)/
 // 单句长度上限：毕业线要的是"双暴 60/120 起步"这种短句，长句多半是散文或装备介绍 ✗
-const THRESHOLD_MAX_CHARS = 80
+//   ⚠️ 2026-10-14 由 80 放宽到 140（用户问"空的 53 位缺什么"时实测 ✗）：
+//     80 会把**真门槛句**误杀 ✓ —— 雅珂达「…依靠能量需求达70点的元素爆发治疗，需要
+//     220%以上的元素充能效率，解锁第四命座后…」（= 充能 220% ✓）整句被判"过长"✗✗。
+//     放宽后仍由"面板指标 + 数字 + 门槛词"三条把散文挡在外面 ✓（不是靠长度挡 ✓）。
+const THRESHOLD_MAX_CHARS = 140
 
 // 句子清洗：模板残渣（前导 `|` / 星号）+ **表格语法** ✗
 //   实测（2026-10-13）：丝柯克的「阵容搭配」里漏出 `! colspan=4 | 元素充能效率需求` ✗
@@ -139,36 +145,83 @@ function cleanSentence(s) {
   return t
 }
 
-function thresholdSentences(text) {
+// 门槛词：只认**目标/上限**口径 ✓ —— 实测（2026-10-13）放宽到"需要/建议/推荐"会把
+// 「夜兰…应优先保证充能循环的前提下提升伤害」✗「阿蕾奇诺…攻击收益只有双暴的40%~60%」✗
+// 这类**机制/稀释解释**捞进来 ⇒ 宁可为空也不放噪音 ✓
+const hasGate = (s) => /(以上|即可|至少|不低于|起步|上限|不超过|低于|大约|达到)/.test(s)
+// **面板表行**（首选 ✓）：攻略页「阵容搭配」里的达标线本来就写成
+//   「暴击率/暴击伤害：70%/180%以上；元素精通：200以上」这种 指标：数值 的行 ✓
+const STAT_LINE_RE =
+  /^(（[^）]{1,24}）|【[^】]{1,24}】)?\s*(双暴|暴击率|暴击伤害|暴伤|元素精通|精通|元素充能效率|充能效率|充能|生命值|攻击力|防御力|元素伤害加成|治疗加成)\s*[:：]/
+
+// thresholdExplain 逐句给出「留 / 拒（附原因）」—— 供 --why-empty 诊断用 ✓
+//   判定顺序与正式抽取**完全一致** ✓（改这里必须同步改 thresholdSentences 的语义 ✗）
+function thresholdExplain(text) {
   const sents = clean(text ?? '')
     .split(/[。；\n]/)
     .map(cleanSentence)
     .filter(Boolean)
-    .filter((s) => !/^[」』）)】]/.test(s)) // 残句（模板/引号被截断）✗：如芙宁娜的「」提高获取「气氛值」效率…」
 
-  // ⚠️ 名字不能叫 clean ✗：外层就是 `clean()`（清模板），同名会把它遮住 ⇒ TDZ 报错 ✓
-  const acceptable = (s) =>
-    s.length <= THRESHOLD_MAX_CHARS && !GEAR_WORDS.test(s) && !NOTE_WORDS.test(s) && !MECHANIC_WORDS.test(s)
-  const hasNumber = (s) => /\d/.test(s)
-  // 门槛词：只认**目标/上限**口径 ✓ —— 实测（2026-10-13）放宽到"需要/建议/推荐"会把
-  // 「夜兰…应优先保证充能循环的前提下提升伤害」✗「阿蕾奇诺…攻击收益只有双暴的40%~60%」✗
-  // 这类**机制/稀释解释**捞进来 ⇒ 宁可为空也不放噪音 ✓
-  const hasGate = (s) => /(以上|即可|至少|不低于|起步|上限|不超过|低于|大约|达到)/.test(s)
+  const statLines = [] // ① 面板表行（最高优先 ✓）
+  const prose = [] // ② 散文门槛句（只有该来源**没有**面板表行时才用 ✓）
+  const rejected = []
+  for (const s of sents) {
+    if (/^[」』）)】]/.test(s)) {
+      rejected.push({ s, why: '残句（引号/模板被截断）' })
+      continue
+    }
+    // ⚠️ 顺序很关键 ✗：**先认"真门槛"，再判排除项** ——
+    //   2026-10-14 实测：先判排除词会把真门槛误杀 ✓
+    //   （沃雅妮莎「天赋「十二弦的泪歌」…在生命值达到 65000 点时达到上限」✓含"天赋"⇒被判机制句✗）
+    //   ⇒ 只要同时满足 面板指标 + 数字 + 门槛/上限词，就认它是毕业线 ✓；
+    //     装备介绍（GEAR_WORDS）仍然**一律排除** ✗（那是用户投诉的那类噪音 ✓）。
+    if (STAT_LINE_RE.test(s) && /\d/.test(s)) {
+      statLines.push(s)
+      continue
+    }
+    if (/\d/.test(s) && PANEL_WORDS.test(s) && hasGate(s) && !GEAR_WORDS.test(s)) {
+      prose.push(s)
+      continue
+    }
+    if (s.length > THRESHOLD_MAX_CHARS) {
+      rejected.push({ s, why: `过长（>${THRESHOLD_MAX_CHARS} 字）` })
+      continue
+    }
+    if (GEAR_WORDS.test(s)) {
+      rejected.push({ s, why: '装备介绍（武器/沙杯头/套装）' })
+      continue
+    }
+    if (NOTE_WORDS.test(s)) {
+      rejected.push({ s, why: '命座/手法/注意类' })
+      continue
+    }
+    if (MECHANIC_WORDS.test(s)) {
+      rejected.push({ s, why: '机制/动作描述' })
+      continue
+    }
+    if (!/\d/.test(s)) {
+      rejected.push({ s, why: '没有数字' })
+      continue
+    }
+    if (!PANEL_WORDS.test(s)) {
+      rejected.push({ s, why: '不是面板指标句' })
+      continue
+    }
+    if (!hasGate(s)) {
+      rejected.push({ s, why: '没有门槛/上限词（以上/即可/至少…）' })
+      continue
+    }
+    // 到这里说明：有数字、是面板指标、也有门槛词，但被上面的排除拦过 ⇒ 理论上不可达 ✓（保险起见收入 ✓）
+    prose.push(s)
+  }
+  // ⚠️ **面板表行优先**：同一来源里两者都有时只取面板表行 ✓ ——
+  //   2026-10-14 踩过 ✗：混排后散文排在前面，把 240 字预算吃光 ✓（胡桃/宵宫一度变成"茜特菈莉…"✗✗）
+  return { kept: [...new Set(statLines.length ? statLines : prose)], rejected, hasStatLines: statLines.length > 0 }
+}
 
-  // ① **面板表行**（首选 ✓）：攻略页「阵容搭配」里的达标线本来就写成
-  //    「暴击率/暴击伤害：70%/180%以上；元素精通：200以上」这种 指标：数值 的行 ✓
-  //    这才是真正的毕业线 ✓ —— 有了它就不必再去散文里捞 ✗（那正是噪音来源 ✓）
-  const statLines = sents.filter(
-    (s) =>
-      acceptable(s) &&
-      /^(（[^）]{1,24}）|【[^】]{1,24}】)?\s*(双暴|暴击率|暴击伤害|暴伤|元素精通|精通|元素充能效率|充能效率|充能|生命值|攻击力|防御力|元素伤害加成|治疗加成)\s*[:：]/.test(s) &&
-      hasNumber(s),
-  )
-  if (statLines.length) return [...new Set(statLines)]
-
-  // ② 没有面板表行时才退到散文门槛句 ✓（必须同时有 **面板指标** + 数值 + 门槛词 ✓）
-  const hit = sents.filter((s) => acceptable(s) && hasNumber(s) && PANEL_WORDS.test(s) && hasGate(s))
-  return [...new Set(hit)]
+// thresholdSentences 正式口径：只保留 kept ✓（与 thresholdExplain 同一套判定 ✓）
+function thresholdSentences(text) {
+  return thresholdExplain(text).kept
 }
 
 // 毕业线来源（**按可信度排序** ✓）：越靠前越像"数值门槛"语境；
@@ -290,6 +343,8 @@ const seenIn = (name) => {
 }
 
 const cards = []
+// --why-empty 的收集器（诊断用 ✓）
+const emptyDiag = []
 for (const title of titles) {
   const file = path.join(RAW, title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
   if (!fs.existsSync(file)) { console.log(`   [缺缓存] ${title}`); continue }
@@ -308,6 +363,47 @@ for (const title of titles) {
   // 毕业线：先算（explain 模式要用 ✓）
   const gradSources = graduationSources({ raw, ci, b0, relics, weapons })
   const grad = pickGraduation(gradSources)
+  if (whyEmpty) {
+    if (grad.text) continue // 只报"空"的 ✓
+    const pageLabel = title.replace(/\/攻略$/, '') // 旅行者/风 这种带形态的要能区分 ✓
+    const diag = gradSources.map(([label, text]) => {
+      const ex = thresholdExplain(text)
+      const why = {}
+      for (const r of ex.rejected) why[r.why] = (why[r.why] || 0) + 1
+      const top = Object.entries(why).sort((a, b) => b[1] - a[1])[0]
+      // 代表句要取**与主因同类**的那一句 ✓（否则会打印"主因=没有数字"却附一句有数字的例句 ✗）
+      const sameKind = ex.rejected.find((r) => r.why === top?.[0]) ?? ex.rejected[0]
+      return {
+        label,
+        chars: (text ?? '').replace(/\s+/g, '').length,
+        rejected: ex.rejected.length,
+        topWhy: top ? top[0] : '',
+        sample: sameKind ? `${sameKind.s.slice(0, 44)} ← ${sameKind.why}` : '',
+      }
+    })
+    const hasText = diag.filter((d) => d.chars > 0)
+
+    // **关键判据**：那 75 张有值的卡，值几乎全部来自「阵容搭配」里的**面板数值表** ✓
+    //   ⇒ 空的这批到底缺什么，就看这一节：是没内容 ✓、还是有散文但没数值 ✓、还是有数值但被判成机制/装备 ✓
+    const teamText = gradSources.find((s) => s[0] === '阵容搭配')?.[1] ?? ''
+    const teamChars = teamText.replace(/\s+/g, '').length
+    const teamSents = clean(teamText).split(/[。；\n]/).map(cleanSentence).filter(Boolean)
+    const teamNumeric = teamSents.filter((s) => /(\d+(\.\d+)?%|\d+\s*以上|\d+\s*点|\d+\s*个词条)/.test(s) && PANEL_WORDS.test(s)).length
+    let bucket
+    if (teamChars <= 60) bucket = 'A. 「阵容搭配」小节是空的（只有模板占位 ⇒ 页里就没写配队面板）'
+    else if (teamNumeric === 0) bucket = 'B. 「阵容搭配」有文字，但没有"指标：数值"的面板行'
+    else bucket = 'C. 「阵容搭配」有数值句，但被判为机制/装备/过长等（口径问题，可复核）'
+
+    emptyDiag.push({ name: pageLabel, bucket, hasText: hasText.length, diag, teamChars, teamNumeric })
+    console.log(
+      `\n  【${pageLabel}】${bucket}\n     可用来源 ${hasText.length}/4（共 ${diag.reduce((n, d) => n + d.chars, 0)} 字）；阵容搭配 ${teamChars} 字/${teamNumeric} 条数值句`,
+    )
+    for (const d of hasText) {
+      console.log(`     · ${d.label}：${d.chars} 字 / 拒 ${d.rejected} 句（${d.topWhy || '—'}）例：${d.sample.slice(0, 44)}`)
+    }
+    continue
+  }
+
   if (explainArg) {
     if (charName !== explainArg) continue
     console.log(`\n  === ${title} 的毕业线候选（按可信度排序 ✓）===`)
@@ -401,6 +497,23 @@ for (const title of titles) {
 //   脚本末尾照样会把空 cards 落盘 ⇒ 2026-10-13 实测把 128 张卡的
 //   `scripts/data/character_guides.json` 覆盖成了「0 张」✗（教训：调试开关绝不能
 //   穿过写盘语句 ✓；且这份 JSON 必须入库版本管理，才能在被误写时恢复 ✓）。
+// ⚠️ 只读模式必须在**写盘之前**退出 ✗✗（2026-10-13 的教训：--explain 曾把 128 张卡写成 0 张 ✓）
+if (whyEmpty) {
+  const groups = {}
+  for (const e of emptyDiag) (groups[e.bucket] ||= []).push(e.name)
+  console.log(`\n  ==== 毕业线为空的角色：${emptyDiag.length} 位，按"缺的是什么"分组 ====`)
+  for (const [bucket, names] of Object.entries(groups).sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`\n  ▸ ${bucket} —— ${names.length} 位`)
+    console.log('    ' + names.join('、'))
+  }
+  const teamEmpty = emptyDiag.filter((e) => e.teamChars <= 60).length
+  const teamProse = emptyDiag.filter((e) => e.teamChars > 60 && e.teamNumeric === 0).length
+  const byRule = emptyDiag.length - teamEmpty - teamProse
+  console.log(`\n  小结：阵容搭配为空 ${teamEmpty} 位；有散文无面板行 ${teamProse} 位；有数值但被口径挡下 ${byRule} 位`)
+  console.log('  （--why-empty 只读 ✓：不写任何文件 ✓）')
+  process.exit(0)
+}
+
 if (explainArg) {
   console.log('\n  （--explain 只读 ✓：只打印候选句，不写任何文件 ✓）')
   process.exit(0)
