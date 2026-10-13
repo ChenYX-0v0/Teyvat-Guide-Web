@@ -482,6 +482,16 @@ func (s *Service) RelicWeightRules(characterID int64) []CharacterRelicWeightRule
 	return out
 }
 
+// travelerFormAliases 旅行者的「形态别名」→ 命中旅行者 ✓（2026-10-14 用户点名 ✓）。
+//
+// 为什么要这层 ✗：玩家几乎不说"旅行者"✗，只说「**火主 / 冰主**」✓（用户原话：这两个用的人最多 ✓），
+// 而这两种写法里都不含"旅行者"三字 ⇒ 纯按名字匹配会**完全命中不到** ✗ ⇒ 攻略卡根本不注入 ✓。
+// 命中后用哪一形态，交给 `service.GuideStore` 的形态选择（同样认这几个别名 ✓，火 / 冰优先 ✓）。
+var travelerFormAliases = []string{"火主", "冰主", "水主", "草主", "雷主", "风主", "岩主"}
+
+// travelerName 旅行者在 characters 表里的名字（表里每个角色只有一行 ✓；形态是攻略卡侧的维度 ✓）
+const travelerName = "旅行者"
+
 // CharactersMentioned 返回提问中「名字被提到」的角色（V2 结构化查表用）。
 // 按名字长度倒序，长名优先——否则「雷电将军」会被「将军」这类短名抢先命中；
 // 同长度按名字排序，保证结果稳定（map 遍历本身无序）。
@@ -499,6 +509,29 @@ func (s *Service) CharactersMentioned(question string) []Character {
 			matched = append(matched, c)
 		}
 	}
+	// 形态别名：问「火主 / 冰主」时补上旅行者 ✓（本来命中不到 ✗）
+	//   ⚠️ 只在别名出现时才补，且**不改变**下面"长名优先"的既有顺序 ✓
+	if !containsCharacter(matched, travelerName) {
+		aliasHit := false
+		for _, a := range travelerFormAliases {
+			if strings.Contains(question, a) {
+				aliasHit = true
+				break
+			}
+		}
+		if aliasHit {
+			if c, ok := s.travelerCharacter(); ok {
+				matched = append(matched, c)
+			}
+		}
+	}
+	// ⚠️ 按名字去重（保留 **ID 最大** 的那个 ✓）—— 2026-10-14 实测到的坑 ✗：
+	//   `characters` 表里**有两行都叫「旅行者」**（10000005 / 10000007 ✓，Enka 的那两个 avatarId ✓）
+	//   ⇒ ① 问"旅行者"时同一个角色被算两次（词条 2 位 ✗）；
+	//     ② 别名补的如果是 map 迭代先撞到的那一行 ✗ ⇒ 有时落到**没有攻略卡的那个 id** 上 ✓
+	//        ⇒ 表现为"同一句话有时答得出来、有时答不出来" ✗（攻略卡按 id 查 ⇒ 0 行 ✓）。
+	//   保留最大 ID = 与既有数据一致（攻略卡/词条都挂在 10000007 上 ✓），且**结果稳定** ✓。
+	matched = dedupByNameKeepMaxID(matched)
 	s.mu.RUnlock()
 
 	sort.Slice(matched, func(i, j int) bool {
@@ -509,6 +542,58 @@ func (s *Service) CharactersMentioned(question string) []Character {
 		return matched[i].Name < matched[j].Name
 	})
 	return matched
+}
+
+// containsCharacter 判断命中列表里是否已有某个角色名（避免重复追加 ✓）
+func containsCharacter(list []Character, name string) bool {
+	for _, c := range list {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// travelerCharacter 取「旅行者」那一行（**调用方必须已持有读锁** ✓）。
+// 表里可能有 10000005 / 10000007 两行都叫"旅行者" ⇒ 取 **ID 最大**的那个（与既有数据一致 ✓，且确定 ✓）
+func (s *Service) travelerCharacter() (Character, bool) {
+	var best Character
+	found := false
+	for _, c := range s.characters {
+		if c.Name != travelerName {
+			continue
+		}
+		if !found || c.ID > best.ID {
+			best, found = c, true
+		}
+	}
+	return best, found
+}
+
+// dedupByNameKeepMaxID 同名多行只留 ID 最大的那个 ✓
+//
+// 为什么需要 ✗：`characters` 表里「旅行者」有两行（10000005 / 10000007 ✓）⇒
+//
+//	不去重的话"提一次旅行者"会被算成两位角色 ✓（注入两份词条、也影响形态选择的数量判断 ✗）。
+//
+// 顺序：保持传入顺序 ✓（调用方随后会按"长名优先"排序 ✓，这里只做替换 ✓）。
+func dedupByNameKeepMaxID(list []Character) []Character {
+	best := make(map[string]Character, len(list))
+	for _, c := range list {
+		if cur, ok := best[c.Name]; !ok || c.ID > cur.ID {
+			best[c.Name] = c
+		}
+	}
+	out := make([]Character, 0, len(best))
+	seen := make(map[string]bool, len(best))
+	for _, c := range list {
+		if seen[c.Name] {
+			continue
+		}
+		seen[c.Name] = true
+		out = append(out, best[c.Name])
+	}
+	return out
 }
 
 // RelicSetsMentioned 返回提问中「名字被提到」的圣遗物套装（V2.2 结构化查表用）。

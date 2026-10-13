@@ -95,3 +95,91 @@ func TestRenderGuideNeverLeaksSource(t *testing.T) {
 		t.Fatalf("注入文本里不该出现来源 URL，实际：%s", got)
 	}
 }
+
+// 多形态角色（旅行者）必须**在标题里标出形态** ✗ —— 不标的话模型会把冰主的毕业线当草主讲 ✓
+// （2026-10-14：旅行者 8 个形态拆开存之后，标题是唯一的区分手段 ✓）
+func TestRenderGuideShowsFormElement(t *testing.T) {
+	row := fullGuideRow()
+	row.Name = "旅行者"
+	row.FormElement = "冰"
+	row.Graduation = "攻击力：2800以上"
+	got := renderGuide(row, false)
+	if !strings.Contains(got, "【角色攻略】旅行者（冰）") {
+		t.Fatalf("多形态角色的标题必须带形态，实际：%s", got)
+	}
+	if !strings.Contains(got, "毕业线：攻击力：2800以上") {
+		t.Fatalf("毕业线应照常注入，实际：%s", got)
+	}
+}
+
+// 普通角色（formElement 为空）标题保持原样 —— 不带括号 ✓（别给 120 位角色都加个空括号 ✗）
+func TestRenderGuideNoFormSuffixForNormal(t *testing.T) {
+	if got := renderGuide(fullGuideRow(), false); !strings.Contains(got, "【角色攻略】测试角色\n") {
+		t.Fatalf("普通角色的标题不该有括号，实际：%s", got)
+	}
+}
+
+// formRows 造一组形态行（火 / 冰 / 草 ✓）
+func formRows() []model.CharacterGuide {
+	return []model.CharacterGuide{
+		{Name: "旅行者", FormElement: "草", Graduation: "草主：充能210%"},
+		{Name: "旅行者", FormElement: "冰", Graduation: "冰主：攻击2800"},
+		{Name: "旅行者", FormElement: "火", Graduation: "火主：攻击2000"},
+	}
+}
+
+// ① 提问点名形态 ⇒ 只给那一个 ✓（用户最常说的是「火主」「冰主」✓）
+func TestPickGuideRowsByAlias(t *testing.T) {
+	for q, want := range map[string]string{
+		"火主怎么配队？":      "火",
+		"冰主的毕业面板是多少":   "冰",
+		"草元素旅行者需要多少充能": "草",
+	} {
+		got := pickGuideRows(formRows(), q, 1)
+		if len(got) != 1 || got[0].FormElement != want {
+			t.Fatalf("提问 %q 应只给形态 %s，实际：%+v", q, want, got)
+		}
+	}
+}
+
+// ② 没点名 ⇒ 按用户定的优先级给：**火、冰**（用的人最多 ✓）
+// ③ 只提了旅行者自己 ⇒ 给 2 张；同时提了别的角色 ⇒ 只给 1 张（把额度留给那个角色 ✓）
+func TestPickGuideRowsDefaultPriority(t *testing.T) {
+	got := pickGuideRows(formRows(), "旅行者的毕业面板是多少？", 1)
+	if len(got) != 2 || got[0].FormElement != "火" || got[1].FormElement != "冰" {
+		t.Fatalf("应给火、冰两张且顺序固定，实际：%+v", got)
+	}
+
+	one := pickGuideRows(formRows(), "旅行者和胡桃怎么配队？", 2)
+	if len(one) != 1 || one[0].FormElement != "火" {
+		t.Fatalf("同一次还提到别的角色时只给 1 张（火 ✓），实际：%+v", one)
+	}
+}
+
+// ④ 普通角色（只有 1 行）行为**完全不变** ✓ —— 这条是"别把 124 位角色一起改了"的回归 ✓
+func TestPickGuideRowsSingleRowUnchanged(t *testing.T) {
+	rows := []model.CharacterGuide{{Name: "胡桃", FormElement: "", Graduation: "毕业"}}
+	got := pickGuideRows(rows, "胡桃怎么练？", 1)
+	if len(got) != 1 || got[0].Name != "胡桃" {
+		t.Fatalf("单行角色必须原样返回，实际：%+v", got)
+	}
+}
+
+// ⑤ 数据库返回顺序不保证 ⇒ 结果必须稳定（同一问题两次一样 ✓）；点名了形态但库里没有该形态 ⇒ 退回主形态而不是给空 ✗
+func TestPickGuideRowsStableAndFallback(t *testing.T) {
+	rows := formRows()
+	rows = []model.CharacterGuide{rows[2], rows[0], rows[1]} // 故意打乱 ✓
+	first := pickGuideRows(append([]model.CharacterGuide{}, rows...), "旅行者的毕业面板？", 1)
+	second := pickGuideRows(append([]model.CharacterGuide{}, rows...), "旅行者的毕业面板？", 1)
+	if len(first) != 2 || first[0].FormElement != "火" || first[1].FormElement != "冰" {
+		t.Fatalf("乱序输入也必须稳定给火、冰，实际：%+v", first)
+	}
+	if second[0].FormElement != first[0].FormElement {
+		t.Fatalf("同一提问两次结果不一致：%+v vs %+v", first, second)
+	}
+
+	missing := pickGuideRows([]model.CharacterGuide{{Name: "旅行者", FormElement: "草", Graduation: "草主"}}, "冰主怎么练？", 1)
+	if len(missing) != 1 || missing[0].FormElement != "草" {
+		t.Fatalf("点名的形态没有卡时应退回主形态（不能给空 ✗），实际：%+v", missing)
+	}
+}

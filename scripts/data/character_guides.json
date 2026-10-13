@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-10-13T16:39:55.699Z",
+  "extractedAt": "2026-10-13T16:51:08.061Z",
   "count": 128,
   "source": "biligame wiki（Template:角色攻略头 反查页）",
   "cards": [
@@ -9518,7 +9518,7 @@
     {
       "page": "旅行者/风/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "风",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E9%A3%8E%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 594525,
       "fetchedAt": "2025-03-05T07:56:12Z",
@@ -9620,7 +9620,7 @@
     {
       "page": "旅行者/岩/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "岩",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E5%B2%A9%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 594520,
       "fetchedAt": "2025-03-05T07:51:04Z",
@@ -9730,7 +9730,7 @@
     {
       "page": "旅行者/雷/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "雷",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E9%9B%B7%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 594541,
       "fetchedAt": "2025-03-05T08:09:19Z",
@@ -9840,7 +9840,7 @@
     {
       "page": "旅行者/草/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "草",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E8%8D%89%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 594556,
       "fetchedAt": "2025-03-05T08:19:50Z",
@@ -9950,7 +9950,7 @@
     {
       "page": "旅行者/水/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "水",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E6%B0%B4%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 600297,
       "fetchedAt": "2025-04-08T11:53:25Z",
@@ -10530,7 +10530,7 @@
     {
       "page": "旅行者/火/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "火",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E7%81%AB%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 669305,
       "fetchedAt": "2026-06-22T07:59:13Z",
@@ -13320,7 +13320,7 @@
     {
       "page": "旅行者/冰/攻略",
       "name": "旅行者",
-      "formElement": null,
+      "formElement": "冰",
       "sourceUrl": "https://wiki.biligame.com/ys/%E6%97%85%E8%A1%8C%E8%80%85%2F%E5%86%B0%2F%E6%94%BB%E7%95%A5",
       "sourceRev": 681695,
       "fetchedAt": "2026-09-15T19:29:38Z",

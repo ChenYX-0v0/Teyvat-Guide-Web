@@ -521,7 +521,11 @@ for (const title of titles) {
     page: title,
     // ⚠️ 字段名就叫 name（2026-10-13 由 characterGuess 改名 ✓）：入库时要按它锚 characters.id ✓
     name: charName,
-    formElement: title.includes('/') && !title.endsWith('/攻略') ? title.split('/')[1] : null,
+    // ⚠️ 形态页的写法是「旅行者/风/攻略」（**三段** ✓）—— 原判断用 `!title.endsWith('/攻略')` 想排除
+    //   普通页，却把 8 个形态页一起排除了 ✗ ⇒ 全部 formElement=null ⇒ 入库时按 character_id 互相覆盖 ✓
+    //   （2026-10-14 用户点名修：旅行者各元素要**分开**处理 ✓，火主 / 冰主优先 ✓）。
+    //   两段 = 普通角色页（`XX/攻略`）⇒ null ✓；三段 = 形态页 ⇒ 取中间那段（= 元素 ✓）
+    formElement: title.split('/').length >= 3 ? title.split('/')[1] : null,
     sourceUrl: 'https://wiki.biligame.com/ys/' + encodeURIComponent(title),
     sourceRev: manifest.pages[title]?.revid,
     fetchedAt: manifest.pages[title]?.timestamp,
