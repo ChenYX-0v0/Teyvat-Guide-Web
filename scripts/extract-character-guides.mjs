@@ -227,8 +227,11 @@ for (const title of titles) {
   const charName = title.replace(/\/攻略$/, '').replace(/\/.*$/, '') // 旅行者/风 → 旅行者
   const ownTeam = clipSent(clean(section(raw, '阵容搭配', 2)), 500)
   const rev = seenIn(charName)
+  // ⚠️ **不加"据其他角色攻略页"前缀** ✗：主服务渲染时会按 `teamFrom` 自己加标签 ✓
+  //   两处都加 ⇒ 注入文本会变成「配队思路（据其他角色攻略页）：据其他角色攻略页：共 70 处…」✗
+  //   （2026-10-13 用 `guideimport -probe` 实测看到 ✓）
   const teamsSeen = rev.count
-    ? `据其他角色攻略页：共 ${rev.count} 处把 TA 列为队友，例如 ${rev.owners.join('、')}`
+    ? `共 ${rev.count} 处把 TA 列为队友，例如 ${rev.owners.join('、')}`
     : ''
 
   const card = {
