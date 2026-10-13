@@ -371,7 +371,9 @@ for (const title of titles) {
     //     外部毕业面板数据（九游/游侠等，多源数值基本一致 ✓）留作 graduationExternal ✓ 待补
     // ⑥ 毕业线（口径按用户 2026-10-13 定：**先按社区能抓到的来**，不合理再调 ✓）
     //   来源由 3 处扩到 6 处（原来只查前 3 处 ⇒ 丝柯克/菲林斯两张卡是空的 ✗）
-    graduation: clipSent(grad.text, 400),
+    // 上限 240 字（2026-10-13 由 400 收紧 ✗）：攻略页的达标线是**按队伍逐行**列的，
+    //   实测妮露有 20+ 行（每套配队一行 ✓）⇒ 全塞进去会把这一栏变成噪音 ✓
+    graduation: clipSent(grad.text, 240),
     // graduationFrom 是哪一节摘出来的（只进表与后台 ✓，不进注入文本 ✗）
     graduationFrom: grad.from,
     graduationSource: 'biligame wiki 攻略页内文摘录（该页没有"毕业面板"小节 ✓；数值=社区口径，非官方 ✓）',

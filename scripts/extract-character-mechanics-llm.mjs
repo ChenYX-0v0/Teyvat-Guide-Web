@@ -160,6 +160,11 @@ async function callModel(cfg, excerpt, name) {
     temperature: 0.2,
     stream: false,
     response_format: { type: 'json_object' },
+    // ⚠️ 必须显式关掉思考 ✗：默认开着 ⇒ 每次 20~40 秒（实测 120 位要 40 分钟+ ✓）；
+    //   与 AI 服务 json/classify 档同一口径（profiles.py 的 thinking_param ✓）
+    thinking: { type: 'disabled' },
+    // 3000 会把长页面的 JSON 截断 ✗（实测赛诺/优菈/桑多涅/薇斯纳 4 位报 Unterminated string ✓）
+    max_tokens: 8000,
   }
   const res = await fetch(`${cfg.base}/chat/completions`, {
     method: 'POST',
