@@ -56,6 +56,11 @@ function clean(text) {
     if (t === before) break
   }
   return t
+    // ⚠️ 小节标题要**保留语义再清**（2026-10-13 加）：玛薇卡的「阵容搭配」里有
+    //   `===作为辅C角色===` / `===作为站场角色===` 两个子节 ⇒ 直接删会把"这是哪种玩法"的
+    //   上下文丢掉 ✗，留着又会把 `===` 原样带进散文 ✓（实测就是这么漏进去的 ✗）
+    //   ⇒ 转成【作为辅C角色】这种标签 ✓
+    .replace(/^={2,4}\s*(.+?)\s*={2,4}\s*$/gm, '【$1】')
     .replace(/\[\[(?:file|文件):[^\]]*\]\]/gi, '')          // [[file:火.png|24px]] → 去掉
     .replace(/\[\[[^|\]]*\|([^\]]*)\]\]/g, '$1')            // [[A|B]] → B
     .replace(/\[\[([^\]]*)\]\]/g, '$1')                     // [[A]] → A
@@ -67,6 +72,18 @@ function clean(text) {
     .trim()
 }
 const clip = (s, n = cap) => (s && s.length > n ? s.slice(0, n) + '…' : s)
+// **按句收口**的截断（2026-10-13 加）：不要切在句子中间 ✗
+//   线上实测：team 421 字正好等于旧 cap ⇒ 胡桃那张卡断在"…施放元素战技后抗打断系数"✗
+//   规则：在 ≤n 的范围内找**最后一个句末标点**；若它太靠前（<一半）说明是一整句超长，才退回硬截断
+const clipSent = (s, n = cap) => {
+  const t = (s ?? '').trim()
+  if (!t || t.length <= n) return t
+  const head = t.slice(0, n)
+  const cut = Math.max(
+    head.lastIndexOf('。'), head.lastIndexOf('！'), head.lastIndexOf('？'), head.lastIndexOf('；'),
+  )
+  return cut >= Math.floor(n * 0.5) ? head.slice(0, cut + 1) : head + '…'
+}
 // 取模板参数值：**必须把续行也收进来** ✗
 //   ⚠️ 实测（2026-10-12）：`词条推荐理由` / `技能升级推荐理由` 这类是**多行**的 ——
 //   只读 `|key=` 那一行会把后半段整段丢掉（胡桃那句"实战精通能达到250-350即可"就在第 3 行 ✗），
@@ -87,10 +104,15 @@ const kv = (lines, key) => {
 // 从正文里摘"带阈值性质"的原句（毕业线/达标线的原句；**只摘不改写** ✓ 便于追溯）
 //   先 clean ✓ —— 否则摘出来的句子里会夹着 {{颜色|火|火元素}} 这类模板 ✗
 function thresholds(text) {
-  const sents = clean(text ?? '').split(/[。；\n]/).map((s) => s.trim()).filter(Boolean)
+  const sents = clean(text ?? '')
+    .split(/[。；\n]/)
+    .map((s) => s.trim().replace(/^\|\s*/, '').replace(/^\*+/, '')) // ⚠️ 洗掉模板参数残渣的前导竖线 / 星号 ✗
+    //   实测（2026-10-13）：希诺宁的毕业线开头是「| 非满命：元素爆发治疗场上角色12秒…」✗
+    //   来源是某个多行模板没被整块清掉、只留下参数行 ✓ ⇒ 这里统一剥掉前导 `|` ✓
+    .filter(Boolean)
   const hit = sents.filter(
-    (s) => /(\d+(\.\d+)?%|\d+\s*[~-]\s*\d+|\d+个词条|双暴|暴击率|暴伤|生命值|充能|精通)/.test(s)
-      && /(即可|上限|至少|不低于|起步|超过|达到|够用|大约)/.test(s),
+    (s) => /(\d+(\.\d+)?%|\d+\s*[~-]\s*\d+|\d+个词条|双暴|暴击率|暴伤|生命值|充能|精通|防御力)/.test(s)
+      && /(即可|上限|至少|不低于|起步|超过|达到|够用|大约|需)/.test(s),
   )
   return [...new Set(hit)].join('；')
 }
@@ -157,6 +179,37 @@ const manifest = JSON.parse(fs.readFileSync(path.resolve('scripts/cache/guides.m
 let titles = Object.keys(manifest.pages)
 if (namesArg) titles = titles.filter((t) => namesArg.some((n) => t === n + '/攻略' || t.startsWith(n + '/')))
 
+// ---------------------------------------------------------------- 配队反向索引（2026-10-13 加）
+// 为什么需要它：**有的攻略页自己根本没写配队** ✗ —— 班尼特 / 希诺宁 的「阵容搭配」小节里
+//   只有 `{{角色/阵容搭配|展示}}`（不含配队参数 ✓）⇒ 清洗后 0 字 ✓。那是 wiki 的真实状态，
+//   **不该编** ✗，但如果留空，用户问"班尼特怎么配队"就又回到"没有查到"✗。
+// 换个方向就有数据 ✓：这两个角色**出现在别的角色攻略页的 `|辅助角色=` 里**
+//   （实测：希诺宁 55 处、班尼特 43 处、芙宁娜 58 处、那维莱特仅 1 处 ✓）
+//   ⇒ 从"谁把 TA 当队友 + 在什么队伍类型里"反推出搭配 ✓，且每一条都能追回原页 ✓。
+const teamIndex = []
+for (const t of Object.keys(manifest.pages)) {
+  const f = path.join(RAW, t.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
+  if (!fs.existsSync(f)) continue
+  const owner = t.replace(/\/攻略$/, '').replace(/\/.*$/, '')
+  const blocks = stripComments(fs.readFileSync(f, 'utf8')).match(/\{\{角色\/阵容搭配\|配队[\s\S]*?\n\}\}/g) ?? []
+  for (const b of blocks) {
+    const type = /^\|队伍类型=([^\n]*)/m.exec(b)?.[1]?.trim() ?? ''
+    const mates = (/^\|辅助角色=([^\n]*)/m.exec(b)?.[1] ?? '')
+      .split(/[、，,]/).map((s) => s.trim()).filter(Boolean)
+    if (mates.length) teamIndex.push({ owner, type, mates })
+  }
+}
+// 返回"TA 常被谁编进什么队"的摘要（去重到 6 个队，附总数便于判断可信度 ✓）
+const seenIn = (name) => {
+  const hits = teamIndex.filter((e) => e.mates.includes(name))
+  const byOwner = new Map()
+  for (const h of hits) if (!byOwner.has(h.owner)) byOwner.set(h.owner, h.type)
+  return {
+    count: hits.length,
+    owners: [...byOwner.entries()].slice(0, 6).map(([o, ty]) => (ty ? `${o}（${ty}）` : o)),
+  }
+}
+
 const cards = []
 for (const title of titles) {
   const file = path.join(RAW, title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
@@ -171,54 +224,84 @@ for (const title of titles) {
   const weapons = parseDetailTable(raw, '武器')
   const ci = raw.match(/\{\{角色\/配装推荐\/词条[\s\S]*?\n\}\}/)?.[0]?.split('\n').map((l) => l.trim()) ?? []
 
+  const charName = title.replace(/\/攻略$/, '').replace(/\/.*$/, '') // 旅行者/风 → 旅行者
+  const ownTeam = clipSent(clean(section(raw, '阵容搭配', 2)), 500)
+  const rev = seenIn(charName)
+  const teamsSeen = rev.count
+    ? `据其他角色攻略页：共 ${rev.count} 处把 TA 列为队友，例如 ${rev.owners.join('、')}`
+    : ''
+
   const card = {
     page: title,
-    characterGuess: title.replace(/\/攻略$/, '').replace(/\/.*$/, ''), // 旅行者/风 → 旅行者
+    // ⚠️ 字段名就叫 name（2026-10-13 由 characterGuess 改名 ✓）：入库时要按它锚 characters.id ✓
+    name: charName,
     formElement: title.includes('/') && !title.endsWith('/攻略') ? title.split('/')[1] : null,
     sourceUrl: 'https://wiki.biligame.com/ys/' + encodeURIComponent(title),
     sourceRev: manifest.pages[title]?.revid,
     fetchedAt: manifest.pages[title]?.timestamp,
-    // ① 定位（散文，压缩到 cap）
-    role: clip(clean(section(raw, '角色定位', 2))),
+    // ① 定位（散文；2026-10-13 放宽到 500 字 + 按句收口 ✓）
+    role: clipSent(clean(section(raw, '角色定位', 2)), 500),
     // ② 天赋顺序：来自「技能升级推荐」+ 理由（结构化 ✓）
-    talents: clip([clean(kv(b0, '技能升级推荐')), clean(kv(b0, '技能升级推荐理由'))].filter(Boolean).join('｜')),
+    talents: clipSent([clean(kv(b0, '技能升级推荐')), clean(kv(b0, '技能升级推荐理由'))].filter(Boolean).join('｜'), 300),
     // ③ 圣遗物：套装 + 沙/杯/头 + 副词条（结构表与攻略重叠的那部分，只留"理由"给攻略卡 ✓）
+    //   ⚠️ 刻意**不写 mainStats / subStats** ✗（2026-10-13 按 TODO-18 硬约束「攻略卡不重写词条」）：
+    //     主/副词条一律以结构化表 character_stat_weights 为准（能分级、能参与评分 ✓），
+    //     攻略卡只保留"为什么这么堆"的理由 ⇒ 两处都写必然打架（用户会看到 A/B 两种说法 ✗）
     relicPick: {
-      sets: [1, 2, 3].map((i) => ({ name: clean(kv(b0, `圣遗物${i}`)), why: clean(kv(b0, `圣遗物描述${i}`)) })).filter((x) => x.name),
-      mainStats: { sand: clean(kv(b0, '沙')), goblet: clean(kv(b0, '杯')), circlet: clean(kv(b0, '头')) },
-      subStats: clean(kv(b0, '副词条')),
-      reasons: clip(clean(kv(ci, '词条推荐理由'))),
-      detail: relics.map((r) => ({ ...r, why: clip(r.why, 160) })),
+      sets: [1, 2, 3].map((i) => ({ name: clean(kv(b0, `圣遗物${i}`)), why: clip(clean(kv(b0, `圣遗物描述${i}`)), 200) })).filter((x) => x.name),
+      reasons: clipSent(clean(kv(ci, '词条推荐理由')), 400),
+      detail: relics.slice(0, 6).map((r) => ({ ...r, why: clip(r.why, 200) })),
     },
     // ④ 武器
     weaponPick: {
       graduation: clean(kv(b0, '毕业武器')),
       graduationWhy: clean(kv(b0, '毕业武器描述')),
       options: [1, 2, 3].map((i) => ({ name: clean(kv(b0, `可选武器${i}`)), why: clean(kv(b0, `可选武器描述${i}`)) })).filter((x) => x.name),
-      detail: weapons.map((r) => ({ ...r, why: clip(r.why, 160) })),
+      detail: weapons.slice(0, 6).map((r) => ({ ...r, why: clip(r.why, 200) })),
     },
-    // ⑤ 配队思路
-    team: clip(clean(section(raw, '阵容搭配', 2))),
+    // ⑤ 配队思路（2026-10-13 放宽到 500 字 + 按句收口 ✓）
+    //   ⚠️ 本页没写配队时（班尼特 / 希诺宁 ✓）**不硬凑** ✗：退用反向索引的"常被编入"摘要 ✓
+    //   `teamFrom` 标明这条配队是**本页原文**还是**反向索引** ✓（注入时要能说清依据 ✓）
+    team: ownTeam || teamsSeen,
+    teamFrom: ownTeam ? 'page' : (teamsSeen ? 'reverse' : ''),
+    teamsSeen,
     // ⑥ 毕业线
     //   ⚠️ 事实：128 篇攻略页的**全部 41 种小节标题**里没有"毕业/面板"小节 ✗
     //     （2026-10-12 实测；提到"面板"的 67 篇里绝大多数是"面板武器"这种说法 ≠ 毕业阈值 ✓）
     //   ⇒ 本脚本**不编数值** ✗，只把页面内**带阈值性质的原句**摘出来（可追溯到本页 ✓）
     //     外部毕业面板数据（九游/游侠等，多源数值基本一致 ✓）留作 graduationExternal ✓ 待补
-    graduation: clip(thresholds([section(raw, '角色定位', 2), kv(ci, '词条推荐理由'), kv(b0, '技能升级推荐理由')].join('\n')), 300),
-    graduationSource: 'biligame wiki 攻略页内文摘录（该页没有"毕业面板"小节 ✓）',
+    // ⑥ 毕业线（口径按用户 2026-10-13 定：**先按社区能抓到的来**，不合理再调 ✓）
+    //   来源由 3 处扩到 6 处（原来只查前 3 处 ⇒ 丝柯克/菲林斯两张卡是空的 ✗）
+    graduation: clipSent(
+      thresholds([
+        section(raw, '角色定位', 2),
+        kv(ci, '词条推荐理由'),
+        kv(b0, '技能升级推荐理由'),
+        section(raw, '阵容搭配', 2),
+        relics.map((r) => r.why).join('。'),
+        weapons.map((r) => r.why).join('。'),
+      ].join('\n')),
+      400,
+    ),
+    graduationSource: 'biligame wiki 攻略页内文摘录（该页没有"毕业面板"小节 ✓；数值=社区口径，非官方 ✓）',
     // ⑦ 注意事项：从定位与词条理由里挑带"数值阈值"的句子
-    notes: clip(
-      clean([section(raw, '角色定位', 2), kv(ci, '词条推荐理由')].join('\n'))
+    // ⑦ 注意事项：**换口径**（2026-10-13）—— 原来与 graduation 抢同一段文本 ⇒ 两张卡内容重叠 ✗
+    //   现在只挑"命座 / 手法 / 误区"这类**行动建议**句（数值阈值句归 graduation ✓），并剔掉带百分号的，
+    //   避免又变成同一批句子 ✓
+    notes: clipSent(
+      clean([section(raw, '角色定位', 2), section(raw, '阵容搭配', 2)].join('\n'))
         .split(/[。\n]/)
-        .filter((s) => /(即可|上限|至少|不低于|起步|超过|达到|约?\d+(\.\d+)?%)/.test(s))
+        .map((s) => s.trim().replace(/^\|\s*/, '').replace(/^\*+/, ''))
+        .filter((s) => s && /(命座|手法|不建议|注意|建议|优先|误区|不推荐|要小心)/.test(s) && !/\d+(\.\d+)?%/.test(s))
+        .slice(0, 8)
         .join('；'),
-      260,
+      300,
     ),
     buildsSeen: buildNames,
     rawBytes: Buffer.byteLength(raw),
   }
   cards.push(card)
-  console.log(`   ${title.padEnd(18)} 定位${card.role.length}字 天赋${card.talents.length}字 圣遗物${card.relicPick.detail.length}条 武器${card.weaponPick.detail.length}条 配队${card.team.length}字`)
+  console.log(`   ${title.padEnd(18)} 定位${card.role.length}字 天赋${card.talents.length}字 圣遗物${card.relicPick.detail.length}条 武器${card.weaponPick.detail.length}条 配队${card.team.length}字${!ownTeam && teamsSeen ? '（反向索引 ✓）' : ''}`)
 }
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true })
