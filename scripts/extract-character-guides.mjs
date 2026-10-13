@@ -266,6 +266,24 @@ try {
   console.log('  外部面板兜底：没有文件 ⇒ 只用 wiki（跑 fetch/extract-graduation-external.mjs 可补 ✓）')
 }
 
+// ---------------------------------------------------------------- 人工毕业线（**优先级最高** ✓，用户 2026-10-14 定稿）
+// 背景：128 篇里 wiki 写了的 87 位 + 外源补齐 18 位 = 105 位，剩 23 位两处都缺 ✗。
+//   2026-10-14 用户逐位定稿（见文件 `_meta.decided_by_user` ✓）：
+//     · `characters` = 人工给值 ⇒ **覆盖 wiki 面板行与外源** ✓（优先级：人工 > wiki 面板行 > 外源 > wiki 散文 ✓）
+//     · `_skip`      = 明确**不指定达标标准** ⇒ 该页**对任何源都不取值** ✓（哪怕是真面板行也清空 ✗）
+//       ⚠️ 这条是防"以后抓取又把它当成缺数据补回来"✓（同一份文件里带上理由 ✓，不会再回来问一遍 ✓）
+const MANUAL_FILE = path.resolve('scripts/data/character_graduation_manual.json')
+let MANUAL_BY_PAGE = new Map()
+let MANUAL_SKIP = new Set()
+try {
+  const m = JSON.parse(fs.readFileSync(MANUAL_FILE, 'utf8'))
+  MANUAL_BY_PAGE = new Map((m.characters ?? []).map((c) => [c.page, c]))
+  MANUAL_SKIP = new Set((m._skip?.characters ?? []).map((c) => c.page))
+  console.log(`  人工毕业线：有值 ${MANUAL_BY_PAGE.size} 位、明确不填 ${MANUAL_SKIP.size} 位（${path.basename(MANUAL_FILE)}）`)
+} catch {
+  console.log('  人工毕业线：没有文件 ⇒ 只用 wiki + 外部面板 ✓')
+}
+
 // 取某个二级/三级标题下的正文（到下一个同级或更高级标题为止）
 function section(text, title, level = 2) {
   const re = new RegExp('^={' + level + '}\\s*' + title + '\\s*={' + level + '}\\s*$', 'm')
@@ -364,6 +382,11 @@ const cards = []
 const emptyDiag = []
 // 外部兜底命中数（诊断用 ✓：为 0 就说明一条都没用上 ✗）
 let extFilled = 0
+// 人工层计数（诊断用 ✓）
+let manualFilled = 0 // 人工给值 ✓
+let skipForced = 0 // 人工决定"不填"⇒ 强制留空 ✓
+let skipDropped = 0 // 其中原本被源填过 ⇒ 已清空 ✗
+let skipEmpty = 0 // --why-empty 里被跳过的"已定不填"个数 ✓
 for (const title of titles) {
   const file = path.join(RAW, title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
   if (!fs.existsSync(file)) { console.log(`   [缺缓存] ${title}`); continue }
@@ -397,7 +420,33 @@ for (const title of titles) {
     extFilled++
     console.log(`   [外部兜底] ${charName.padEnd(6)} ${ext.text}`)
   }
+
+  // 人工层**最后压上** ✓（顺序很重要：wiki → 外源 → 人工 ✓，人工的值不会再被任何源顶掉 ✓）
+  const manual = MANUAL_BY_PAGE.get(title)
+  const skipped = MANUAL_SKIP.has(title)
+  if (manual) {
+    grad.text = manual.text
+    grad.from = '人工填写'
+    grad.source = manual.note ? `人工填写（${manual.note}）` : '人工填写'
+    manualFilled++
+  } else if (skipped) {
+    // 明确不填 ⇒ **连源填的值也清掉** ✗（保"这 18 位保持为空"这条决定 ✓）
+    if (grad.text) {
+      skipDropped++
+      console.log(`   [人工不填] ${charName.padEnd(6)} 清空源值：${grad.text.slice(0, 28)}…`)
+    }
+    grad.text = ''
+    grad.from = ''
+    grad.source = '人工确认不指定达标标准（用户 2026-10-14；理由见 character_graduation_manual.json 的 _skip ✓）'
+    skipForced++
+  }
+
   if (whyEmpty) {
+    // 用户已定"不填"的位置不再报空 ✓（否则每次都当成待办 ✗）—— 只统计个数，末尾统一说明 ✓
+    if (skipped) {
+      skipEmpty++
+      continue
+    }
     if (grad.text) continue // 只报"空"的 ✓
     const pageLabel = title.replace(/\/攻略$/, '') // 旅行者/风 这种带形态的要能区分 ✓
     const diag = gradSources.map(([label, text]) => {
@@ -554,6 +603,9 @@ if (whyEmpty) {
   const teamProse = emptyDiag.filter((e) => e.teamChars > 60 && e.teamNumeric === 0).length
   const byRule = emptyDiag.length - teamEmpty - teamProse
   console.log(`\n  小结：阵容搭配为空 ${teamEmpty} 位；有散文无面板行 ${teamProse} 位；有数值但被口径挡下 ${byRule} 位`)
+  if (skipEmpty) {
+    console.log(`  （另有 ${skipEmpty} 位已被用户明确「不指定达标标准」⇒ **不算待办** ✓，见 character_graduation_manual.json 的 _skip ✓）`)
+  }
   console.log('  （--why-empty 只读 ✓：不写任何文件 ✓）')
   process.exit(0)
 }
@@ -561,6 +613,17 @@ if (whyEmpty) {
 if (explainArg) {
   console.log('\n  （--explain 只读 ✓：只打印候选句，不写任何文件 ✓）')
   process.exit(0)
+}
+
+// 毕业线来源小结（一眼看出"人工 / 外源 / wiki"各占多少 ✓）
+{
+  const filled = cards.filter((c) => (c.graduation ?? '').trim()).length
+  const byManual = cards.filter((c) => c.graduationFrom === '人工填写').length
+  const byExt = cards.filter((c) => c.graduationFrom === '外部面板参考').length
+  console.log(
+    `\n  毕业线：有值 ${filled}/${cards.length} 位（人工 ${byManual} ＋ 外源 ${byExt} ＋ wiki ${filled - byManual - byExt}），` +
+      `人工定"不填" ${skipForced} 位${skipDropped ? `（其中清空源值 ${skipDropped} 位 ✗）` : ''} ⇒ 空 ${cards.length - filled} 位`,
+  )
 }
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true })
