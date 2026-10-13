@@ -42,7 +42,11 @@ func NewGuideStore(db *gorm.DB) *GuideStore {
 
 // ForQuestion 按提问里命中的角色名查攻略卡，拼成一段可直接注入的文本。
 // 命中不到（或库里没这张卡）返回空串 ✓ —— 上层照旧走「没有查到」的老逻辑，不会因此答不出 ✓。
-func (g *GuideStore) ForQuestion(assets *asset.Service, question string) string {
+//
+// dropTeam 本次**已带机制卡**的角色名（见 character_mechanic.go ✓）：这些角色的
+// 「配队思路」结论**不注入** ✗ —— 机制卡给的是事实，模型自己推得比抄结论稳 ✓；
+// 两处都写必然打架（同一个问题两个答案 ✓），所以以事实为准 ✓（ai/07 阶段③ 的全量口径 ✓）。
+func (g *GuideStore) ForQuestion(assets *asset.Service, question string, dropTeam map[string]bool) string {
 	if g == nil || g.db == nil || assets == nil {
 		return ""
 	}
@@ -57,11 +61,14 @@ func (g *GuideStore) ForQuestion(assets *asset.Service, question string) string 
 		if len(blocks) >= maxGuideCharacters || total >= maxGuideCharsTotal {
 			break
 		}
+		// ⚠️ 用 Find 而不是 First：First 查不到会打一条红色 `record not found` ✗，
+		//   而「这位还没有攻略卡」是完全正常的情况 ✓（与 cmd/guideimport 同一口径 ✓；
+		//   2026-10-13 导出机制评测上下文时实测：魈、胡桃都刷了这条红字 ✗）。
 		var row model.CharacterGuide
-		if err := g.db.Where("character_id = ?", c.ID).First(&row).Error; err != nil {
+		if g.db.Where("character_id = ?", c.ID).Limit(1).Find(&row).RowsAffected == 0 {
 			continue // 这位没有攻略卡 ⇒ 跳过（不是错误 ✓）
 		}
-		block := renderGuide(row)
+		block := renderGuide(row, dropTeam[row.Name])
 		if block == "" {
 			continue
 		}
@@ -79,7 +86,9 @@ func (g *GuideStore) ForQuestion(assets *asset.Service, question string) string 
 // ⚠️ 刻意**不带来源 / 口径标注** ✗：那些只进表与后台界面（提示词 v11 第 9/11/39 条禁止
 // "社区口径 / 以官方为准"这类出戏说法 ✓）；配队来自反向索引时会多一个来源说明 ✓，
 // 那是**事实性**的（"据其他角色攻略页"），不是免责声明 ✓。
-func renderGuide(row model.CharacterGuide) string {
+//
+// dropTeam：该角色本次已带机制卡 ⇒ 去掉「配队思路」结论（事实优先 ✓，见 ForQuestion 注释 ✓）。
+func renderGuide(row model.CharacterGuide, dropTeam bool) string {
 	type segment struct{ label, text string }
 	segments := []segment{
 		{"配队思路", row.TeamPick},
@@ -89,6 +98,9 @@ func renderGuide(row model.CharacterGuide) string {
 		{"圣遗物", row.RelicPick},
 		{"定位", row.Role},
 		{"注意事项", row.Notes},
+	}
+	if dropTeam {
+		segments = segments[1:] // 有机制卡 ⇒ 不再注入「配队思路」结论 ✗（其余顺序不变 ✓）
 	}
 
 	var b strings.Builder

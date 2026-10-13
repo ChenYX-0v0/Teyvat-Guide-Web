@@ -24,7 +24,7 @@ func fullGuideRow() model.CharacterGuide {
 // 段顺序就是**优先级**：配队 > 毕业线 > 天赋顺序 > 武器 > 圣遗物 > 定位 > 注意事项。
 // 按用户抱怨的三类（配队思路 / 毕业线 / 天赋顺序）排在最前 ✓
 func TestRenderGuideSegmentOrder(t *testing.T) {
-	got := renderGuide(fullGuideRow())
+	got := renderGuide(fullGuideRow(), false)
 
 	want := []string{
 		"【角色攻略】测试角色",
@@ -53,7 +53,7 @@ func TestRenderGuideSegmentOrder(t *testing.T) {
 func TestRenderGuideDropsLowPriorityFirst(t *testing.T) {
 	row := fullGuideRow()
 	row.Notes = strings.Repeat("注", 3000) // 单段就超上限
-	got := renderGuide(row)
+	got := renderGuide(row, false)
 
 	if strings.Contains(got, "注意事项") {
 		t.Fatalf("超限时应先丢掉最低优先级的「注意事项」，实际仍包含：%s", got[:60])
@@ -69,18 +69,18 @@ func TestRenderGuideDropsLowPriorityFirst(t *testing.T) {
 func TestRenderGuideReverseTeamLabel(t *testing.T) {
 	row := fullGuideRow()
 	row.TeamFrom = "reverse"
-	if got := renderGuide(row); !strings.Contains(got, "配队思路（据其他角色攻略页）：") {
+	if got := renderGuide(row, false); !strings.Contains(got, "配队思路（据其他角色攻略页）：") {
 		t.Fatalf("反向索引的配队应带来源说明，实际：%s", got)
 	}
 	row.TeamFrom = "page"
-	if got := renderGuide(row); strings.Contains(got, "据其他角色攻略页") {
+	if got := renderGuide(row, false); strings.Contains(got, "据其他角色攻略页") {
 		t.Fatalf("本页原文的配队不该带反向说明，实际：%s", got)
 	}
 }
 
 // 一条数据都没有时返回空串 —— 宁可**不注入**，也不要给模型一个光秃秃的「【角色攻略】某某」✗
 func TestRenderGuideEmpty(t *testing.T) {
-	if got := renderGuide(model.CharacterGuide{Name: "空角色"}); got != "" {
+	if got := renderGuide(model.CharacterGuide{Name: "空角色"}, false); got != "" {
 		t.Fatalf("没有任何槽位时应返回空串，实际：%s", got)
 	}
 }
@@ -91,7 +91,7 @@ func TestRenderGuideNeverLeaksSource(t *testing.T) {
 	row.SourceURL = "https://wiki.biligame.com/ys/xxx"
 	row.SourceRev = "671461"
 	row.Graduation = "毕业文本"
-	if got := renderGuide(row); strings.Contains(got, "biligame") || strings.Contains(got, "wiki") {
+	if got := renderGuide(row, false); strings.Contains(got, "biligame") || strings.Contains(got, "wiki") {
 		t.Fatalf("注入文本里不该出现来源 URL，实际：%s", got)
 	}
 }

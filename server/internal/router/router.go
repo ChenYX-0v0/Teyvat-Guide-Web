@@ -244,6 +244,9 @@ func autoMigrate() {
 		// 角色攻略卡（2026-10-13，阶段② 攻略卡，见 teyvat-docs/ai/07 TODO-18）：
 		// 主服务**每问直查**这张表 ⇒ 刻意不进 asset 的内存缓存 ✓（后台改完立即生效 ✓）
 		&model.CharacterGuide{},
+		// 角色机制卡 + 全局机制规则（2026-10-13，阶段② TODO-20）：同口径，每问直查 ✓
+		&model.CharacterMechanic{},
+		&model.MechanicRule{},
 		&model.User{},
 		&model.AIPrompt{},
 		&model.UsageEvent{}, // 埋点明细（shared-docs/07）

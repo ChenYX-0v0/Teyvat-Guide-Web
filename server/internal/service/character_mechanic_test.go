@@ -1,0 +1,177 @@
+package service
+
+// 机制卡的回归测试（阶段②，TODO-20）。
+// 这里钉的是四件容易悄悄坏掉的事 ✓：
+//   ① 注入文本里**绝不能出现 evidence / 来源** ✗（提示词 v12 第 40~42 条要求这些块只是"数据"）
+//   ② 段顺序 = 优先级（超预算时丢的是最不重要的那段 ✓）
+//   ③ 全局规则**只在触发词命中且 confirmed=true** 时才注入 ✓
+//   ④ 有机制卡的角色，攻略卡要**去掉「配队思路」结论** ✓（事实优先，避免两处打架 ✓）
+
+import (
+	"strings"
+	"testing"
+
+	"teyvat-guide/server/internal/model"
+	"teyvat-guide/server/internal/pkg/database"
+)
+
+func sampleFacts() string {
+	return `{
+	  "provides": [
+	    {"kind": "攻击力加成", "to": "领域内站场角色", "scale": "自身基础攻击力",
+	     "condition": "元素爆发「美妙旅程」形成的鼓舞领域内",
+	     "evidence": "角色定位：形成的鼓舞领域可根据班尼特的基础攻击力为领域内站场角色提供高额的攻击力加成"},
+	    {"kind": "治疗", "to": "场上角色", "condition": "仅生命值低于 70% 时、单体",
+	     "evidence": "角色定位：还能为前台提供每秒一跳的治疗"}
+	  ],
+	  "cannot": ["不能降低风元素抗性"],
+	  "needs": ["元素充能效率"],
+	  "limits": ["治疗是单体且仅在生命值低于 70% 时触发"],
+	  "resonance": {"requires": ["另一名火元素角色"], "provides": ["可凑双火共鸣"]},
+	  "interruptResist": [{"to": "自身", "coefficient": 0.5, "condition": "第一命座解锁后"}],
+	  "scaling": ["攻击力"],
+	  "evidenceIndex": {"page": "班尼特/攻略"}
+	}`
+}
+
+// ① 段顺序 + evidence 不外泄 + 数值格式
+func TestRenderMechanicOrderAndNoEvidence(t *testing.T) {
+	got := renderMechanic(model.CharacterMechanic{Name: "测试角色", Facts: sampleFacts()}, maxMechanicCharsPerCard)
+
+	want := []string{
+		"【角色机制】测试角色",
+		"· 提供：",
+		"攻击力加成（作用对象：领域内站场角色；基数：自身基础攻击力；条件：元素爆发「美妙旅程」形成的鼓舞领域内）",
+		"· 做不到：",
+		"· 需要：",
+		"· 边界：",
+		"· 共鸣：",
+		"· 抗打断：",
+		"· 基数：",
+	}
+	last := -1
+	for _, w := range want {
+		i := strings.Index(got, w)
+		if i < 0 {
+			t.Fatalf("渲染结果缺少 %q\n实际：%s", w, got)
+		}
+		if i < last {
+			t.Fatalf("段顺序不对：%q 出现在更前的位置\n实际：%s", w, got)
+		}
+		last = i
+	}
+
+	// evidence 与页码索引**一律不得出现** ✗
+	for _, leak := range []string{"evidence", "角色定位：", "班尼特/攻略", "可根据班尼特的基础攻击力"} {
+		if strings.Contains(got, leak) {
+			t.Fatalf("注入文本里不该出现 %q\n实际：%s", leak, got)
+		}
+	}
+	// 抗打断系数必须原样（0.5 ✓，不能是 0.500000 / 0 ✗）
+	if !strings.Contains(got, "系数 0.5") {
+		t.Fatalf("抗打断系数应渲染成 0.5，实际：%s", got)
+	}
+}
+
+// ② 超上限时**从低优先级丢**：提供 / 做不到 / 需要 必须留下，「基数」先被丢 ✓
+func TestRenderMechanicDropsLowPriorityFirst(t *testing.T) {
+	facts := sampleFacts()
+	// 塞一个超长的「基数」，逼出裁剪 ✓
+	long := strings.Repeat("基", 2000)
+	facts = strings.Replace(facts, `"scaling": ["攻击力"]`, `"scaling": ["`+long+`"]`, 1)
+
+	got := renderMechanic(model.CharacterMechanic{Name: "测试角色", Facts: facts}, maxMechanicCharsPerCard)
+	if strings.Contains(got, "· 基数：") {
+		t.Fatalf("超限时应先丢掉最低优先级的「基数」，实际仍包含：%s", got[:60])
+	}
+	for _, keep := range []string{"· 提供：", "· 做不到：", "· 需要：", "· 边界："} {
+		if !strings.Contains(got, keep) {
+			t.Fatalf("超限时不该丢 %q\n实际：%s", keep, got)
+		}
+	}
+}
+
+// 一条事实都没有（或 JSON 坏了）⇒ 返回空串：**宁可不注入**，也不要一个光秃秃的标题 ✗
+func TestRenderMechanicEmptyOrBroken(t *testing.T) {
+	if got := renderMechanic(model.CharacterMechanic{Name: "空角色", Facts: "{}"}, 500); got != "" {
+		t.Fatalf("没有事实时应返回空串，实际：%s", got)
+	}
+	if got := renderMechanic(model.CharacterMechanic{Name: "坏角色", Facts: "{不是 JSON"}, 500); got != "" {
+		t.Fatalf("JSON 坏了应返回空串（半个卡片比没有更伤 ✓），实际：%s", got)
+	}
+}
+
+// ③ 触发词匹配：中英文逗号都认 ✓、大小写不敏感 ✓、空触发词永不注入 ✓
+func TestTriggersMatched(t *testing.T) {
+	cases := []struct {
+		q, triggers string
+		want        bool
+	}{
+		{"减抗能叠加吗", "减抗,抗性", true},
+		{"风套和钟离能一起带吗", "减抗，风套", true},
+		{"Reaction减抗", "减抗", true},
+		{"班尼特怎么练", "减抗,抗性", false},
+		{"减抗能叠加吗", "", false},
+		{"减抗能叠加吗", " , ，", false},
+	}
+	for _, c := range cases {
+		if got := triggersMatched(strings.ToLower(c.q), c.triggers); got != c.want {
+			t.Fatalf("triggersMatched(%q, %q) = %v，期望 %v", c.q, c.triggers, got, c.want)
+		}
+	}
+}
+
+// ③ 规则注入：**只有 confirmed=true 且触发词命中**才带上 ✓
+func TestRulesForQuestionConfirmedAndTriggered(t *testing.T) {
+	setupUsageTestDB(t)
+	db := database.DB()
+	if err := db.AutoMigrate(&model.CharacterMechanic{}, &model.MechanicRule{}); err != nil {
+		t.Fatalf("迁移失败：%v", err)
+	}
+	rows := []model.MechanicRule{
+		{RuleKey: "rule-ok", Title: "已确认规则", Content: "不同名减抗可以叠加", Triggers: "减抗,抗性", Confirmed: true},
+		{RuleKey: "rule-unconfirmed", Title: "未确认规则", Content: "这条还没核实", Triggers: "减抗", Confirmed: false},
+		{RuleKey: "rule-other", Title: "共鸣表", Content: "双火 +25% 攻击力", Triggers: "共鸣", Confirmed: true},
+	}
+	for i := range rows {
+		if err := db.Create(&rows[i]).Error; err != nil {
+			t.Fatalf("插规则失败：%v", err)
+		}
+	}
+	store := NewMechanicStore(db)
+
+	text, keys := store.rulesForQuestion("减抗能叠加吗")
+	if len(keys) != 1 || keys[0] != "rule-ok" {
+		t.Fatalf("只应注入已确认且命中的 rule-ok，实际：%v", keys)
+	}
+	if !strings.Contains(text, "不同名减抗可以叠加") {
+		t.Fatalf("规则正文没进去：%s", text)
+	}
+	if strings.Contains(text, "这条还没核实") {
+		t.Fatalf("未确认的规则不得注入 ✗，实际：%s", text)
+	}
+
+	if text, keys := store.rulesForQuestion("班尼特的天赋怎么点"); text != "" || len(keys) != 0 {
+		t.Fatalf("触发词不命中时不该注入，实际：%v / %s", keys, text)
+	}
+}
+
+// ④ 有机制卡的角色：攻略卡去掉「配队思路」结论，其余段照旧 ✓
+func TestRenderGuideDropsTeamWhenMechanicCovered(t *testing.T) {
+	row := fullGuideRow()
+
+	got := renderGuide(row, true)
+	if strings.Contains(got, "配队思路") {
+		t.Fatalf("有机制卡时不该再注入「配队思路」结论 ✗\n实际：%s", got)
+	}
+	for _, keep := range []string{"【角色攻略】测试角色", "· 毕业线：", "· 天赋顺序：", "· 注意事项："} {
+		if !strings.Contains(got, keep) {
+			t.Fatalf("去掉配队后其余段应保留：缺 %q\n实际：%s", keep, got)
+		}
+	}
+
+	// 没有机制卡时行为不变 ✓
+	if !strings.Contains(renderGuide(row, false), "· 配队思路：") {
+		t.Fatalf("没有机制卡时应照旧注入配队思路")
+	}
+}

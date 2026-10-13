@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"teyvat-guide/server/internal/dto"
@@ -66,6 +67,8 @@ type PlayerService struct {
 	userRepo   *repository.UserRepository
 	// guides 角色攻略卡（2026-10-13，阶段②）：**直查库**、不进 asset 的内存缓存 ✓
 	guides *GuideStore
+	// mechanics 角色机制卡（2026-10-13，阶段② TODO-20）：同口径，直查库 ✓
+	mechanics *MechanicStore
 }
 
 // NewPlayerService db 用于映射数据持久层与快照存储（nil 时翻译走 fallback、快照不落库）
@@ -81,6 +84,7 @@ func NewPlayerService(db *gorm.DB) *PlayerService {
 		repo:       repository.NewPlayerRepository(),
 		userRepo:   repository.NewUserRepository(),
 		guides:     NewGuideStore(db),
+		mechanics:  NewMechanicStore(db),
 	}
 }
 
@@ -251,11 +255,75 @@ func (s *PlayerService) StatWeightsForQuestion(question string) []CharacterStatR
 // 解决的是"配队思路 / 毕业线 / 天赋顺序"这三类**库里一条都没有**的问题 ✗（此前模型只能
 // "没有查到"或凭记忆泛谈 ✓）。与 StatWeightsForQuestion 的差异只有一处：
 // **直查库**（不走 asset 的内存缓存 ✓）⇒ 后台改完立即生效 ✓。
-func (s *PlayerService) GuidesForQuestion(question string) string {
+// dropTeam：已带机制卡的角色名 ⇒ 这些角色的「配队思路」结论不再注入 ✓（见 character_mechanic.go）
+func (s *PlayerService) GuidesForQuestion(question string, dropTeam map[string]bool) string {
 	if s == nil || s.guides == nil {
 		return ""
 	}
-	return s.guides.ForQuestion(s.assets, question)
+	return s.guides.ForQuestion(s.assets, question, dropTeam)
+}
+
+// MechanicsForQuestion 返回提问中命中角色的**机制事实**卡与命中的全局规则（阶段②，TODO-20）。
+// 与 GuidesForQuestion 的分工：机制卡给事实（让它自己推 ✓），攻略卡给结论（毕业线 / 天赋 ✓）。
+func (s *PlayerService) MechanicsForQuestion(question string) MechanicHit {
+	if s == nil || s.mechanics == nil {
+		return MechanicHit{}
+	}
+	return s.mechanics.ForQuestion(s.assets, question)
+}
+
+// SummaryStats 组装摘要时的计数（只为日志与排障 ✓，不参与业务判断 ✓）
+type SummaryStats struct {
+	MechanicCards int
+	Rules         []string
+	GuideCards    int
+	Refs          int
+	Sets          int
+}
+
+// SummaryForQuestion 组装发给 AI 服务的 `context.summary` 文本 —— **唯一出口** ✓。
+//
+// 为什么不分散在各处拼 ✗：这条链有顺序要求，且**离线工具要复刻同一条链**（评测器要拿
+// 一模一样的注入文本去打 AI 服务 ✓，见 cmd/mechanicsimport 的 -questions/-out ✓）。
+// 集中在这里后，线上与评测走的是**同一段代码** ✓（2026-10-13 ✓）。
+//
+// 顺序 = 优先级（越靠前越不容易被下游预算裁掉 ✓）：
+//
+//	① 【角色机制】事实 → ② 【角色攻略】结论 → ③ 【游戏资料】权威数值
+//
+// 匿名用户也能拿到这三块（公开数据 ✓，与登录态无关 ✓）。
+func (s *PlayerService) SummaryForQuestion(question string) (string, SummaryStats) {
+	stats := SummaryStats{}
+	if s == nil || s.assets == nil {
+		return "", stats
+	}
+
+	// ① 机制卡：先算，因为攻略卡要据此**去掉配队思路结论** ✓
+	hit := s.MechanicsForQuestion(question)
+	stats.MechanicCards = len(hit.Characters)
+	stats.Rules = hit.Rules
+
+	dropTeam := make(map[string]bool, len(hit.Characters))
+	for _, name := range hit.Characters {
+		dropTeam[name] = true
+	}
+
+	refs := s.StatWeightsForQuestion(question)
+	sets := s.RelicSetEffectsForQuestion(question)
+	stats.Refs, stats.Sets = len(refs), len(sets)
+	assetText := BuildAssetSummary(refs, sets)
+
+	// ② 攻略卡（已带机制卡的角色不含配队思路 ✓）
+	guide := s.GuidesForQuestion(question, dropTeam)
+	stats.GuideCards = strings.Count(guide, "【角色攻略】")
+
+	parts := make([]string, 0, 3)
+	for _, block := range []string{hit.Text, guide, assetText} {
+		if strings.TrimSpace(block) != "" {
+			parts = append(parts, block)
+		}
+	}
+	return strings.Join(parts, "\n"), stats
 }
 
 // RelicSetEffectsForQuestion 返回提问中命中套装的 2/4 件效果（V2.2 结构化查表，2026-09-15）。

@@ -313,27 +313,23 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 //   - V1 玩家档案（私有数据，需登录且已绑定 UID）：分级注入展柜角色面板
 // 任何失败都不阻塞对话（缺上下文只是回答不够精准）。
 func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) contextAssembly {
-	var refs []CharacterStatRef
-	var sets []RelicSetRef
-	var guide string
+	var summary string
 	if s.players != nil {
-		refs = s.players.StatWeightsForQuestion(question)
-		sets = s.players.RelicSetEffectsForQuestion(question)
-		// 角色攻略卡（阶段②）：命中角色名且库里有卡时才非空 ✓ —— 每问直查库、不走内存缓存 ✓
-		guide = s.players.GuidesForQuestion(question)
-	}
-	summary := BuildAssetSummary(refs, sets)
-	if summary != "" {
-		logger.L().Infow("ai asset reference attached", "matched", len(refs), "sets", len(sets))
-	}
-	if guide != "" {
-		// ⚠️ 攻略卡排在【游戏资料】**之前**：先给"怎么练 / 怎么配"的思路，再给词条与套装的权威数值 ✓
-		if summary == "" {
-			summary = guide
-		} else {
-			summary = guide + "\n" + summary
+		// ⚠️ 三块资料（【角色机制】→【角色攻略】→【游戏资料】）统一在 SummaryForQuestion 里组装 ✓：
+		// 它是**唯一出口** —— 离线评测器复刻同一条链（cmd/mechanicsimport -questions/-out ✓）
+		// ⇒ 线上与评测拿到的是**逐字相同**的注入文本 ✓（2026-10-13 接入机制卡时收敛的 ✓）
+		var stats SummaryStats
+		summary, stats = s.players.SummaryForQuestion(question)
+		if stats.MechanicCards > 0 || len(stats.Rules) > 0 {
+			logger.L().Infow("ai character mechanic attached",
+				"cards", stats.MechanicCards, "rules", strings.Join(stats.Rules, ","))
 		}
-		logger.L().Infow("ai character guide attached", "cards", strings.Count(guide, "【角色攻略】"))
+		if stats.GuideCards > 0 {
+			logger.L().Infow("ai character guide attached", "cards", stats.GuideCards)
+		}
+		if stats.Refs > 0 || stats.Sets > 0 {
+			logger.L().Infow("ai asset reference attached", "matched", stats.Refs, "sets", stats.Sets)
+		}
 	}
 
 	rc := s.buildPlayerContext(ctx, userID, question)
@@ -434,9 +430,9 @@ func (s *ChatService) collectedProfile(uid string) *dto.PlayerProfile {
 		}
 	}
 	return &dto.PlayerProfile{
-		Source:     "collected",
-		UID:        uid,
-		Characters: cards,
+		Source:      "collected",
+		UID:         uid,
+		Characters:  cards,
 		CollectedAt: lastSeen, // 供上下文标注"截至何时"✓
 	}
 }
