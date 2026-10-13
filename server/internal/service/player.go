@@ -64,6 +64,8 @@ type PlayerService struct {
 	translator *enka.Translator
 	repo       *repository.PlayerRepository
 	userRepo   *repository.UserRepository
+	// guides 角色攻略卡（2026-10-13，阶段②）：**直查库**、不进 asset 的内存缓存 ✓
+	guides *GuideStore
 }
 
 // NewPlayerService db 用于映射数据持久层与快照存储（nil 时翻译走 fallback、快照不落库）
@@ -78,6 +80,7 @@ func NewPlayerService(db *gorm.DB) *PlayerService {
 		translator: enka.NewTranslator(assets),
 		repo:       repository.NewPlayerRepository(),
 		userRepo:   repository.NewUserRepository(),
+		guides:     NewGuideStore(db),
 	}
 }
 
@@ -242,6 +245,17 @@ func (s *PlayerService) StatWeightsForQuestion(question string) []CharacterStatR
 		refs = append(refs, ref)
 	}
 	return refs
+}
+
+// GuidesForQuestion 返回提问中命中角色的攻略卡文本（阶段②，2026-10-13，见 ai/07 TODO-18）。
+// 解决的是"配队思路 / 毕业线 / 天赋顺序"这三类**库里一条都没有**的问题 ✗（此前模型只能
+// "没有查到"或凭记忆泛谈 ✓）。与 StatWeightsForQuestion 的差异只有一处：
+// **直查库**（不走 asset 的内存缓存 ✓）⇒ 后台改完立即生效 ✓。
+func (s *PlayerService) GuidesForQuestion(question string) string {
+	if s == nil || s.guides == nil {
+		return ""
+	}
+	return s.guides.ForQuestion(s.assets, question)
 }
 
 // RelicSetEffectsForQuestion 返回提问中命中套装的 2/4 件效果（V2.2 结构化查表，2026-09-15）。

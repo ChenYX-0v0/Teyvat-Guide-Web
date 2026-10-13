@@ -315,13 +315,25 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) contextAssembly {
 	var refs []CharacterStatRef
 	var sets []RelicSetRef
+	var guide string
 	if s.players != nil {
 		refs = s.players.StatWeightsForQuestion(question)
 		sets = s.players.RelicSetEffectsForQuestion(question)
+		// 角色攻略卡（阶段②）：命中角色名且库里有卡时才非空 ✓ —— 每问直查库、不走内存缓存 ✓
+		guide = s.players.GuidesForQuestion(question)
 	}
 	summary := BuildAssetSummary(refs, sets)
 	if summary != "" {
 		logger.L().Infow("ai asset reference attached", "matched", len(refs), "sets", len(sets))
+	}
+	if guide != "" {
+		// ⚠️ 攻略卡排在【游戏资料】**之前**：先给"怎么练 / 怎么配"的思路，再给词条与套装的权威数值 ✓
+		if summary == "" {
+			summary = guide
+		} else {
+			summary = guide + "\n" + summary
+		}
+		logger.L().Infow("ai character guide attached", "cards", strings.Count(guide, "【角色攻略】"))
 	}
 
 	rc := s.buildPlayerContext(ctx, userID, question)
