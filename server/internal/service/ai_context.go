@@ -22,13 +22,17 @@ import (
 )
 
 const (
-	ctxTokenBudget = 1500 // 玩家档案的 token 预算（中文按 1 字符 ≈ 1 token 粗估）
+	// 2026-10-12 由 1500 上调到 3000：展柜满 12 位时，明细条目约 2000+ token，
+	// 旧预算只装得下 7 位 ⇒ 线上出现「展柜 12 位，派蒙只答出 7 位」✗。
+	ctxTokenBudget = 3000 // 玩家档案的 token 预算（中文按 1 字符 ≈ 1 token 粗估）
 
 	// referenceTokenBudget V2 资料文本的独立预算：与玩家档案共用 AI 服务的上下文预算，
 	// 单独设一个小额度，避免资料把面板挤掉。
 	// 2026-09-15 由 400 上调到 800：V2.2 引入套装效果后，一条 4 件套文本本身就有 100~200 字，
 	// 400 会把套装整条挤掉（角色词条约 120 字/个 ×2 + 套装约 250 字/个 ×2 ≈ 740）。
-	referenceTokenBudget = 800
+	// 2026-10-12 由 800 上调到 1200：给「角色攻略卡」（ai/07 TODO-18）预留位置，
+	// 免得攻略一进来就把词条/套装挤掉 ✗。
+	referenceTokenBudget = 1200
 	// maxReferenceCharacters 一次最多注入几个命中角色的资料（防止长提问塞满上下文）
 	maxReferenceCharacters = 2
 	// maxReferenceSets 一次最多注入几个命中套装的效果（同上；4 件套文本长，单独设上限）
@@ -91,6 +95,7 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 	chars := make([]map[string]any, 0, len(profile.Characters))
 	used := 0
 	omitted := 0
+	var omittedNames []string
 	for _, c := range ordered {
 		// 明细展开规则（2026-09-26 收紧）：点名角色一定展开；**只有没有点名角色时**，
 		// 才按养成/配队意图给所有人展开 —— 否则「养成」这类宽泛提问会让每个角色都带上
@@ -101,6 +106,12 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 		cost := roughTokens(entry)
 		if used+cost > ctxTokenBudget && len(chars) > 0 {
 			omitted = len(profile.Characters) - len(chars)
+			// 名单必须留下：只报"省略了 N 个"会让模型把"本次没带上"误解成
+			// "数据没同步 / 这位角色不存在"✗（2026-10-12 线上实测：展柜 12 位只答出 7 位，
+			// 模型还解释成"可能没放进展示柜"）。明细可以省，名字不能省 ✓。
+			for _, rest := range ordered[len(chars):] {
+				omittedNames = append(omittedNames, rest.Name)
+			}
 			break // 整条丢弃，避免出现半个角色条目
 		}
 		used += cost
@@ -153,7 +164,9 @@ func BuildPlayerContext(profile *dto.PlayerProfile, question string) *RequestCon
 	}
 	rc := &RequestContext{Goal: goal, Player: player}
 	if omitted > 0 {
-		rc.Summary = "其余 " + strconv.Itoa(omitted) + " 个展柜角色因体积预算已省略"
+		// 名字给全：模型据此仍能回答"我都有哪些角色"，也不会再说成"看不到 / 没同步"✗
+		rc.Summary = "另有 " + strconv.Itoa(omitted) + " 个展柜角色仅列出名字（明细本次未展开）：" +
+			strings.Join(omittedNames, "、")
 	}
 	return rc
 }
