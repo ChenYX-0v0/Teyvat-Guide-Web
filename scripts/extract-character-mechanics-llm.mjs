@@ -30,6 +30,9 @@ const ENV_FILE = path.resolve(args6('--env') ?? '../AI派蒙服务器/ai-service
 const namesArg = args6('--names') ? args6('--names').split(',').map((s) => s.trim()) : null
 const limit = args6('--limit') ? Number(args6('--limit')) : 0
 const force = args.includes('--force')
+// --merge：只给「四个边界字段还空着」的角色补抽 ✓，并与已有条目**求并集** ✓（不动 provides/limits/points ✗）
+//   2026-10-14 加（TODO-22 的批量修法 ✓）：此前 schema 里没有 conflicts / scaling ⇒ 114 / 116 张全空 ✗
+const merge = args.includes('--merge')
 const dry = args6('--dry')
 const CONCURRENCY = Number(args6('--concurrency') ?? 3)
 
@@ -96,8 +99,8 @@ function buildExcerpt(raw) {
   const self = collect(SELF_SECTIONS)
   const team = collect(TEAM_SECTIONS)
   const parts = []
-  if (self) parts.push(`【本角色机制章节】（provides / cannot / limits / needs 只能来自这里）\n${self}`)
-  if (team) parts.push(`【阵容搭配章节】（只有 points 可以来自这里；其中**队友**的能力不算本角色的 provides）\n${team}`)
+  if (self) parts.push(`【本角色机制章节】（provides / cannot / limits / needs / scaling 只能来自这里）\n${self}`)
+  if (team) parts.push(`【阵容搭配章节】（points 与 **conflicts** 可以来自这里 ✓；其中**队友**的能力不算本角色的 provides）\n${team}`)
   return parts.join('\n\n')
 }
 
@@ -107,17 +110,28 @@ const SYSTEM = `你是《原神》的资料整理员。任务：从给定的攻�
 1. 只允许使用给定摘录里的内容；**禁止**补充任何摘录之外的常识、推测或你自己的记忆。
 2. 每一条都**必须**带 quote 字段：从给定摘录里**逐字连续复制**的原文片段（12~60 字，不要改写、不要省略号、不要拼接不相邻的句子）。做不到逐字引用，就不要输出这一条。
 3. 只写机制，不写结论。禁止出现"值得培养""建议抽""适合当主C的队伍""强度如何"这类评价。
-4. **只写本角色自己的机制**：摘录里提到的队友（钟离的护盾、芙宁娜的增伤、班尼特的加攻…）不是本角色的能力，禁止写进 provides / cannot / limits / needs ✗。队友与阵容相关的内容只能写进 points（联动要点）✓。
-5. 每个类别没有就输出空数组；宁可少写，也不要编。
+4. **只写本角色自己的机制**：摘录里提到的队友（钟离的护盾、芙宁娜的增伤、班尼特的加攻…）不是本角色的能力，禁止写进 provides / limits ✗。队友与阵容相关的内容写进 points（联动要点）或 conflicts（禁忌）✓。
+5. **六个类别一个都不能漏** ✗（2026-10-14 加：此前只抽 provides/limits/points ⇒ cannot/needs/conflicts/scaling 大面积空 ✗）。**多列不算错** ✓ —— 每条都要能逐字引用 ✓，所以多列不会编 ✓；**漏列才是错** ✗。确实没有对应句子时才输出空数组。
 6. 不用 Markdown，纯 JSON。
+
+**六个类别怎么认**（照下面的字面线索去摘录里找 ✓）：
+· provides 给什么加成（自身或队伍 ✓，带条件/按什么算 ✓）
+· limits   成立前提或边界（"前提是…""仅在…时""长按才…"✓）
+· points   与队友 / 队伍的联动要点（联动、互充、共鸣、谁给谁打下手 ✓）
+· **cannot**  明确**做不到 / 不适用 / 不享受** ✗ —— 字面线索：「不能」「无法」「不可」「不吃」「无效」「不生效」「不触发」「不叠加」「不适用于」「只对单人生效」「会退出」「为 0」「不产」「切人」「会浪费」✓
+· **needs**   自己**或队伍必须提供什么** ✓ —— 字面线索：「需要」「必须」「依赖」「否则」「前提是」「绑定」「搭配…才能」「有一位」「要有」✓
+· **conflicts** **禁忌 / 冲突 / 别这么配** ✗ —— 字面线索：「不建议」「不适合」「不要」「别」「会损失」「会浪费」「仅在高抗性环境…时才算可选」「同名…不叠加」「两套体系」「硬塞」「分开用」✓（**可以来自阵容搭配章节** ✓）
+· **scaling** **数值怎么算 / 阈值** ✓ —— 字面线索：「每…点」「每…%」「至多 +…%」「基于…上限」「按…的 6%」「达到上限」「吃满」「超过则不浪费/溢出」✓
 
 输出格式（严格 JSON，不要任何多余文字）：
 {
-  "provides": [{"kind": "给什么加成（短语）", "to": "给谁", "condition": "条件（可省略）", "scale": "按什么算（可省略）", "quote": "原文片段"}],
-  "cannot":   [{"text": "明确做不到/不适用什么", "quote": "原文片段"}],
-  "limits":   [{"text": "成立前提或边界", "quote": "原文片段"}],
-  "needs":    [{"text": "自己需要什么（充能/队友/站场时间等）", "quote": "原文片段"}],
-  "points":   [{"text": "与队友/队伍的联动要点", "quote": "原文片段"}]
+  "provides":  [{"kind": "给什么加成（短语）", "to": "给谁", "condition": "条件（可省略）", "scale": "按什么算（可省略）", "quote": "原文片段"}],
+  "cannot":    [{"text": "明确做不到/不适用什么", "quote": "原文片段"}],
+  "limits":    [{"text": "成立前提或边界", "quote": "原文片段"}],
+  "needs":     [{"text": "自己需要什么（充能/队友/站场时间等）", "quote": "原文片段"}],
+  "conflicts": [{"text": "禁忌 / 与谁冲突 / 别怎么配", "quote": "原文片段"}],
+  "scaling":   [{"text": "数值算法或阈值", "quote": "原文片段"}],
+  "points":    [{"text": "与队友/队伍的联动要点", "quote": "原文片段"}]
 }`
 
 // ---------------------------------------------------------------- quote 校验（防幻觉的关键 ✓）
@@ -206,10 +220,18 @@ const save = () => {
   fs.writeFileSync(OUT, JSON.stringify(out, null, 2), 'utf8')
 }
 
+const NEED_FIELDS = ['cannot', 'needs', 'conflicts', 'scaling']
+const needFill = (c) => NEED_FIELDS.some((k) => !(c?.[k] ?? []).length)
 const jobs = titles
   .map((title) => ({ title, name: title.replace(/\/攻略$/, '').replace(/\/.*$/, '') }))
   .filter((j) => j.name !== '旅行者')
-  .filter((j) => !done.has(j.name) || force)
+  .filter((j) => {
+    if (force) return true
+    const prev = out.characters.find((c) => c.name === j.name)
+    if (!prev) return true // 还没有卡 ⇒ 抽 ✓
+    if (merge) return needFill(prev) // --merge：只补四个边界字段还空着的 ✓
+    return false // 原口径：抽过就跳过 ✓
+  })
 if (limit) jobs.splice(limit)
 
 console.log(`  模型 ${cfg.model}｜待抽 ${jobs.length} 位｜已有 ${done.size} 位｜并发 ${CONCURRENCY}`)
@@ -237,6 +259,8 @@ async function worker() {
         ['cannot', 'cannot'],
         ['limits', 'limits'],
         ['needs', 'needs'],
+        ['conflicts', 'conflicts'],
+        ['scaling', 'scaling'],
         ['points', 'points'],
       ]) {
         const { ok, dropped } = verified(json[field], pageNorm, key)
@@ -249,6 +273,8 @@ async function worker() {
         cannot: buckets.cannot.map((x) => x.text),
         limits: buckets.limits.map((x) => x.text),
         needs: buckets.needs.map((x) => x.text),
+        conflicts: buckets.conflicts.map((x) => x.text),
+        scaling: buckets.scaling.map((x) => x.text),
         points: buckets.points.map((x) => x.text),
         _review: '模型抽取 + 逐字校验（初稿，未人工复核）',
         _draft: true,
@@ -260,15 +286,36 @@ async function worker() {
         console.log(`   [空] ${job.name}（校验后 0 条 ✓ 不落库）`)
         continue
       }
-      // 同一角色重复抽时覆盖（--force ✓）
+      // 同一角色重复抽时覆盖（--force ✓）；--merge 时**只并上四个边界字段** ✓
       const at = out.characters.findIndex((c) => c.name === job.name)
-      if (at === -1) out.characters.push(card)
-      else out.characters[at] = card
+      if (at === -1) {
+        out.characters.push(card)
+      } else if (merge) {
+        const prev = out.characters[at]
+        let added = 0
+        for (const k of NEED_FIELDS) {
+          const have = new Set((prev[k] ?? []).map((x) => norm(String(x))))
+          const add = (card[k] ?? []).filter((x) => !have.has(norm(String(x))))
+          added += add.length
+          card[k] = [...(prev[k] ?? []), ...add]
+        }
+        card.provides = prev.provides ?? card.provides // 保持原样 ✗（本轮只补边界 ✓）
+        card.limits = prev.limits ?? card.limits
+        card.points = prev.points ?? card.points
+        if (added === 0) {
+          console.log(`   [无补] ${job.name}（四个边界字段都没能补上 ✓）`)
+          continue
+        }
+        card._review = '模型抽取 + 逐字校验（初稿，未人工复核）；2026-10-14 按 TODO-22 补边界字段 cannot/needs/conflicts/scaling ✓'
+        out.characters[at] = card
+      } else {
+        out.characters[at] = card
+      }
       stats.dropped += drop
       const kept = total(buckets)
       stats.verified += kept
       console.log(
-        `   ${job.name.padEnd(10)} 提供${buckets.provides.length} 做不到${buckets.cannot.length} 限制${buckets.limits.length} 需要${buckets.needs.length} 要点${buckets.points.length}` +
+        `   ${job.name.padEnd(10)} 提供${buckets.provides.length} 做不到${buckets.cannot.length} 限制${buckets.limits.length} 需要${buckets.needs.length} 禁忌${buckets.conflicts.length} 基数${buckets.scaling.length} 要点${buckets.points.length}` +
           (drop ? `（丢弃 ${drop} 条校验不过 ✗）` : ''),
       )
       out._meta.stats = stats
