@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -182,6 +183,13 @@ func main() {
 	autoFile := flag.String("auto-file", filepath.Join("..", "scripts", "data", "character_mechanics_auto.json"),
 		"自动抽取的机制卡初稿 JSON（可选 ✓）")
 	noAuto := flag.Bool("no-auto", false, "不导入自动初稿（只导人工卡 ✓）")
+	// -rebuild：从两份 JSON **重建**机制卡（文件 = 事实源 ✓、库 = 物化视图 ✓）
+	//
+	// ⚠️ 为什么需要它 ✗（2026-10-14 ✓）：默认导入是**并集** ✓（只加不减 ✗）——
+	//   补内容时正好 ✓，但**挪内容**（例如把误放进 `conflicts` 的"收益低"挪去 `limits` ✓）
+	//   就做不到 ✗：并集会把旧位置那份留着 ✓。重建 = 按文件重算一遍 ✓，
+	//   库里有、文件里没有的条目会被**替换掉** ✓（库里存在、两份文件都没有的卡片**不动** ✗）。
+	rebuild := flag.Bool("rebuild", false, "从两份 JSON 重建机制卡（union(人工, 自动) ＋ 替换语义 ✓，用于挪字段/清理 ✗）")
 	only := flag.String("only", "", "只导入这些角色（逗号分隔；默认全部）")
 	dryRun := flag.Bool("dry-run", false, "只打印将写什么，不写库")
 	probe := flag.String("probe", "", "排障：拿一个问题跑一次完整 summary 组装，打印真正会注入给模型的文本")
@@ -287,12 +295,18 @@ func main() {
 	}
 
 	// ① 人工卡（reviewed / draft ✓）
-	writtenCh, unchangedCh, skippedCh := importCards(db, mf.Characters, idByName, onlySet, *dryRun, "curated")
-	// ② 自动初稿（review=auto ✓）—— 已有人工卡的角色会被跳过 ✓（绝不覆盖 ✗）
+	writtenCh, unchangedCh, skippedCh := 0, 0, 0
+	// ② 自动初稿（review=auto ✓）—— 与人工卡**求并集** ✓（2026-10-14 起 ✓，见 importCards ✓）
 	autoWritten, autoUnchanged, autoSkipped := 0, 0, 0
-	if len(autoCards) > 0 {
-		fmt.Printf("  --- 自动初稿（review=auto ✓，不覆盖人工卡 ✗）---\n")
+	if *rebuild {
+		fmt.Printf("  --- 重建模式：以文件为准（人工 ∪ 自动 ✓，替换语义 ✓）---\n")
+		writtenCh, unchangedCh, skippedCh = rebuildMechanics(db, mf.Characters, autoCards, idByName, onlySet, *dryRun)
+	} else if !*noAuto && len(autoCards) > 0 {
+		writtenCh, unchangedCh, skippedCh = importCards(db, mf.Characters, idByName, onlySet, *dryRun, "curated")
+		fmt.Printf("  --- 自动初稿（review=auto ✓，与人工卡求并集 ✓）---\n")
 		autoWritten, autoUnchanged, autoSkipped = importCards(db, autoCards, idByName, onlySet, *dryRun, "auto")
+	} else {
+		writtenCh, unchangedCh, skippedCh = importCards(db, mf.Characters, idByName, onlySet, *dryRun, "curated")
 	}
 
 	var writtenRu, unchangedRu int
@@ -468,6 +482,113 @@ func importCards(db *gorm.DB, cards []map[string]any, idByName map[string]int64,
 		action := "新增"
 		if found {
 			action = "更新"
+		}
+		fmt.Printf("  [%s] %-8s id=%-9d 事实 %4d 字（%s）\n", action, name, id, len([]rune(row.Facts)), row.Review)
+		if dryRun {
+			continue
+		}
+		if err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "character_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name", "facts", "review", "content_hash", "updated_at"}),
+		}).Create(&row).Error; err != nil {
+			fmt.Fprintf(os.Stderr, "写入 %s 失败：%v\n", name, err)
+			os.Exit(1)
+		}
+		written++
+	}
+	return written, unchanged, skipped
+}
+
+// rebuildMechanics 从两份 JSON **重建** character_mechanics（最终事实 = union(人工, 自动) ✓）。
+//
+// 与 importCards（并集 ✗只加不减 ✓）的分工：
+//
+//	· 补内容 ⇒ 默认导入（并集 ✓）
+//	· 挪字段 / 清理 ⇒ `-rebuild`（替换语义 ✓，把文件里已经挪走的条目从库里去掉 ✓）
+//
+// 口径（2026-10-14 ✓）：
+//
+//	· 有人工卡 ⇒ 事实 = 人工 ∪ 自动（**人工条目在前** ✓）；review 按人工卡定 ✓（draft / reviewed ✓）
+//	· 只有自动卡 ⇒ 事实 = 自动 ✓；review = auto ✓
+//	· 两份文件都没有的角色 ⇒ **不动** ✗（不删库里的行 ✓）
+func rebuildMechanics(db *gorm.DB, curated, auto []map[string]any, idByName map[string]int64, onlySet map[string]bool, dryRun bool) (written, unchanged, skipped int) {
+	hand := map[string]map[string]any{}
+	for _, c := range curated {
+		if n := cardString(c["name"]); n != "" {
+			hand[n] = c
+		}
+	}
+	autoByName := map[string]map[string]any{}
+	for _, c := range auto {
+		if n := cardString(c["name"]); n != "" {
+			autoByName[n] = c
+		}
+	}
+	names := make([]string, 0, len(hand)+len(autoByName))
+	for n := range hand {
+		names = append(names, n)
+	}
+	for n := range autoByName {
+		if _, ok := hand[n]; !ok {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		if len(onlySet) > 0 && !onlySet[name] {
+			continue
+		}
+		id, ok := idByName[name]
+		if !ok {
+			fmt.Printf("  [跳过] %-8s 不在 characters 表里\n", name)
+			skipped++
+			continue
+		}
+		var facts string
+		review := "auto"
+		if hCard, hasHand := hand[name]; hasHand {
+			hf, err := factsJSON(hCard)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "序列化 %s 失败：%v\n", name, err)
+				os.Exit(1)
+			}
+			facts, review = hf, reviewOf(hCard)
+			if aCard := autoByName[name]; aCard != nil {
+				af, err := factsJSON(aCard)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "序列化 %s（自动）失败：%v\n", name, err)
+					os.Exit(1)
+				}
+				merged, _, err := unionFacts(hf, af) // 人工在前 ✓
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "合并 %s 失败：%v\n", name, err)
+					os.Exit(1)
+				}
+				facts = merged
+			}
+		} else if aCard := autoByName[name]; aCard != nil {
+			af, err := factsJSON(aCard)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "序列化 %s 失败：%v\n", name, err)
+				os.Exit(1)
+			}
+			facts = af
+		} else {
+			continue
+		}
+
+		row := model.CharacterMechanic{CharacterID: id, Name: name, Facts: facts, Review: review}
+		row.ContentHash = hashParts(row.Name, row.Facts, row.Review)
+		var existing model.CharacterMechanic
+		found := db.Where("character_id = ?", id).Limit(1).Find(&existing).RowsAffected > 0
+		if found && existing.ContentHash == row.ContentHash {
+			unchanged++
+			continue
+		}
+		action := "新增"
+		if found {
+			action = "重建"
 		}
 		fmt.Printf("  [%s] %-8s id=%-9d 事实 %4d 字（%s）\n", action, name, id, len([]rune(row.Facts)), row.Review)
 		if dryRun {

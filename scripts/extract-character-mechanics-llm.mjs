@@ -33,6 +33,8 @@ const force = args.includes('--force')
 // --merge：只给「四个边界字段还空着」的角色补抽 ✓，并与已有条目**求并集** ✓（不动 provides/limits/points ✗）
 //   2026-10-14 加（TODO-22 的批量修法 ✓）：此前 schema 里没有 conflicts / scaling ⇒ 114 / 116 张全空 ✗
 const merge = args.includes('--merge')
+// --wide：摘录用**整页**（截断 12000 字 ✓），而不是只取机制/阵容章节 ✓ —— 补早期角色的缺口用 ✓
+const wide = args.includes('--wide')
 const dry = args6('--dry')
 const CONCURRENCY = Number(args6('--concurrency') ?? 3)
 
@@ -104,6 +106,18 @@ function buildExcerpt(raw) {
   return parts.join('\n\n')
 }
 
+// ---------------------------------------------------------------- 放宽摘录（--wide ✓，2026-10-14 加 ✓）
+//
+// 为什么要它 ✗：第一轮只取「角色定位 / 技能解析 / 命之座 / 玩法分析 / 角色特点 ＋ 阵容搭配」✓，
+//   结果 62 位角色仍有缺口 ✗（`conflicts` 缺 50、`cannot` 缺 37…✓），尤其早期待辅角色的"机制章节"本身就薄 ✗。
+//   而**禁忌 / 数值**常常写在别处（配装思路、注意事项、命座分析…✓）⇒ 直接把**整页**给模型 ✓（截断到 12000 字 ✓）。
+const WIDE_TOTAL_MAX = 12000
+
+function buildWideExcerpt(raw) {
+  const body = cleanWiki(stripComments(raw)).replace(/\n{3,}/g, '\n\n').trim()
+  return `【本角色全页摘录】（provides / cannot / limits / needs / conflicts / scaling / points 都可以来自这里 ✓）\n${body.slice(0, WIDE_TOTAL_MAX)}`
+}
+
 const SYSTEM = `你是《原神》的资料整理员。任务：从给定的攻略页摘录中，提取该角色的**机制事实**，输出严格 JSON。
 
 铁律（违反即作废）：
@@ -120,7 +134,8 @@ const SYSTEM = `你是《原神》的资料整理员。任务：从给定的攻�
 · points   与队友 / 队伍的联动要点（联动、互充、共鸣、谁给谁打下手 ✓）
 · **cannot**  明确**做不到 / 不适用 / 不享受** ✗ —— 字面线索：「不能」「无法」「不可」「不吃」「无效」「不生效」「不触发」「不叠加」「不适用于」「只对单人生效」「会退出」「为 0」「不产」「切人」「会浪费」✓
 · **needs**   自己**或队伍必须提供什么** ✓ —— 字面线索：「需要」「必须」「依赖」「否则」「前提是」「绑定」「搭配…才能」「有一位」「要有」✓
-· **conflicts** **禁忌 / 冲突 / 别这么配** ✗ —— 字面线索：「不建议」「不适合」「不要」「别」「会损失」「会浪费」「仅在高抗性环境…时才算可选」「同名…不叠加」「两套体系」「硬塞」「分开用」✓（**可以来自阵容搭配章节** ✓）
+· **conflicts** **禁忌 / 冲突 / 别这么配** ✗ —— 字面线索：「不建议」「不要」「别」「会损失」「会浪费」「仅在高抗性环境…时才算可选」「同名…不叠加」「两套体系」「硬塞」「分开用」✓（**可以来自阵容搭配章节** ✓）
+  ⚠️ **别把"收益低 / 不适配 / 覆盖率低"塞进 conflicts** ✗（2026-10-14 细筛过一轮 ✓）—— 那是**收益评价** ✓，归 limits ✓；conflicts 只收"**别这么配 / 与谁冲突 / 会浪费 / 不叠加**"这类硬禁忌 ✓
 · **scaling** **数值怎么算 / 阈值** ✓ —— 字面线索：「每…点」「每…%」「至多 +…%」「基于…上限」「按…的 6%」「达到上限」「吃满」「超过则不浪费/溢出」✓
 
 输出格式（严格 JSON，不要任何多余文字）：
@@ -244,7 +259,9 @@ async function worker() {
     const file = path.join(RAW, job.title.replace(/[\\/:*?"<>|]/g, '_') + '.wiki')
     if (!fs.existsSync(file)) continue
     const pageText = cleanWiki(stripComments(fs.readFileSync(file, 'utf8')))
-    const excerpt = buildExcerpt(stripComments(fs.readFileSync(file, 'utf8')))
+    const excerpt = wide
+      ? buildWideExcerpt(fs.readFileSync(file, 'utf8'))
+      : buildExcerpt(stripComments(fs.readFileSync(file, 'utf8')))
     if (!excerpt.trim()) {
       console.log(`   [跳过] ${job.name}（没有可用的机制章节 ✓）`)
       continue
