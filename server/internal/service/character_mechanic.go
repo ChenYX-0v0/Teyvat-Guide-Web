@@ -44,7 +44,7 @@ const (
 	//   （反应两大类 466 ＋ 月曜/星烁含开门人名单 ~880 ＋ 配队判据 ~560 ≈ 1900 ✓）
 	//   ⇒ 额度不够就会把**配队判据**那条挤掉 ✗（2026-10-14 实测：「月绽放怎么组」只剩 2 条 ✓）。
 	//   配套：条数 2 → 3 ✓、`cmd/mechanicsimport` 加"规则长度自检"警告 ✓。
-	maxMechanicRulesChars = 2000
+	maxMechanicRulesChars = 2400
 	// MechanicRuleCapChars 供**离线工具**自检用（导入时提示"这条太长会被跳过" ✓）——
 	//   ⚠️ 别再写一份数字 ✗，一律引用这里 ✓
 	MechanicRuleCapChars = maxMechanicRulesChars
