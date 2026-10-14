@@ -52,6 +52,99 @@ type ruleEntry struct {
 	Confirmed bool     `json:"confirmed"`
 }
 
+// ---------------------------------------------------------------- 月兆角色（{{月兆开门人}} 占位符）
+
+// moonEnablersFile 月兆角色的**唯一事实源**（`scripts/data/moon_enablers.json` ✓）。
+//
+// ⚠️ 为什么要有这层 ✗（2026-10-14 用户连续 4 次点出名单漏人：奈芙尔 / 雅珂达 / 叶洛亚 / 菲林斯 ✓）：
+//
+//	根因不是数据缺 ✗ —— 菲林斯的天赋原文**就写在我们自己的攻略卡里** ✓ ——
+//	而是**名单靠人手抄进规则正文** ✗：谁被想起来谁就在名单里 ✓，漏掉就永远漏 ✓。
+//	改成：事实源一份 JSON ✓，规则正文写占位符 `{{月兆开门人}}` ✓，导入时**自动渲染** ✓
+//	⇒ 加人只动 JSON ✓，正文再也不会漏 ✗。
+type moonEnablersFile struct {
+	Meta     map[string]any `json:"_meta"`
+	Enablers []moonEnabler  `json:"enablers"`
+}
+
+type moonEnabler struct {
+	Name     string   `json:"name"`
+	Talent   string   `json:"talent"`
+	Kind     string   `json:"kind"`
+	Branches []string `json:"branches"`
+	Level    bool     `json:"level"`
+	Evidence string   `json:"evidence"`
+	Verified bool     `json:"verified"`
+}
+
+// moonEnablers 进程内唯一一份（main 里加载 ✓，规则导入时用 ✓）
+var moonEnablers moonEnablersFile
+
+// moonEnablerPlaceholder 规则正文里的占位符 ✓（`character_mechanics.json` 用 ✓）
+const moonEnablerPlaceholder = "{{月兆开门人}}"
+
+// loadMoonEnablers 读**与机制卡 JSON 同目录**的 moon_enablers.json ✓
+//
+//	缺文件 ⇒ 返回空 ✓（占位符会**原样留在正文里** ⇒ 一眼看得出没渲染 ✗，比悄悄少一段好 ✓）
+func loadMoonEnablers(dir string) moonEnablersFile {
+	var f moonEnablersFile
+	raw, err := os.ReadFile(filepath.Join(dir, "moon_enablers.json"))
+	if err != nil {
+		return f
+	}
+	_ = json.Unmarshal(raw, &f)
+	return f
+}
+
+// renderMoonEnablers 渲染成规则正文 —— **按「管哪条反应」分组** ✓
+//
+// ⚠️ 分组不是装饰 ✗（2026-10-14 用户点名：「为什么月结晶和月感电会出现奈芙尔，这怎么想的」✓）：
+//
+//	早先把 9 位压成一行 ⇒ 读起来像"谁都能开三条" ✗ ⇒ 会给出**错误搭配** ✓。
+//	另外「只拉月兆等级」的三位（爱诺 / 叶洛亚 / 雅珂达 ✓）天赋原文只写"月兆上升一级"✓，
+//	**不会把反应变成月曜** ✗ ⇒ 必须单列并写明"别当开门人用" ✓。
+func renderMoonEnablers(f moonEnablersFile) string {
+	order := []string{"月感电", "月绽放", "月结晶"}
+	byBranch := map[string][]string{}
+	var allRound, levelOnly []string
+	for _, e := range f.Enablers {
+		if !e.Verified || strings.TrimSpace(e.Name) == "" {
+			continue
+		}
+		label := e.Name + "「" + strings.TrimPrefix(strings.TrimSpace(e.Talent), "月兆祝赐·") + "」"
+		switch {
+		case len(e.Branches) >= len(order):
+			allRound = append(allRound, label)
+		case len(e.Branches) == 0:
+			if e.Level {
+				levelOnly = append(levelOnly, label)
+			}
+		default:
+			for _, b := range e.Branches {
+				byBranch[b] = append(byBranch[b], label)
+			}
+		}
+	}
+	var b strings.Builder
+	b.WriteString("**开门人（能把普通反应换成月曜 ✓；**各管各的** ✗ —— 别混用）**：\n")
+	for _, br := range order {
+		if len(byBranch[br]) == 0 {
+			continue
+		}
+		b.WriteString("· **" + br + "** = " + strings.Join(byBranch[br], "、") + " ✓\n")
+	}
+	if len(allRound) > 0 {
+		b.WriteString("· **三条全通** = " + strings.Join(allRound, "、") + " ✓\n")
+	}
+	if len(levelOnly) > 0 {
+		b.WriteString("⚠️ **只拉「月兆等级 +1」（不换反应 ✗，只为凑「满辉」✓）** = " +
+			strings.Join(levelOnly, "、") + " —— **别当开门人用** ✗\n")
+	}
+	b.WriteString("⚠️ 名单**不封口** ✗（没列到 ≠ 不能开门 ✓，以角色卡为准 ✓）；也**不许张冠李戴** ✗" +
+		"（例：奈芙尔只能开月绽放 ✗，拿去打月结晶 / 月感电是错的 ✓）。")
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // ---------------------------------------------------------------- 内容哈希（幂等导入用）
 
 // hashParts 用"要写进库的内容"算哈希 ⇒ 脚本改了措辞才会重写 ✓，纯重跑不会动库 ✓
@@ -104,6 +197,21 @@ func main() {
 	if err := json.Unmarshal(raw, &mf); err != nil {
 		fmt.Fprintf(os.Stderr, "解析失败：%v\n", err)
 		os.Exit(1)
+	}
+	// 月兆角色事实源（规则正文里的 {{月兆开门人}} 由它渲染 ✓；缺文件 ⇒ 占位符原样留着 ✗ 可见 ✓）
+	moonEnablers = loadMoonEnablers(filepath.Dir(*file))
+	{
+		n := 0
+		for _, e := range moonEnablers.Enablers {
+			if e.Verified {
+				n++
+			}
+		}
+		if n == 0 {
+			fmt.Println("  ⚠️ 月兆角色：没读到 moon_enablers.json（或没有已核实条目）⇒ 规则里的 {{月兆开门人}} 不会被替换 ✗")
+		} else {
+			fmt.Printf("  月兆角色：%d 位已核实（moon_enablers.json ✓；规则正文自动渲染 ✓）\n", n)
+		}
 	}
 	fmt.Printf("  机制卡：%d 位角色、%d 条全局规则（%s）\n",
 		len(mf.Characters), len(mf.Rules), filepath.Base(*file))
@@ -197,6 +305,11 @@ func main() {
 		if content == "" {
 			fmt.Printf("  [跳过] 规则 %-28s 正文为空 ✗\n", key)
 			continue
+		}
+		// {{月兆开门人}} ⇒ 用 moon_enablers.json 渲染 ✓
+		//   ⚠️ 名单**必须**从这里来 ✗（2026-10-14：手抄名单连续漏人 4 次 ✓ ⇒ 见 moonEnablersFile 的注释 ✓）
+		if strings.Contains(content, moonEnablerPlaceholder) {
+			content = strings.ReplaceAll(content, moonEnablerPlaceholder, renderMoonEnablers(moonEnablers))
 		}
 		// ⚠️ 自检：单条规则按**注入格式**渲染后若超过额度 ⇒ 注入时会被**整条跳过** ✗（静默丢失 ✗）
 		//   2026-10-14 实测踩到：855 字的反应体系规则一直进不去、且**没有任何报错** ✓ ⇒ 导入时就把话说出来 ✓
