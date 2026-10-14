@@ -144,7 +144,8 @@ python3 -c "import secrets;print(secrets.token_urlsafe(48))"   # 生成一把
 | `AI_SERVICE_KEY` | 自己生成，**必须与 `ai-service/.env` 的 `AI_SERVICE_KEY` 完全一致** |
 | `TEYVAT_AUTH_JWT_SECRET` / `ADMIN_KEY` / `INTERNAL_KEY` | **各自独立**、强随机（`web/11 §6` 的必须项） |
 | `TEYVAT_AUTH_SEED_PASS` | 首次启动种子账号密码，建完建议改密 |
-| `TEYVAT_AUTH_ALLOW_REGISTER=false` | 邀请制（已在 compose 里写死） |
+| `TEYVAT_AUTH_ALLOW_REGISTER` | **2026-10-15 起 `true`（公开注册 ✓）** —— ⚠️ 只设宿主机 `.env` 不够 ✗：compose 是 **environment 白名单**，必须有同名键（现默认值也是 `true` ✓）|
+| `TEYVAT_AUTH_REQUIRE_INVITE_CODE` | **`false`（2026-10-15 起已关闭邀请码门 ✓）** —— 想收回成邀请制：改 `true` ＋ `docker compose up -d --no-build server` ✓（前端会**自动**把邀请码输入框显示回来 ✓，**不用发前端** ✓）|
 
 ---
 
@@ -352,6 +353,7 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 > **回滚**：server 上一版 **`20261014-2345`**（机制卡注入顺序修正 ✓）（开门人名单补全 ＋ 规则额度再抬 ✓）（2026-10-14 更新 ✓ —— 本批换的就是它 ✓）、web 上一版 **`20261012-2348`**（本批**未动 web** ✓）、ai **镜像未动**（仍是 `20261013-0007` ✓，只改了 `ai-service/.env` 的两个预算值 ⇒ 回滚 = 恢复 `ai-service/.env.bak-20261014-0103` ＋ `docker compose up -d ai-service` ✓，**不用 pull** ✓）。
 > ✅ 2026-10-14（**同日第二次发版**，只发 server ✓）：错别字容错热修 ✓（用户报障「伊涅夫怎么配队」✗）—— 本机 build/push ✓ 后 ECS `sed` 改 `SERVER_IMAGE` ＋ `pull && up -d --no-build server` ✓，备份 = `/opt/teyvat-guide/.env.bak-20261014-0112` ✓；digest 核对一致 ✓。⚠️ 本批**只动匹配层** ✗：数据（攻略卡 128 / 机制卡 120 / 规则 5 / 提示词 v12）与 AI 侧预算都不受影响 ✓。
 > ✅ 2026-10-14 深夜第二批（**角色别名（TODO-26）上线** ✓ `20261014-2355`，只发 server ✓）：`SERVER_IMAGE=<新 tag> docker compose build --provenance=false --sbom=false server` ＋ `docker push` ✓ → ECS `cp -a .env .env.bak-20261014-2355` ＋ `sed` ＋ `docker compose pull server && up -d --no-build server` ✓；上线后 `/api/health` ok ✓。数据侧另跑了一次 `go run ./cmd/assetimport -aliases-file ../scripts/data/character_aliases.json`（30 条 ✓ 幂等 ✓）。
+> 🔓 **2026-10-15（配置变更 · 不发版 ✓）**：**关闭注册邀请码门** —— `/opt/teyvat-guide/.env`：`TEYVAT_AUTH_REQUIRE_INVITE_CODE` `true → false` ✓（备份 `.env.bak-20261015-invite-off` ✓）＋ `docker compose up -d --no-build server` ✓；**三个 `*_IMAGE` tag 未动** ✓ ⇒ 台账版本不变 ✓。复验：`GET /api/auth/config` ⇒ `allowRegister:true / smsEnabled:true / requireInviteCode:false` ✓。回滚 = 改回 `true` ＋ 重建容器 ✓。
 > ✅ 2026-10-14 深夜（**机制卡注入顺序修正**，只发 server ✓ `20261014-2345`）：本机 `SERVER_IMAGE=<新 tag> docker compose build --provenance=false --sbom=false server` ＋ `docker push` ✓ 后，ECS `cp -a .env .env.bak-20261014-2345` ＋ `sed` 改 tag ＋ `docker compose pull server && up -d --no-build server` ✓；上线后 `/api/health` ok ✓、日志无异常 ✓。⚠️ 踩坑：先用 `push-images.ps1 -SkipBuild` 推的是**早先残留的 `teyvat-guide-server:0.1.0`** ✗（那次报的还是老毛病 `unknown manifest class …` ✗）—— 本地 `.env` 的 `SERVER_IMAGE` 是旧 tag ⇒ `compose build` 会把新产物打成**旧名字** ✓，**必须显式覆盖 `SERVER_IMAGE`** ✗（2026-10-14 记 ✓）。
 > ✅ 2026-10-14 夜（机制卡上线 ＋ 旅行者拆形态，**只发 server** ✓）：按本节「方式①」直连 pull ✓（`docker compose pull server && up -d --no-build server` ✓）—— 本机 `docker compose build --provenance=false --sbom=false server` → `docker push` ✓，ECS 侧 `sed` 改 `SERVER_IMAGE` ✓；备份 = `/opt/teyvat-guide/.env.bak-20261014-0103` ✓。⚠️ 本批**数据已在库里** ✓（攻略卡 128 行 / 机制卡 120 行 / 规则 5 条 / 提示词 v12 ✓）⇒ 回滚镜像只回滚"怎么用数据"，不回滚数据本身 ✗。
 > ✅ 2026-10-13 夜（**角色攻略卡 ① 阶段②**，只发 server ✓）：**已按本节「方式①」直连 pull** ✓（`docker compose pull server && up -d server` ✓，ECS 已 `docker login` ACR ✓）—— 首次不用再 `save → scp → load`（约 90MB ✗），**从改完到上线约 3 分钟** ✓。备份 = `/opt/teyvat-guide/.env.bak-20261013-225102` ✓。
@@ -394,10 +396,17 @@ ssh -i <私钥> root@<ECS公网IP> 'bash /opt/teyvat-guide/deploy/smoke-ecs.sh'
 > ⚠️ 至此**公网上任何人都能注册**（防护：同号 60s / 同号日 10 / 同 IP 时 20 ✓，把刷费框住 ✓）——
 > 真正的准入门槛是**邀请码** ✓ —— 已于 **2026-09-28 上线**（`auth.require_invite_code=true` ✓，
 > 见 `teyvat-docs/ai/07` TODO-14 与 `shared/04` §2.5；怎么发码见本节末尾 ✓）。
+>
+> 🔓 **2026-10-15 变更（用户口径 ✓）**：**邀请码门已关闭** ✓ —— `.env` 里 `TEYVAT_AUTH_REQUIRE_INVITE_CODE=false` ＋ `docker compose up -d --no-build server` ✓
+> ⇒ 现在**手机号 ＋ 短信验证码即可直接注册** ✓（门槛回到三重限速：同号 60s / 同号日 10 / 同 IP 时 20 ✓）。
+> **前端不用发版** ✓：登录页按 `GET /api/auth/config` 的 `requireInviteCode` 决定要不要渲染邀请码输入框 ✓
+> （实测接口返回 `{"allowRegister":true,"smsEnabled":true,"requireInviteCode":false}` ✓）。回滚 = 该键改回 `true` ＋ 重建容器 ✓。
+> ⚠️ **备案口径要重新评估** ✗：`web/11 §7.6` 里"未向境内公众提供"的论证原本依赖**邀请制** ✓；开放注册后这条论证变弱 ✗
+> ⇒ 不推广 / `noindex` 等对外策略**保持不变** ✓，但备案结论请以属地口径为准 ✓。
 > ⚠️ 凭据链的临时凭据有有效期（实测 6 小时 ✓），SDK 会自动刷新 ✓，无需干预 ✓；RAM 角色的策略必须含
 > `dypns:SendSmsVerifyCode` + `dypns:CheckSmsVerifyCode`（或 `AliyunDypnsFullAccess` ✓），否则发送报 `isv.*` 权限错误 ✗。
 >
-> 🎟 **邀请码怎么发**（2026-09-28 起注册需要邀请码 ✓；开关 `TEYVAT_AUTH_REQUIRE_INVITE_CODE=true`）：
+> 🎟 **邀请码怎么发**（⚠️ **2026-10-15 起本站已关闭此门** ✓，以下命令**暂时用不到** ✓；将来要收回成邀请制时按此发码 ✓ —— 开关 `TEYVAT_AUTH_REQUIRE_INVITE_CODE=true`）：
 > ```bash
 > KEY=$(grep '^TEYVAT_AUTH_INTERNAL_KEY=' /opt/teyvat-guide/.env | cut -d= -f2-)
 > # ① 生成 5 张（note 写清给谁/什么渠道，便于对账）

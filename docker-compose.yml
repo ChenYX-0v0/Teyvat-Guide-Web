@@ -108,11 +108,12 @@ services:
       TEYVAT_AUTH_JWT_SECRET: ${TEYVAT_AUTH_JWT_SECRET:?请在 .env 设置 TEYVAT_AUTH_JWT_SECRET}
       TEYVAT_AUTH_ADMIN_KEY: ${TEYVAT_AUTH_ADMIN_KEY:?请在 .env 设置 TEYVAT_AUTH_ADMIN_KEY}
       TEYVAT_AUTH_INTERNAL_KEY: ${TEYVAT_AUTH_INTERNAL_KEY:?请在 .env 设置 TEYVAT_AUTH_INTERNAL_KEY}
-      # 注册开关：默认 false = 不公开/邀请制（账号只能后台代建 ✓）。
+      # 注册开关：**默认 true = 公开注册**（2026-10-15 用户口径：移出邀请码限制，直接注册 ✓）。
       # ⚠️ 以前这里是**写死 "false"** ✗ —— 宿主机 .env 里怎么设都不生效（2026-09-27 踩到）。
-      # 开放"手机号 + 短信验证码"注册：只要在 .env 里设 TEYVAT_AUTH_ALLOW_REGISTER=true ✓
-      TEYVAT_AUTH_ALLOW_REGISTER: ${TEYVAT_AUTH_ALLOW_REGISTER:-false}
-      # 邀请码（注册的第二道门，2026-09-28）：true = 不填/填错都**发不出验证码** ✓、用过一次即作废 ✓
+      # 想收回成"邀请制 / 只后台代建"：在 .env 里设 TEYVAT_AUTH_ALLOW_REGISTER=false ✓
+      TEYVAT_AUTH_ALLOW_REGISTER: ${TEYVAT_AUTH_ALLOW_REGISTER:-true}
+      # 邀请码（注册的第二道门，2026-09-28；**2026-10-15 起本站已关闭** ✓）：
+      # true = 不填/填错都**发不出验证码** ✓、用过一次即作废 ✓；默认 false = 手机号 ＋ 短信码直接注册 ✓
       TEYVAT_AUTH_REQUIRE_INVITE_CODE: ${TEYVAT_AUTH_REQUIRE_INVITE_CODE:-false}
       TEYVAT_AUTH_SEED_USER: ${TEYVAT_AUTH_SEED_USER:-admin}
       TEYVAT_AUTH_SEED_PASS: ${TEYVAT_AUTH_SEED_PASS:?请在 .env 设置 TEYVAT_AUTH_SEED_PASS}
