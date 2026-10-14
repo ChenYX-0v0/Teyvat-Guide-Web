@@ -239,7 +239,11 @@ func renderMechanic(row model.CharacterMechanic, budget int) string {
 		{"共鸣", renderResonance(f.Resonance)},
 		{"抗打断", renderInterrupt(f.Interrupt)},
 		{"护盾", renderShield(f.Shield)},
-		{"冲突", renderList(f.Conflicts)},
+		// ⚠️ 标签必须写明"默认避免" ✗（2026-10-14 线上实测 ✓）：丝柯克卡里原是一句
+		//   「与「希诺宁」：仅在高抗性环境…才作为可选队友」✓ ⇒ 模型把「才可选」读成了「可选」✗，
+		//   于是在**问丝柯克配队**时把希诺宁直接塞进队伍 ✓（用户当场质询 ✓）。
+		//   字段语义本来就是"冲突 / 别这么配"✓ ⇒ 标签上必须说清默认态度 ✓。
+		{"冲突（默认避免 ✗；写了条件也只在条件成立时才算可选 ✓）", renderList(f.Conflicts)},
 		{"基数", renderList(f.Scaling)},
 	}
 
