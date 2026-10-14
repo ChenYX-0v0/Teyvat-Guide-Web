@@ -177,7 +177,8 @@ type contextRow struct {
 func main() {
 	file := flag.String("file", filepath.Join("..", "scripts", "data", "character_mechanics.json"), "机制卡 JSON 路径")
 	// 自动抽取的初稿（阶段③ 铺全量 ✓，由 scripts/extract-character-mechanics-llm.mjs 生成 ✓）：
-	// review=draft ✓；**绝不覆盖人工卡** ✗（见 importCards 的守卫 ✓）；文件不存在就跳过 ✓
+	// review=auto ✓；**与人工卡求并集** ✓（2026-10-14 起 ✓ —— 原先"绝不覆盖人工卡"✗ 的守卫已撤掉 ✓，
+	// 见 importCards 里的 unionFacts 调用与注释 ✓）；文件不存在就跳过 ✓
 	autoFile := flag.String("auto-file", filepath.Join("..", "scripts", "data", "character_mechanics_auto.json"),
 		"自动抽取的机制卡初稿 JSON（可选 ✓）")
 	noAuto := flag.Bool("no-auto", false, "不导入自动初稿（只导人工卡 ✓）")
@@ -379,7 +380,7 @@ func factsJSON(card map[string]any) (string, error) {
 	return string(b), nil
 }
 
-// importCards 把一份卡片数组写进 character_mechanics：幂等 ✓ + **绝不覆盖人工卡** ✗。
+// importCards 把一份卡片数组写进 character_mechanics：幂等 ✓ + **人工卡与自动卡求并集** ✓（2026-10-14 起 ✓）。
 //
 // reviewKind：`curated`（人工卡 ✓，按 `_review`/`_draft` 定 reviewed|draft）/ `auto`（自动抽取 ✓，写 auto）。
 // 返回 写入 / 未变 / 跳过 三个计数。
@@ -418,10 +419,46 @@ func importCards(db *gorm.DB, cards []map[string]any, idByName map[string]int64,
 
 		var existing model.CharacterMechanic
 		found := db.Where("character_id = ?", id).Limit(1).Find(&existing).RowsAffected > 0
+		// ⚠️ 2026-10-14：从「人工卡赢 ✗」改成 **求并集** ✓
+		//
+		// 用户口径 ✓：「这两个为什么要设置优先级，都把他们设置为优先级一致的资料就可以了」✓ ——
+		//   人工卡与自动卡**都是资料** ✓（一个来自人、一个来自模型抽取，每条都带页面出处 ✓），
+		//   各自缺的部分正好互补 ✓ ⇒ 应当**并集**，而不是"谁盖谁" ✗。
+		//   旧守卫的本意只是防「整张卡被替换掉」✗（早期自动抽取手法保守、会丢内容 ✓）——
+		//   并集完全满足这个需求 ✓（人工条目在前 ✓、按内容去重 ✓，两边都不丢 ✓），
+		//   所以优先级/保护这套可以撤掉了 ✓。
 		if found && reviewKind == "auto" && existing.Review != "auto" {
-			fmt.Printf("  [保护] %-8s id=%-9d 库里是人工卡（%s）⇒ 不覆盖 ✓\n", name, id, existing.Review)
-			skipped++
-			continue
+			merged, added, err := unionFacts(existing.Facts, row.Facts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "合并 %s 的机制卡失败：%v\n", name, err)
+				os.Exit(1)
+			}
+			if added == 0 {
+				fmt.Printf("  [未变] %-8s id=%-9d 人工卡已含自动抽到的全部条目 ✓\n", name, id)
+				unchanged++
+				continue
+			}
+			// 只并上"库里没有的"条目 ✓（人工内容一字不动 ✗）；review 保留既有标记 ✓（draft / reviewed ✓）
+			row.Facts = merged
+			row.Review = existing.Review
+			row.ContentHash = hashParts(row.Name, row.Facts, row.Review)
+			fmt.Printf("  [并入] %-8s id=%-9d 人工卡 %4d 字 ＋ 自动新条目 %d 条 ⇒ %4d 字（%s）✓\n",
+				name, id, len([]rune(existing.Facts)), added, len([]rune(row.Facts)), row.Review)
+		} else if found && reviewKind != "auto" {
+			// ⚠️ 人工卡这一遍也要求并集 ✗（否则会非幂等 ✓，2026-10-14 踩到 ✓）：
+			//   库里那行可能已经含"上一轮并进去的自动条目" ✓，而文件里没有 ✗ ⇒
+			//   若直接覆盖，就会把它们**删掉** ✗（下一次跑又要重并 ⇒ 每次导入都在抖 ✓）。
+			//   口径：**以文件为准的排序在前** ✓（人工新写的条目领读 ✓），库里多出来的跟在后面 ✓。
+			merged, added, err := unionFacts(row.Facts, existing.Facts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "合并 %s 的机制卡失败：%v\n", name, err)
+				os.Exit(1)
+			}
+			if added > 0 {
+				fmt.Printf("  [保留] %-8s id=%-9d 库里另有 %d 条（上一轮并入的 ✓）⇒ 留在并集里 ✓\n", name, id, added)
+			}
+			row.Facts = merged
+			row.ContentHash = hashParts(row.Name, row.Facts, row.Review)
 		}
 		if found && existing.ContentHash == row.ContentHash {
 			fmt.Printf("  [未变] %-8s id=%-9d 事实 %4d 字（%s）\n", name, id, len([]rune(row.Facts)), row.Review)
@@ -446,6 +483,131 @@ func importCards(db *gorm.DB, cards []map[string]any, idByName map[string]int64,
 		written++
 	}
 	return written, unchanged, skipped
+}
+
+// unionFacts 把两份事实取**并集**（base 在前 ✓、按内容去重 ✓）—— 2026-10-14 加 ✓
+//
+// 口径（用户 2026-10-14 ✓）：人工卡与自动卡**优先级一致** ✓，都是资料 ⇒ 缺哪边补哪边 ✓。
+//
+//	· 字符串数组（cannot / needs / limits / points / conflicts / scaling ✓）：按"去掉空白与标点"后的文本去重 ✓
+//	  （"不能降低风抗" 与 "不能降低风抗。" 算同一条 ✓）
+//	· 对象数组（provides / shield / interruptResist / application ✓）：按整条 JSON 去重 ✓（人工条目在前 ✓）
+//	· 对象（resonance ✓）：逐个子数组合并 ✓
+//	· 标量：base 已有就保留 ✗（不覆盖 ✓）
+//
+// 返回：并集 JSON ＋ **新加了几条**（0 ＝ 没有新东西 ⇒ 调用方省一次写库 ✓）
+func unionFacts(baseJSON, addJSON string) (string, int, error) {
+	var base, add map[string]any
+	if err := json.Unmarshal([]byte(baseJSON), &base); err != nil {
+		return "", 0, err
+	}
+	if err := json.Unmarshal([]byte(addJSON), &add); err != nil {
+		return "", 0, err
+	}
+	if base == nil {
+		base = map[string]any{}
+	}
+	// base 侧的元字段也顺手清掉 ✓（库里存的本就没有 ✓，但离线调用时可能带上 ✓）
+	for k := range base {
+		if strings.HasPrefix(k, "_") || k == "evidenceIndex" {
+			delete(base, k)
+		}
+	}
+	added := 0
+	for k, av := range add {
+		// 元字段（_review / _draft / evidenceIndex…）只在文件里 ✓，不进库也并入 ✗
+		if strings.HasPrefix(k, "_") || k == "evidenceIndex" {
+			continue
+		}
+		bv, ok := base[k]
+		if !ok || bv == nil {
+			base[k] = av
+			added += countItems(av)
+			continue
+		}
+		switch at := av.(type) {
+		case []any:
+			bt, _ := bv.([]any)
+			seen := map[string]bool{}
+			for _, it := range bt {
+				seen[unionKey(it)] = true
+			}
+			for _, it := range at {
+				kk := unionKey(it)
+				if seen[kk] {
+					continue
+				}
+				seen[kk] = true
+				bt = append(bt, it)
+				added++
+			}
+			base[k] = bt
+		case map[string]any:
+			bm, _ := bv.(map[string]any)
+			if bm == nil {
+				bm = map[string]any{}
+			}
+			for sk, sv := range at {
+				sa, isArr := sv.([]any)
+				if !isArr {
+					if _, exist := bm[sk]; !exist {
+						bm[sk] = sv
+					}
+					continue
+				}
+				ba, _ := bm[sk].([]any)
+				seen := map[string]bool{}
+				for _, it := range ba {
+					seen[unionKey(it)] = true
+				}
+				for _, it := range sa {
+					kk := unionKey(it)
+					if seen[kk] {
+						continue
+					}
+					seen[kk] = true
+					ba = append(ba, it)
+					added++
+				}
+				bm[sk] = ba
+			}
+			base[k] = bm
+		default:
+			// 标量（如 "to": "自身"）：base 已有一律保留 ✓
+		}
+	}
+	out, err := json.Marshal(base)
+	if err != nil {
+		return "", 0, err
+	}
+	return string(out), added, nil
+}
+
+// unionKey 去重键：字符串去掉空白与常见标点后比较 ✓；对象取整条 JSON ✓
+func unionKey(v any) string {
+	if s, ok := v.(string); ok {
+		return normalizeFactText(s)
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func normalizeFactText(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '\t', '\n', '\r', '　', '，', '。', '；', '、', '：', ':', ',', ';', '（', '）', '(', ')', '「', '」', '“', '”', '"', '\'', '·', '—', '-':
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// countItems 数"加进来几条"（数组按元素数 ✓；对象算 1 ✓）
+func countItems(v any) int {
+	if a, ok := v.([]any); ok {
+		return len(a)
+	}
+	return 1
 }
 
 func reviewOf(card map[string]any) string {
