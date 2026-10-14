@@ -198,6 +198,12 @@ func main() {
 			fmt.Printf("  [跳过] 规则 %-28s 正文为空 ✗\n", key)
 			continue
 		}
+		// ⚠️ 自检：单条规则按**注入格式**渲染后若超过额度 ⇒ 注入时会被**整条跳过** ✗（静默丢失 ✗）
+		//   2026-10-14 实测踩到：855 字的反应体系规则一直进不去、且**没有任何报错** ✓ ⇒ 导入时就把话说出来 ✓
+		if n := service.RuleInjectionLen(r.Title, content, key); n > service.MechanicRuleCapChars {
+			fmt.Printf("  ⚠️ 规则 %-26s 渲染后 %d 字 > 注入额度 %d ⇒ **注入时会被跳过** ✗（拆短或抬额度 ✓）\n",
+				key, n, service.MechanicRuleCapChars)
+		}
 		triggers := strings.Join(cleanList(r.Triggers), ",")
 		row := model.MechanicRule{
 			RuleKey:   key,

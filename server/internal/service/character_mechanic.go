@@ -33,9 +33,18 @@ const (
 	// maxMechanicCharsTotal 机制卡整段上限（两张卡加起来 ✓）
 	maxMechanicCharsTotal = 1800
 	// maxMechanicRules 一次最多注入几条全局规则 ✓
-	maxMechanicRules = 2
+	maxMechanicRules = 3
 	// maxMechanicRulesChars 全局规则整段上限 ✓（规则正文比角色卡长，单独设额度 ✓）
-	maxMechanicRulesChars = 800
+	//
+	// ⚠️ 2026-10-14 由 800 → **1400** ✓：新增的**反应体系**类规则（月曜 / 星烁 / 乘区 / 配队判据 ✓）
+	//   单条就有 400~650 字 ✓，旧的 800 只塞得下一条多一点 ✗，而且**放不下是"跳过整条"** ✗
+	//   （见 rulesForQuestion 里的 continue ✓）⇒ 会出现"资料明明在库里、却一条都没注入"的**静默丢失** ✗
+	//   （实测：855 字的 `rule-reaction-systems` 直接进不去 ✓）。配套：
+	//   条数 2 → 3 ✓、`cmd/mechanicsimport` 加"规则长度自检"警告 ✓。
+	maxMechanicRulesChars = 1400
+	// MechanicRuleCapChars 供**离线工具**自检用（导入时提示"这条太长会被跳过" ✓）——
+	//   ⚠️ 别再写一份数字 ✗，一律引用这里 ✓
+	MechanicRuleCapChars = maxMechanicRulesChars
 
 	// mechanicIncludeDraft 是否注入**非人工**的机制卡（review=draft 初稿 / review=auto 自动抽取 ✓）。
 	// 阶段③ 铺全量后的口径：**注入** ✓。
@@ -140,14 +149,7 @@ func (m *MechanicStore) rulesForQuestion(question string) (string, []string) {
 		if !triggersMatched(q, r.Triggers) {
 			continue
 		}
-		title := strings.TrimSpace(r.Title)
-		if title == "" {
-			title = r.RuleKey
-		}
-		line := "【机制规则】" + title
-		if body := cleanFactText(r.Content); body != "" {
-			line += "\n· " + body
-		}
+		line := ruleLine(r.Title, r.Content, r.RuleKey)
 		cost := len([]rune(line))
 		// 单条放不下就**跳过**（不截断句子中间 ✗）—— 后面的规则还有机会 ✓
 		if used+cost > maxMechanicRulesChars {
@@ -158,6 +160,27 @@ func (m *MechanicStore) rulesForQuestion(question string) (string, []string) {
 		used += cost
 	}
 	return strings.Join(blocks, "\n"), keys
+}
+
+// ruleLine 一条规则渲染成注入文本（**格式只此一份** ✗ —— 离线自检也走这里 ✓）
+func ruleLine(title, content, key string) string {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		t = key
+	}
+	line := "【机制规则】" + t
+	if body := cleanFactText(content); body != "" {
+		line += "\n· " + body
+	}
+	return line
+}
+
+// RuleInjectionLen 按注入格式算一条规则的字符数 ✓ ——
+//
+//	给 `cmd/mechanicsimport` 自检用：超过 `MechanicRuleCapChars` 的规则注入时会被**整条跳过** ✗
+//	（2026-10-14 实测踩到：855 字的反应体系规则一直进不去，而且**没有任何报错** ✗）
+func RuleInjectionLen(title, content, key string) int {
+	return len([]rune(ruleLine(title, content, key)))
 }
 
 // triggersMatched 触发词命中判定：逗号（中英文都认 ✓）分隔，任一命中即算 ✓。
