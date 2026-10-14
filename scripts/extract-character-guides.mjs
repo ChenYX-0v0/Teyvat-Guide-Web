@@ -284,14 +284,37 @@ try {
   console.log('  人工毕业线：没有文件 ⇒ 只用 wiki + 外部面板 ✓')
 }
 
+// stripWikiTables 剔掉 wiki 表格与它的残留标签 ✓（2026-10-14 加 ✓）
+//
+// 为什么两道都要 ✗：表格可能**嵌套在模板里**（如 `{{切换板}}`）⇒ 只按 `{|`…`|}` 配对会剩下
+//   `输出位=` / `|-|增伤位=` 这类行 ✓（实测：林尼的 team 里就漏出过 ✓）。所以再用**行级规则**兜底 ✓。
+function stripWikiTables(text) {
+  return text
+    .replace(/\{\|[\s\S]*?\n\s*\|\}/g, '') // 整张表（到行首的 |} ✓）
+    .replace(/^\s*\|[-+}].*$/gm, '') // 表格行标记：|- 、|+ 、|} ✓
+    .replace(/^\s*[!|].*$/gm, '') // 单元格行：! / | 开头 ✓
+    .replace(/^\s*[\u4e00-\u9fff]{1,6}位=\s*$/gm, '') // "输出位=" 这类残留标签 ✓
+    .replace(/^\s*参考属性[^\n]*如下[：:]\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // 取某个二级/三级标题下的正文（到下一个同级或更高级标题为止）
 function section(text, title, level = 2) {
-  const re = new RegExp('^={' + level + '}\\s*' + title + '\\s*={' + level + '}\\s*$', 'm')
-  const m = re.exec(text)
-  if (!m) return ''
-  const rest = text.slice(m.index + m[0].length)
-  const end = rest.search(new RegExp('^={2,' + level + '}[^=]', 'm'))
-  return end === -1 ? rest : rest.slice(0, end)
+  // ⚠️ 2026-10-14：标题级别在**少数页面**上不是二级 ✗ —— 逐级往下找（2 → 3 → 4）✓
+  //
+  // 实测踩到 ✓：林尼页的「阵容搭配」写成 `=== 阵容搭配 ===`（三级 ✓），里面有 **10595 字**配队内容 ✓，
+  //   旧实现只按 `== 阵容搭配 ==` 找 ⇒ 整节取不到 ✗ ⇒ 卡片的 `team` 一直是空的 ✗
+  //   （用户看到的就是"林尼缺配队"✓）。安柏 / 埃洛伊 / 旅行者那几位是**页里确实没写** ✓，与级别无关 ✓。
+  for (let lv = level; lv <= level + 2; lv++) {
+    const re = new RegExp('^={' + lv + '}\\s*' + title + '\\s*={' + lv + '}\\s*$', 'm')
+    const m = re.exec(text)
+    if (!m) continue
+    const rest = text.slice(m.index + m[0].length)
+    const end = rest.search(new RegExp('^={2,' + lv + '}[^=]', 'm'))
+    return end === -1 ? rest : rest.slice(0, end)
+  }
+  return ''
 }
 
 // 解析第一个/所有 {{简易配装 ... }} 的 key=value（逐行，天然容忍值与嵌套模板）
@@ -508,7 +531,10 @@ for (const title of titles) {
     continue
   }
 
-  const ownTeam = clipSent(clean(section(raw, '阵容搭配', 2)), 500)
+  // ⚠️ 2026-10-14：「阵容搭配」小节里常混着 **wiki 表格**（`{| … |}`，写各队友的参考面板/套装 ✓）
+  //   外加一句"参考属性、圣遗物、武器如下："的引子 ⇒ 直接塞进 `team` 会污染注入文本 ✗
+  //   （表格另有用途：**毕业线**就是从它的"指标：数值"行里抽的 ✓ ⇒ 这里只剔表、不动别处 ✓）
+  const ownTeam = clipSent(stripWikiTables(clean(section(raw, '阵容搭配', 2))), 500)
   const rev = seenIn(charName)
   // ⚠️ **不加"据其他角色攻略页"前缀** ✗：主服务渲染时会按 `teamFrom` 自己加标签 ✓
   //   两处都加 ⇒ 注入文本会变成「配队思路（据其他角色攻略页）：据其他角色攻略页：共 70 处…」✗
