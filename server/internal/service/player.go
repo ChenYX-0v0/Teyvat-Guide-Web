@@ -255,12 +255,14 @@ func (s *PlayerService) StatWeightsForQuestion(question string) []CharacterStatR
 // 解决的是"配队思路 / 毕业线 / 天赋顺序"这三类**库里一条都没有**的问题 ✗（此前模型只能
 // "没有查到"或凭记忆泛谈 ✓）。与 StatWeightsForQuestion 的差异只有一处：
 // **直查库**（不走 asset 的内存缓存 ✓）⇒ 后台改完立即生效 ✓。
-// dropTeam：已带机制卡的角色名 ⇒ 这些角色的「配队思路」结论不再注入 ✓（见 character_mechanic.go）
-func (s *PlayerService) GuidesForQuestion(question string, dropTeam map[string]bool) string {
+// ⚠️ 2026-10-15：**不再有 dropTeam 参数** ✗ —— 原来"有机制卡就不注入配队思路"✗，
+// 导致菲林斯这类角色（机制卡只写职能、名单只在攻略卡里）回答里**一个队友名字都没有** ✗✗
+// （用户原话：「不要让用户继续猜可以带谁」✓）⇒ 现在**两份都注入** ✓，冲突由提示词第 46 条裁决 ✓。
+func (s *PlayerService) GuidesForQuestion(question string) string {
 	if s == nil || s.guides == nil {
 		return ""
 	}
-	return s.guides.ForQuestion(s.assets, question, dropTeam)
+	return s.guides.ForQuestion(s.assets, question)
 }
 
 // MechanicsForQuestion 返回提问中命中角色的**机制事实**卡与命中的全局规则（阶段②，TODO-20）。
@@ -298,26 +300,21 @@ func (s *PlayerService) SummaryForQuestion(question string) (string, SummaryStat
 		return "", stats
 	}
 
-	// ① 机制卡：先算，因为攻略卡要据此**去掉配队思路结论** ✓
-	//   ⚠️ 阶段③（2026-10-13 铺全量后）起：**有机制卡就丢配队思路** ✗ —— 包括 draft 卡 ✓。
-	//   理由见 ai/07 TODO-20 护栏 3：用户要的不是"背某页列的队"✗，而是"按事实自己推"✓；
-	//   自动卡虽然只是初稿 ✓，但它给的是**逐字校验过的原句** ✓，比反向索引拼出来的"常被编入…"更可靠 ✓。
+	// ① 机制卡：给**事实**（提供 / 做不到 / 需要 / 边界 ✓）⇒ 模型自己推 ✓
+	//   ⚠️ 2026-10-15 反转 ✗：以前"**有机制卡就丢攻略卡的配队思路**"✗ —— 实测把"能带谁"一起丢了 ✗
+	//   （机制卡 needs 只写职能 ✗"另一名雷元素队友"，名字只在攻略卡里 ✓）⇒ 回答里一个队友都没有 ✗✗。
+	//   现在**两份都注入** ✓：机制卡给事实、攻略卡给名单 ✓；真冲突以机制卡为准 ✓（提示词第 46 条 ✓）。
 	hit := s.MechanicsForQuestion(question)
 	stats.MechanicCards = len(hit.Characters)
 	stats.Rules = hit.Rules
-
-	dropTeam := make(map[string]bool, len(hit.Characters))
-	for _, name := range hit.Characters {
-		dropTeam[name] = true
-	}
 
 	refs := s.StatWeightsForQuestion(question)
 	sets := s.RelicSetEffectsForQuestion(question)
 	stats.Refs, stats.Sets = len(refs), len(sets)
 	assetText := BuildAssetSummary(refs, sets)
 
-	// ② 攻略卡（已带机制卡的角色不含配队思路 ✓）
-	guide := s.GuidesForQuestion(question, dropTeam)
+	// ② 攻略卡（含配队思路名单 ✓ —— 这是"能带谁"的唯一来源 ✓）
+	guide := s.GuidesForQuestion(question)
 	stats.GuideCards = strings.Count(guide, "【角色攻略】")
 
 	parts := make([]string, 0, 3)

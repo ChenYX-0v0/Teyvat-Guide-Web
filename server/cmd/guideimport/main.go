@@ -430,9 +430,9 @@ func runProbe(db *gorm.DB, question string) {
 		fmt.Fprintf(os.Stderr, "加载资产映射失败：%v\n", err)
 		os.Exit(1)
 	}
-	// dropTeam 传 nil：本探针只看攻略卡本身 ✓（带机制卡时的"去配队结论"由
-	// cmd/mechanicsimport -probe 展示完整链路 ✓）
-	text := service.NewGuideStore(db).ForQuestion(svc, question, nil)
+	// ⚠️ 2026-10-15：ForQuestion 已**去掉 dropTeam 参数** ✗ —— 现在攻略卡的「配队思路」
+	// **无论如何都注入** ✓（它是"能带谁"的唯一来源 ✓；用户要求"不要让用户继续猜"✓）。
+	text := service.NewGuideStore(db).ForQuestion(svc, question)
 	if text == "" {
 		fmt.Printf("  问题「%s」⇒ 没命中任何攻略卡（本次不注入 ✓ 走原逻辑）\n", question)
 		return

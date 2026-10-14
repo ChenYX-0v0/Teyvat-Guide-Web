@@ -24,7 +24,7 @@ func fullGuideRow() model.CharacterGuide {
 // 段顺序就是**优先级**：配队 > 毕业线 > 天赋顺序 > 武器 > 圣遗物 > 定位 > 注意事项。
 // 按用户抱怨的三类（配队思路 / 毕业线 / 天赋顺序）排在最前 ✓
 func TestRenderGuideSegmentOrder(t *testing.T) {
-	got := renderGuide(fullGuideRow(), false)
+	got := renderGuide(fullGuideRow())
 
 	want := []string{
 		"【角色攻略】测试角色",
@@ -53,7 +53,7 @@ func TestRenderGuideSegmentOrder(t *testing.T) {
 func TestRenderGuideDropsLowPriorityFirst(t *testing.T) {
 	row := fullGuideRow()
 	row.Notes = strings.Repeat("注", 3000) // 单段就超上限
-	got := renderGuide(row, false)
+	got := renderGuide(row)
 
 	if strings.Contains(got, "注意事项") {
 		t.Fatalf("超限时应先丢掉最低优先级的「注意事项」，实际仍包含：%s", got[:60])
@@ -69,18 +69,18 @@ func TestRenderGuideDropsLowPriorityFirst(t *testing.T) {
 func TestRenderGuideReverseTeamLabel(t *testing.T) {
 	row := fullGuideRow()
 	row.TeamFrom = "reverse"
-	if got := renderGuide(row, false); !strings.Contains(got, "配队思路（据其他角色攻略页）：") {
+	if got := renderGuide(row); !strings.Contains(got, "配队思路（据其他角色攻略页）：") {
 		t.Fatalf("反向索引的配队应带来源说明，实际：%s", got)
 	}
 	row.TeamFrom = "page"
-	if got := renderGuide(row, false); strings.Contains(got, "据其他角色攻略页") {
+	if got := renderGuide(row); strings.Contains(got, "据其他角色攻略页") {
 		t.Fatalf("本页原文的配队不该带反向说明，实际：%s", got)
 	}
 }
 
 // 一条数据都没有时返回空串 —— 宁可**不注入**，也不要给模型一个光秃秃的「【角色攻略】某某」✗
 func TestRenderGuideEmpty(t *testing.T) {
-	if got := renderGuide(model.CharacterGuide{Name: "空角色"}, false); got != "" {
+	if got := renderGuide(model.CharacterGuide{Name: "空角色"}); got != "" {
 		t.Fatalf("没有任何槽位时应返回空串，实际：%s", got)
 	}
 }
@@ -91,7 +91,7 @@ func TestRenderGuideNeverLeaksSource(t *testing.T) {
 	row.SourceURL = "https://wiki.biligame.com/ys/xxx"
 	row.SourceRev = "671461"
 	row.Graduation = "毕业文本"
-	if got := renderGuide(row, false); strings.Contains(got, "biligame") || strings.Contains(got, "wiki") {
+	if got := renderGuide(row); strings.Contains(got, "biligame") || strings.Contains(got, "wiki") {
 		t.Fatalf("注入文本里不该出现来源 URL，实际：%s", got)
 	}
 }
@@ -103,7 +103,7 @@ func TestRenderGuideShowsFormElement(t *testing.T) {
 	row.Name = "旅行者"
 	row.FormElement = "冰"
 	row.Graduation = "攻击力：2800以上"
-	got := renderGuide(row, false)
+	got := renderGuide(row)
 	if !strings.Contains(got, "【角色攻略】旅行者（冰）") {
 		t.Fatalf("多形态角色的标题必须带形态，实际：%s", got)
 	}
@@ -114,7 +114,7 @@ func TestRenderGuideShowsFormElement(t *testing.T) {
 
 // 普通角色（formElement 为空）标题保持原样 —— 不带括号 ✓（别给 120 位角色都加个空括号 ✗）
 func TestRenderGuideNoFormSuffixForNormal(t *testing.T) {
-	if got := renderGuide(fullGuideRow(), false); !strings.Contains(got, "【角色攻略】测试角色\n") {
+	if got := renderGuide(fullGuideRow()); !strings.Contains(got, "【角色攻略】测试角色\n") {
 		t.Fatalf("普通角色的标题不该有括号，实际：%s", got)
 	}
 }
@@ -181,5 +181,37 @@ func TestPickGuideRowsStableAndFallback(t *testing.T) {
 	missing := pickGuideRows([]model.CharacterGuide{{Name: "旅行者", FormElement: "草", Graduation: "草主"}}, "冰主怎么练？", 1)
 	if len(missing) != 1 || missing[0].FormElement != "草" {
 		t.Fatalf("点名的形态没有卡时应退回主形态（不能给空 ✗），实际：%+v", missing)
+	}
+}
+
+// ⚠️ 回归锁（2026-10-15 用户报障 ✓）：**有机制卡的角色也必须拿到配队名单** ——
+// 以前 renderGuide 有个 dropTeam 开关，会把「配队思路」整段丢掉 ✗ ⇒ 菲林斯配队回答里
+// "一个具体队友都没有" ✗（用户原话：「不要让用户继续猜可以带谁」✓）。
+// 这里锁死两件事：① 这段必须注入 ✓；② **名单里的角色名必须逐字出现** ✓。
+func TestRenderGuideKeepsTeamNamesWithMechanicCard(t *testing.T) {
+	row := fullGuideRow()
+	row.Name = "菲林斯"
+	row.TeamPick = "菲林斯月感电队以雷、水元素反应为核心。雷元素队友选择包括：" +
+		"*伊涅芙为菲林斯队伍的首选队友之一；*菲谢尔提供偏对单的后台雷元素伤害；" +
+		"*八重神子提供长时间可对群的后台雷元素伤害。"
+	got := renderGuide(row)
+
+	if !strings.Contains(got, "· 配队思路：") {
+		t.Fatalf("配队思路段必须注入（它是「能带谁」的唯一来源），实际：%s", got)
+	}
+	for _, n := range []string{"伊涅芙", "菲谢尔", "八重神子"} {
+		if !strings.Contains(got, n) {
+			t.Fatalf("配队名单里的 %s 必须出现在注入文本里（不能只给职能让用户自己猜），实际：%s", n, got)
+		}
+	}
+}
+
+// 名单很长时：配队思路**排在最前** ⇒ 超上限也丢不到它 ✓（先丢的是注意事项 ✓）
+func TestRenderGuideTeamSurvivesBudget(t *testing.T) {
+	row := fullGuideRow()
+	row.TeamPick = "雷元素队友选择包括：" + strings.Repeat("伊涅芙、", 200)
+	got := renderGuide(row)
+	if !strings.Contains(got, "· 配队思路：") || !strings.Contains(got, "伊涅芙") {
+		t.Fatalf("配队思路优先级最高，不该被字符上限丢掉，实际：%s", got[:80])
 	}
 }

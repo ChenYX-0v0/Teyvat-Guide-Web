@@ -200,22 +200,30 @@ func TestRulesForQuestionConfirmedAndTriggered(t *testing.T) {
 	}
 }
 
-// ④ 有机制卡的角色：攻略卡去掉「配队思路」结论，其余段照旧 ✓
-func TestRenderGuideDropsTeamWhenMechanicCovered(t *testing.T) {
+// ④ **有机制卡也要注入「配队思路」** ✓ —— 口径于 2026-10-15 反转 ✗。
+//
+//	旧行为（已废）：有机制卡 ⇒ 丢掉配队思路 ✗，理由是"事实优先、别抄结论" ✓；
+//	实测后果 ✗：机制卡只写**职能**（"另一名雷元素队友"✗），而**带名字的名单**只在攻略卡里 ✓
+//	⇒ 菲林斯配队回答里**一个队友都没有** ✗✗（用户原话：「不要让用户继续猜可以带谁」✓）。
+//	⇒ 现在**两份都注入** ✓：机制卡给事实、攻略卡给名单 ✓，冲突由提示词第 46 条裁决 ✓。
+func TestRenderGuideKeepsTeamEvenWithMechanicCard(t *testing.T) {
 	row := fullGuideRow()
+	row.Name = "菲林斯"
+	row.TeamPick = "雷元素队友选择包括：*伊涅芙提供护盾与月感电反应基础伤害加成；*菲谢尔提供后台雷元素伤害。"
 
-	got := renderGuide(row, true)
-	if strings.Contains(got, "配队思路") {
-		t.Fatalf("有机制卡时不该再注入「配队思路」结论 ✗\n实际：%s", got)
+	got := renderGuide(row)
+
+	if !strings.Contains(got, "· 配队思路：") {
+		t.Fatalf("有机制卡也**必须**注入配队思路（「能带谁」只在这里 ✗）\n实际：%s", got)
 	}
-	for _, keep := range []string{"【角色攻略】测试角色", "· 毕业线：", "· 天赋顺序：", "· 注意事项："} {
-		if !strings.Contains(got, keep) {
-			t.Fatalf("去掉配队后其余段应保留：缺 %q\n实际：%s", keep, got)
+	for _, n := range []string{"伊涅芙", "菲谢尔"} {
+		if !strings.Contains(got, n) {
+			t.Fatalf("队友名字 %s 必须出现在注入文本里（别让用户自己猜 ✗）\n实际：%s", n, got)
 		}
 	}
-
-	// 没有机制卡时行为不变 ✓
-	if !strings.Contains(renderGuide(row, false), "· 配队思路：") {
-		t.Fatalf("没有机制卡时应照旧注入配队思路")
+	for _, keep := range []string{"【角色攻略】菲林斯", "· 毕业线：", "· 天赋顺序：", "· 注意事项："} {
+		if !strings.Contains(got, keep) {
+			t.Fatalf("其余段应照旧保留：缺 %q\n实际：%s", keep, got)
+		}
 	}
 }

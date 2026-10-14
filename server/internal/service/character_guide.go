@@ -140,10 +140,15 @@ func NewGuideStore(db *gorm.DB) *GuideStore {
 // ForQuestion 按提问里命中的角色名查攻略卡，拼成一段可直接注入的文本。
 // 命中不到（或库里没这张卡）返回空串 ✓ —— 上层照旧走「没有查到」的老逻辑，不会因此答不出 ✓。
 //
-// dropTeam 本次**已带机制卡**的角色名（见 character_mechanic.go ✓）：这些角色的
-// 「配队思路」结论**不注入** ✗ —— 机制卡给的是事实，模型自己推得比抄结论稳 ✓；
-// 两处都写必然打架（同一个问题两个答案 ✓），所以以事实为准 ✓（ai/07 阶段③ 的全量口径 ✓）。
-func (g *GuideStore) ForQuestion(assets *asset.Service, question string, dropTeam map[string]bool) string {
+// ⚠️ 2026-10-15 **口径反转**（用户报障 ✓）：原来这里是「**已带机制卡 ⇒ 不注入配队思路**」✗。
+//
+//	实测后果 = **回答里一个具体队友都没有** ✗✗：菲林斯的机制卡 `needs` 只写"另一名雷元素队友"✗（职能 ✓），
+//	而**带名字的名单**（伊涅芙 / 菲谢尔 / 八重神子 / 伊安珊 / 多莉 / 久岐忍 ✓）只存在于攻略卡的「配队思路」段 ✓
+//	⇒ 把这一段丢掉 = 把"能带谁"整个抹掉 ✓ ⇒ 模型只剩职能可讲 ✓，用户只能自己猜 ✗
+//	（用户原话：「为什么配队中一个具体的队友都没有，给的建议太抽象。**不要让用户继续猜可以带谁**」✓）。
+//	新口径 ✓：**两份都注入** —— 机制卡给**事实**、攻略卡给**名单** ✓；真打架时**以机制卡为准** ✓
+//	（靠提示词第 46 条分辨 ✓）。⚠️ 数据层**不许再删任何一份** ✗ —— 删了就再也答不出名字 ✗。
+func (g *GuideStore) ForQuestion(assets *asset.Service, question string) string {
 	if g == nil || g.db == nil || assets == nil {
 		return ""
 	}
@@ -195,7 +200,7 @@ func (g *GuideStore) ForQuestion(assets *asset.Service, question string, dropTea
 			if len(blocks) >= maxGuideCharacters || total >= maxGuideCharsTotal {
 				break
 			}
-			block := renderGuide(row, dropTeam[row.Name])
+			block := renderGuide(row)
 			if block == "" {
 				continue
 			}
@@ -215,8 +220,9 @@ func (g *GuideStore) ForQuestion(assets *asset.Service, question string, dropTea
 // "社区口径 / 以官方为准"这类出戏说法 ✓）；配队来自反向索引时会多一个来源说明 ✓，
 // 那是**事实性**的（"据其他角色攻略页"），不是免责声明 ✓。
 //
-// dropTeam：该角色本次已带机制卡 ⇒ 去掉「配队思路」结论（事实优先 ✓，见 ForQuestion 注释 ✓）。
-func renderGuide(row model.CharacterGuide, dropTeam bool) string {
+// dropTeam **参数已删除** ✗（2026-10-15 ✓）：见 ForQuestion 顶部注释 —— 有机制卡**也照样注入配队思路** ✓，
+// 因为那是"能带谁"的唯一来源 ✓（用户明确要求：**不要让用户继续猜** ✗）。
+func renderGuide(row model.CharacterGuide) string {
 	type segment struct{ label, text string }
 	segments := []segment{
 		{"配队思路", row.TeamPick},
@@ -226,9 +232,6 @@ func renderGuide(row model.CharacterGuide, dropTeam bool) string {
 		{"圣遗物", row.RelicPick},
 		{"定位", row.Role},
 		{"注意事项", row.Notes},
-	}
-	if dropTeam {
-		segments = segments[1:] // 有机制卡 ⇒ 不再注入「配队思路」结论 ✗（其余顺序不变 ✓）
 	}
 
 	var b strings.Builder
