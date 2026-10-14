@@ -14,9 +14,9 @@ func TestEndgameSummariesDistinguishMissingFromZero(t *testing.T) {
 	// ② 字段存在但值就是 0（例如新号还没打过）→ 应返回非 nil、值为 0
 	zero := 0
 	pi := PlayerInfo{
-		TowerFloorIndex:  &zero,
-		TheaterActIndex:  &zero,
-		StygianIndex:     &zero,
+		TowerFloorIndex: &zero,
+		TheaterActIndex: &zero,
+		StygianIndex:    &zero,
 	}
 	if abyssSummary(pi) == nil || theaterSummary(pi) == nil || stygianSummary(pi) == nil {
 		t.Fatal("字段存在且值为 0 时应返回非 nil")

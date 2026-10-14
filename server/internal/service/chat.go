@@ -311,6 +311,7 @@ func buildHistory(recent []model.ChatMessage, question string) []Message {
 // buildContext 组装发送给 AI 服务的业务上下文，两条链路任一有内容即推送：
 //   - V2 资产资料（公开数据，任何用户都生效）：命中角色名时给出库里的权威推荐词条
 //   - V1 玩家档案（私有数据，需登录且已绑定 UID）：分级注入展柜角色面板
+//
 // 任何失败都不阻塞对话（缺上下文只是回答不够精准）。
 func (s *ChatService) buildContext(ctx context.Context, userID uint, question string) contextAssembly {
 	var summary string
@@ -359,9 +360,10 @@ func (s *ChatService) buildContext(ctx context.Context, userID uint, question st
 // 任何失败都不阻塞对话（缺上下文只是回答不够个性化）
 //
 // ⚠️ 2026-10-12 修（用户报"聊天页取不到绑定 UID 的角色信息"✓）：此前这里有**三处静默放弃** ✗ ——
-//  ① 没绑定 ⇒ 直接 return nil（**不留任何日志** ✗）；② 上游查询失败 ⇒ 只 warn、角色信息整个丢 ✗；
-//  ③ 展柜为空 ⇒ BuildPlayerContext 返回 nil ✗。三者对用户是**同一个结果**（派蒙看不到角色）✗，
-//  却都不说为什么 ✓ ⇒ 现在：**能兜底就兜底**（用「已收录角色池」✓）、**放弃就留痕**（Info/Warn ✓）。
+//
+//	① 没绑定 ⇒ 直接 return nil（**不留任何日志** ✗）；② 上游查询失败 ⇒ 只 warn、角色信息整个丢 ✗；
+//	③ 展柜为空 ⇒ BuildPlayerContext 返回 nil ✗。三者对用户是**同一个结果**（派蒙看不到角色）✗，
+//	却都不说为什么 ✓ ⇒ 现在：**能兜底就兜底**（用「已收录角色池」✓）、**放弃就留痕**（Info/Warn ✓）。
 func (s *ChatService) buildPlayerContext(ctx context.Context, userID uint, question string) *RequestContext {
 	if userID == 0 || s.players == nil {
 		return nil

@@ -109,10 +109,10 @@ type UsageRankRow struct {
 
 // UsageSeriesRow 趋势一行
 type UsageSeriesRow struct {
-	Day        string `json:"day"`
-	PV         int64  `json:"pv"`
-	UV         int64  `json:"uv"`
-	ChatCount  int64  `json:"chatCount"`
+	Day       string `json:"day"`
+	PV        int64  `json:"pv"`
+	UV        int64  `json:"uv"`
+	ChatCount int64  `json:"chatCount"`
 }
 
 // UsageFunnelStep 漏斗一步
@@ -224,8 +224,8 @@ func (s *UsageService) Series(days int) ([]UsageSeriesRow, error) {
 		return nil, err
 	}
 	type chatRow struct {
-		Day  string
-		N    int64
+		Day string
+		N   int64
 	}
 	chats := []chatRow{}
 	if err := db.Raw(

@@ -8,6 +8,7 @@ package service
 //   ④ 有机制卡的角色，攻略卡要**去掉「配队思路」结论** ✓（事实优先，避免两处打架 ✓）
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -73,21 +74,64 @@ func TestRenderMechanicOrderAndNoEvidence(t *testing.T) {
 	}
 }
 
-// ② 超上限时**从低优先级丢**：提供 / 做不到 / 需要 必须留下，「基数」先被丢 ✓
+// ② 超上限时**从低优先级丢**：提供 / 做不到 / 需要 / **冲突** 必须留下，「基数」先被丢 ✓
+//
+// ⚠️ 2026-10-14 改（配合段顺序调整 ＋ 单条截断 ✓）：
+//
+//	旧版靠"塞一条 2000 字的基数"逼出裁剪 ✗ —— 现在那条只会被**截断到 80 字** ✓、不再消失 ✓
+//	（这正是本轮想要的行为：截断一条，好过整段被丢 ✗）。改成把前面几段都塞满 ✓。
 func TestRenderMechanicDropsLowPriorityFirst(t *testing.T) {
-	facts := sampleFacts()
-	// 塞一个超长的「基数」，逼出裁剪 ✓
-	long := strings.Repeat("基", 2000)
-	facts = strings.Replace(facts, `"scaling": ["攻击力"]`, `"scaling": ["`+long+`"]`, 1)
+	filler := strings.Repeat("填", 75) // 每条 76 字 ⇒ 渲染后 80 字封顶 ✓
+	item := func(n int, tag string) string {
+		parts := make([]string, n)
+		for i := range parts {
+			parts[i] = `"` + filler + tag + strconv.Itoa(i) + `"`
+		}
+		return strings.Join(parts, ",")
+	}
+	facts := `{
+	  "provides":  [{"kind": "` + filler + `"}],
+	  "cannot":    [` + item(4, "a") + `],
+	  "needs":     [` + item(4, "b") + `],
+	  "conflicts": [` + item(4, "c") + `],
+	  "points":    [` + item(4, "d") + `],
+	  "limits":    [` + item(4, "e") + `],
+	  "scaling":   ["` + filler + `"]
+	}`
 
 	got := renderMechanic(model.CharacterMechanic{Name: "测试角色", Facts: facts}, maxMechanicCharsPerCard)
 	if strings.Contains(got, "· 基数：") {
-		t.Fatalf("超限时应先丢掉最低优先级的「基数」，实际仍包含：%s", got[:60])
+		t.Fatalf("超限时应先丢掉最低优先级的「基数」，实际仍包含：%s", got[:min(80, len(got))])
 	}
-	for _, keep := range []string{"· 提供：", "· 做不到：", "· 需要：", "· 边界："} {
+	// 前四段（回答"这队怎么搭 / 谁能进队"的那四段 ✓）必须留下 ✓
+	for _, keep := range []string{"· 提供：", "· 做不到：", "· 需要：", "· 冲突"} {
 		if !strings.Contains(got, keep) {
 			t.Fatalf("超限时不该丢 %q\n实际：%s", keep, got)
 		}
+	}
+}
+
+// ③ 单段最多 4 条 ✓ ＋ 超长条目截断加「…」✓ —— 防"一段吃光整张卡" ✗（2026-10-14 加 ✓）
+func TestRenderMechanicItemCapAndTruncate(t *testing.T) {
+	long := strings.Repeat("长", 200)
+	facts := `{"cannot": ["` + long + `","短二","短三","短四","短五","短六"]}`
+	got := renderMechanic(model.CharacterMechanic{Name: "封顶", Facts: facts}, maxMechanicCharsPerCard)
+
+	if n := strings.Count(got, "；"); n != maxMechanicItemsPerSegment-1 {
+		t.Fatalf("单段应只渲染 %d 条（分隔符 %d 个），实际分隔符 %d 个：%s",
+			maxMechanicItemsPerSegment, maxMechanicItemsPerSegment-1, n, got)
+	}
+	if !strings.Contains(got, "…") {
+		t.Fatalf("超长条目应被截断并加「…」✓，实际：%s", got)
+	}
+	for _, dropped := range []string{"短五", "短六"} {
+		if strings.Contains(got, dropped) {
+			t.Fatalf("第 %d 条起不该渲染 ✗，实际：%s", maxMechanicItemsPerSegment+1, got)
+		}
+	}
+	// 截断长度：200 字的条目应只剩 80 字 ＋「…」✓
+	if !strings.Contains(got, strings.Repeat("长", maxMechanicItemChars)+"…") {
+		t.Fatalf("截断长度应为 %d 字 ＋「…」✗，实际：%s", maxMechanicItemChars, got)
 	}
 }
 

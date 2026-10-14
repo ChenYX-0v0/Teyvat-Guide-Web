@@ -32,6 +32,16 @@ const (
 	maxMechanicCharsPerCard = 1100
 	// maxMechanicCharsTotal 机制卡整段上限（两张卡加起来 ✓）
 	maxMechanicCharsTotal = 1800
+	// maxMechanicItemsPerSegment 单个段最多渲染几条 ✓
+	//
+	// ⚠️ 2026-10-14 加：边界字段（cannot / needs / conflicts / scaling）批量补齐后 ✓，
+	//   单段可达 10~14 条 ✗（实测：可莉 provides 14 条、胡桃 scaling 14 条 ✓）——
+	//   而渲染是**按段拼、超预算就停** ✗ ⇒ 一段就能吃光整张卡，
+	//   于是排在后面的段（尤其 `冲突` / `基数`）整段消失 ✗（探针实测：问「芙宁娜怎么配队」时 `冲突` 没进去 ✓）。
+	//   上限 4 条后的效果：每段都进得去 ✓，代价是超出的条目不进上下文 ✓（宁可少说几条，也不要整类丢失 ✓）。
+	maxMechanicItemsPerSegment = 4
+	// maxMechanicItemChars 单条上限 ✓（超长条目截断加「…」✓ —— 截断一条，好过整段被丢 ✗）
+	maxMechanicItemChars = 80
 	// maxMechanicRules 一次最多注入几条全局规则 ✓
 	maxMechanicRules = 3
 	// maxMechanicRulesChars 全局规则整段上限 ✓（规则正文比角色卡长，单独设额度 ✓）
@@ -232,18 +242,23 @@ func renderMechanic(row model.CharacterMechanic, budget int) string {
 	segments := []struct{ label, text string }{
 		{"提供", renderProvides(f.Provides)},
 		{"做不到", renderList(f.Cannot)},
-		{"要点", renderList(f.Points)},
+		// ⚠️ `需要` / `冲突` 提到前四位（2026-10-14 调整 ✗→✓）：
+		//   用户问得最多的是「这队怎么搭 / 谁能进队」✓ ⇒ 回答这三个问题的是
+		//   「提供什么 ✓ / 做不到什么 ✗ / 需要谁 ✓ / 别放谁 ✗」四段 ✓（agent 判据与提示词 v12 第 41 条同源 ✓）。
+		//   原顺序把 `冲突` 排在护盾之后 ⇒ 配上批量补齐的边界字段后**整段被预算砍掉** ✗
+		//   （实测：问「芙宁娜怎么配队」时冲突段没进上下文 ✓）。
 		{"需要", renderList(f.Needs)},
-		{"边界", renderList(f.Limits)},
-		{"挂元素", renderApplication(f.Application)},
-		{"共鸣", renderResonance(f.Resonance)},
-		{"抗打断", renderInterrupt(f.Interrupt)},
-		{"护盾", renderShield(f.Shield)},
 		// ⚠️ 标签必须写明"默认避免" ✗（2026-10-14 线上实测 ✓）：丝柯克卡里原是一句
 		//   「与「希诺宁」：仅在高抗性环境…才作为可选队友」✓ ⇒ 模型把「才可选」读成了「可选」✗，
 		//   于是在**问丝柯克配队**时把希诺宁直接塞进队伍 ✓（用户当场质询 ✓）。
 		//   字段语义本来就是"冲突 / 别这么配"✓ ⇒ 标签上必须说清默认态度 ✓。
 		{"冲突（默认避免 ✗；写了条件也只在条件成立时才算可选 ✓）", renderList(f.Conflicts)},
+		{"要点", renderList(f.Points)},
+		{"边界", renderList(f.Limits)},
+		{"挂元素", renderApplication(f.Application)},
+		{"共鸣", renderResonance(f.Resonance)},
+		{"抗打断", renderInterrupt(f.Interrupt)},
+		{"护盾", renderShield(f.Shield)},
 		{"基数", renderList(f.Scaling)},
 	}
 
@@ -295,6 +310,9 @@ func renderProvides(items []map[string]any) string {
 			parts = append(parts, kind+"（"+strings.Join(detail, "；")+"）")
 		} else {
 			parts = append(parts, kind)
+		}
+		if len(parts) >= maxMechanicItemsPerSegment {
+			break // 提供段同样限 4 条 ✓（可莉 14 条会因为这一条把后面的段全挤掉 ✗）
 		}
 	}
 	return strings.Join(parts, "｜")
@@ -376,11 +394,26 @@ func renderShield(items []map[string]any) string {
 func renderList(items []string) string {
 	out := make([]string, 0, len(items))
 	for _, s := range items {
-		if v := cleanFactText(s); v != "" {
-			out = append(out, v)
+		v := cleanFactText(s)
+		if v == "" {
+			continue
+		}
+		out = append(out, truncateFact(v))
+		if len(out) >= maxMechanicItemsPerSegment {
+			break // 单段最多 4 条 ✓（见常量注释：防一段吃光整张卡 ✗）
 		}
 	}
 	return strings.Join(out, "；")
+}
+
+// truncateFact 单条截断（超长条目加「…」✓）——
+// 一条被截断，好过整段被预算丢掉 ✗（2026-10-14 加 ✓）。
+func truncateFact(s string) string {
+	r := []rune(s)
+	if len(r) <= maxMechanicItemChars {
+		return s
+	}
+	return string(r[:maxMechanicItemChars]) + "…"
 }
 
 // factStrings 把 JSON 里的任意值转成字符串列表（`elements: ["火","水"]` / 单个字符串都认 ✓）

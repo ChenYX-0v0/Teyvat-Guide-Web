@@ -16,8 +16,8 @@ import (
 // 预设问答的字段上限（按**字符**计，不是字节）
 const (
 	presetSceneMaxRunes    = 32
-	presetQuestionMaxRunes = 200   // 表列 size:255
-	presetAnswerMaxRunes   = 4000  // 太长没人看，也避免前端撑爆
+	presetQuestionMaxRunes = 200  // 表列 size:255
+	presetAnswerMaxRunes   = 4000 // 太长没人看，也避免前端撑爆
 	presetSortMin          = -9999
 	presetSortMax          = 9999
 )

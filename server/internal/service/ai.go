@@ -107,9 +107,9 @@ type remoteAIClient struct {
 	baseURL string
 	apiKey  string
 	model   string
-	timeout time.Duration   // 非流式整体超时；流式下作为"空闲超时"（见 withIdleTimeout）
-	http    *http.Client    // 非流式
-	stream  *http.Client    // 流式：不设整体 Timeout，否则长回答会被截断
+	timeout time.Duration // 非流式整体超时；流式下作为"空闲超时"（见 withIdleTimeout）
+	http    *http.Client  // 非流式
+	stream  *http.Client  // 流式：不设整体 Timeout，否则长回答会被截断
 }
 
 func newRemoteAIClient(cfg config.AIConfig) AIClient {
