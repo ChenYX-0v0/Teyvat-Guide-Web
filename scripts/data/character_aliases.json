@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "what": "角色别名 —— 玩家常说的叫法 → 库里的角色名（「雷神」→「雷电将军」✓）",
+    "why": "2026-10-14 立：`CharactersMentioned` 是按**名字精确匹配**的 ✗ ⇒ 只说「雷神」「帝君」「万叶」时命不中任何角色 ✓ ⇒ 攻略卡 / 机制卡 / 词条全都不会注入 ✓，回答只能靠模型记忆泛谈 ✓。本文件是**唯一事实源** ✓（别在 Go 代码里写死名单 ✗），由 `cmd/assetimport -aliases-file` 导入 `character_aliases` 表 ✓，服务启动 / reload 时进内存 ✓。",
+    "fields": "alias 叫法（**全表唯一** ✓，一个叫法只能指一个角色 ✓）· name 角色名（必须与 characters 表里的名字**完全一致** ✓）· source 依据（官方称号 / 社区通称 / 简称 ✓，只进表不进注入文本 ✓）",
+    "how_to_add": "加一条 → `cd server && go run ./cmd/assetimport -aliases-file ../scripts/data/character_aliases.json` ✓ → `POST /api/admin/assets/reload` 立刻生效 ✓",
+    "policy": "① **宁缺毋滥** ✗ —— 有歧义的叫法（如「龙王」既可能指那维莱特也可能指别的 ✓）不收 ✓；② 只收**玩家真的会说**的叫法 ✓；③ 名字必须与 `characters` 表完全一致 ✓（导错会打印跳过 ✓）"
+  },
+  "aliases": [
+    { "alias": "风神", "name": "温迪", "source": "官方称号（尘世七执政·风）" },
+    { "alias": "岩神", "name": "钟离", "source": "官方称号（尘世七执政·岩）" },
+    { "alias": "岩王帝君", "name": "钟离", "source": "官方称号" },
+    { "alias": "帝君", "name": "钟离", "source": "社区通称" },
+    { "alias": "雷神", "name": "雷电将军", "source": "官方称号（尘世七执政·雷）" },
+    { "alias": "雷电影", "name": "雷电将军", "source": "角色本名" },
+    { "alias": "草神", "name": "纳西妲", "source": "官方称号（尘世七执政·草）" },
+    { "alias": "小吉祥草王", "name": "纳西妲", "source": "官方称号" },
+    { "alias": "水神", "name": "芙宁娜", "source": "官方称号（尘世七执政·水）" },
+    { "alias": "火神", "name": "玛薇卡", "source": "官方称号（尘世七执政·火）" },
+    { "alias": "公子", "name": "达达利亚", "source": "官方代号（愚人众第十一席）" },
+    { "alias": "散兵", "name": "流浪者", "source": "社区通称" },
+    { "alias": "仆人", "name": "阿蕾奇诺", "source": "官方代号（愚人众第四席）" },
+    { "alias": "万叶", "name": "枫原万叶", "source": "简称" },
+    { "alias": "心海", "name": "珊瑚宫心海", "source": "简称" },
+    { "alias": "绫华", "name": "神里绫华", "source": "简称" },
+    { "alias": "绫人", "name": "神里绫人", "source": "简称" },
+    { "alias": "八重", "name": "八重神子", "source": "简称" },
+    { "alias": "狐狸", "name": "八重神子", "source": "社区通称" },
+    { "alias": "九条", "name": "九条裟罗", "source": "简称" },
+    { "alias": "一斗", "name": "荒泷一斗", "source": "简称" },
+    { "alias": "女仆", "name": "诺艾尔", "source": "社区通称" },
+    { "alias": "皇女", "name": "菲谢尔", "source": "官方称号（断罪皇女）" },
+    { "alias": "姥爷", "name": "迪卢克", "source": "社区通称" },
+    { "alias": "小鹿", "name": "鹿野院平藏", "source": "社区通称" },
+    { "alias": "阿晴", "name": "刻晴", "source": "社区通称" },
+    { "alias": "水龙", "name": "那维莱特", "source": "社区通称" },
+    { "alias": "水龙王", "name": "那维莱特", "source": "社区通称" },
+    { "alias": "娅娅", "name": "妮露", "source": "社区通称" },
+    { "alias": "琴团长", "name": "琴", "source": "官方头衔（西风骑士团代理团长）" }
+  ]
+}

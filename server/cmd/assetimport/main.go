@@ -23,6 +23,8 @@ import (
 	"teyvat-guide/server/internal/config"
 	"teyvat-guide/server/internal/pkg/database"
 	"teyvat-guide/server/internal/service/asset"
+
+	"gorm.io/gorm/clause"
 )
 
 type avatarEntry struct {
@@ -84,6 +86,9 @@ func main() {
 	affixesFile := flag.String("affixes-file", "", "仅导入词缀表（ReliquaryAffixExcelConfigData.json）")
 	statWeightsFile := flag.String("stat-weights-file", "", "仅导入角色推荐词条（{\"statWeights\":[...]}）")
 	fightPropsFile := flag.String("fight-props-file", "", "仅导入数字枚举映射（{\"fightProps\":[{\"numId\",\"propId\"}]}）")
+	// ⚠️ 角色别名（2026-10-14 加 ✓）：玩家只说「雷神」「帝君」「万叶」✗ ⇒ 精确匹配命不中 ✓
+	//   真源 scripts/data/character_aliases.json ✓；导入后 `svc.Reload()` ⇒ 立即生效 ✓（无需重启 ✓）
+	aliasesFile := flag.String("aliases-file", "", "仅导入角色别名（{\"aliases\":[{\"alias\",\"name\",\"source\"}]}）")
 	importFile := flag.String("import-file", "", "通用导入：任意 ImportPayload 子集（如 relicSlots / propMap / fightProps）")
 	dumpJSON := flag.String("dump-json", "", "只生成导入 payload 到指定文件、**不连数据库**（供 POST /api/admin/assets/import 远程导入；目前需与 -dir 同用）")
 	flag.Parse()
@@ -117,9 +122,61 @@ func main() {
 		&asset.TextMapEntry{}, &asset.PropMap{}, &asset.FightProp{}, &asset.RelicSlot{}, &asset.Affix{}, &asset.Missing{},
 		&asset.CharacterStatWeights{}, &asset.CharacterRelicWeight{}, &asset.CharacterRelicWeightRule{},
 		&asset.CharacterRelicWeightMP{},
+		&asset.CharacterAlias{}, // 角色别名（「雷神」→「雷电将军」✓，2026-10-14 ✓）
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "建表失败: %v\n", err)
 		os.Exit(1)
+	}
+
+	// 模式七：仅导入角色别名（「雷神」→「雷电将军」✓，2026-10-14 加 ✓）
+	//
+	// 口径 ✓：别名**全表唯一** ✓（一个叫法只指一个角色 ✓）；`name` 必须与 `characters` 表里的名字
+	//   **完全一致** ✓ —— 对不上就跳过并打印 ✗（宁可少一条，也不要指错角色 ✓）。
+	if *aliasesFile != "" {
+		var payload struct {
+			Aliases []struct {
+				Alias  string `json:"alias"`
+				Name   string `json:"name"`
+				Source string `json:"source"`
+			} `json:"aliases"`
+		}
+		readJSON(*aliasesFile, &payload)
+		var chars []asset.Character
+		if err := db.Find(&chars).Error; err != nil {
+			fmt.Fprintf(os.Stderr, "读 characters 失败: %v\n", err)
+			os.Exit(1)
+		}
+		idByName := make(map[string]int64, len(chars))
+		for _, c := range chars {
+			idByName[c.Name] = c.ID
+		}
+		written, skipped := 0, 0
+		for _, a := range payload.Aliases {
+			alias := strings.TrimSpace(a.Alias)
+			name := strings.TrimSpace(a.Name)
+			id, ok := idByName[name]
+			if alias == "" || !ok {
+				fmt.Printf("  [跳过] %s → %s（characters 表里没有这个名字 ✗）\n", alias, name)
+				skipped++
+				continue
+			}
+			row := asset.CharacterAlias{Alias: alias, CharacterID: id, Name: name, Source: strings.TrimSpace(a.Source)}
+			if err := db.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "alias"}},
+				DoUpdates: clause.AssignmentColumns([]string{"character_id", "name", "source", "updated_at"}),
+			}).Create(&row).Error; err != nil {
+				fmt.Fprintf(os.Stderr, "写入别名 %s 失败: %v\n", alias, err)
+				os.Exit(1)
+			}
+			written++
+		}
+		fmt.Printf("aliases: %d 条 → 写入 %d、跳过 %d ✓\n", len(payload.Aliases), written, skipped)
+		if err := svc.Reload(); err != nil {
+			fmt.Fprintf(os.Stderr, "重载失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("导入完成，内存映射已刷新")
+		return
 	}
 
 	// 模式一：仅导入缺失清单中登记的文本 hash（不全量入库）

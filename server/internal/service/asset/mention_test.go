@@ -75,6 +75,63 @@ func TestCharactersMentionedTravelerAliases(t *testing.T) {
 	}
 }
 
+// 角色别名（「雷神」→「雷电将军」「帝君」→「钟离」✓，2026-10-14 加 ✓）
+//
+// 为什么必须有 ✗：玩家几乎不说全名 ✓ —— 只说「雷神」「帝君」「万叶」✓；
+//
+//	名字匹配是**精确匹配** ✗ ⇒ 这些问法一张卡（攻略/机制/词条）都注入不了 ✓ ⇒ 只能靠模型记忆泛谈 ✓。
+func TestCharactersMentionedAliases(t *testing.T) {
+	s := &Service{
+		characters: map[int64]Character{
+			10000052: {ID: 10000052, Name: "雷电将军"},
+			10000030: {ID: 10000030, Name: "钟离"},
+			10000047: {ID: 10000047, Name: "枫原万叶"},
+			10000046: {ID: 10000046, Name: "胡桃"},
+		},
+		aliases: map[string]string{
+			"雷神": "雷电将军", "岩王帝君": "钟离", "帝君": "钟离", "万叶": "枫原万叶",
+		},
+	}
+	for _, tc := range []struct{ q, want string }{
+		{"雷神怎么配队？", "雷电将军"},
+		{"帝君的圣遗物怎么选", "钟离"},
+		{"岩王帝君带什么武器", "钟离"},
+		{"万叶能进胡桃队吗", "枫原万叶"},
+	} {
+		got := s.CharactersMentioned(tc.q)
+		found := false
+		for _, c := range got {
+			if c.Name == tc.want {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("提问 %q 应命中所属角色 %s，实际：%+v", tc.q, tc.want, got)
+		}
+	}
+
+	// 同一角色被多个别名同时命中 ⇒ **只算一次** ✓（否则词条位/卡位数会被吃满 ✗）
+	got := s.CharactersMentioned("岩王帝君和帝君是同一个吧")
+	n := 0
+	for _, c := range got {
+		if c.Name == "钟离" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("别名命中必须去重（钟离只该出现一次 ✓），实际 %d 次：%+v", n, got)
+	}
+
+	// 别名表为空 / 没提别名 ⇒ 行为与改动前完全一致 ✓
+	if got := s.CharactersMentioned("胡桃怎么练？"); len(got) != 1 || got[0].Name != "胡桃" {
+		t.Fatalf("没有别名时不该多命中，实际：%+v", got)
+	}
+	empty := &Service{characters: map[int64]Character{10000046: {ID: 10000046, Name: "胡桃"}}}
+	if got := empty.CharactersMentioned("雷神怎么配队？"); len(got) != 0 {
+		t.Fatalf("别名表为空时不该命中任何角色（老库降级 ✓），实际：%+v", got)
+	}
+}
+
 // fuzzyService 造一组用于容错测试的角色（含 3 字名与 2 字名各一 ✓）
 func fuzzyService() *Service {
 	return &Service{

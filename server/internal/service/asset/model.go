@@ -242,6 +242,36 @@ func (r CharacterRelicWeightRule) EffectOrDefault() string {
 	return r.Effect
 }
 
+// CharacterAlias 角色别名 —— 「雷神」→「雷电将军」✓（2026-10-14 加 ✓）
+//
+// 为什么需要 ✗：玩家几乎不说全名 ✓，只说「雷神」「帝君」「万叶」「心海」「仆人」✓，
+//
+//	而 `CharactersMentioned` 是**按名字精确匹配**的 ✗ ⇒ 这些叫法**命不中任何角色** ✓
+//	⇒ 攻略卡 / 机制卡 / 词条全都不会注入 ✓ ⇒ 回答只能靠模型自己的记忆泛谈 ✓。
+//
+// 真源 = `scripts/data/character_aliases.json` ✓（**别在代码里写死名单** ✗ —— 同 `moon_enablers.json` 的思路 ✓）：
+//
+//	`cmd/assetimport -aliases-file` 导入本表 ✓，`Service.Load()` 时进内存 ✓（reload 即生效 ✓）。
+//
+// 口径：别名只**追加**未被名字命中的角色 ✓（命中的去重 ✓）；每个别名必须**明确对应一个角色** ✓，
+//
+//	有歧义的叫法宁可不收 ✗。
+type CharacterAlias struct {
+	ID uint64 `gorm:"primaryKey" json:"id"`
+	// Alias 别名本身（「雷神」✓）；**全表唯一** ✓（一个叫法只能指一个角色 ✓，从源头防歧义 ✓）
+	Alias string `gorm:"size:32;uniqueIndex;not null" json:"alias"`
+	// CharacterID 指向 characters.id ✓
+	CharacterID int64 `gorm:"index;not null" json:"characterId"`
+	// Name 冗余存一份角色名 ✓（排障不用 join ✓）
+	Name string `gorm:"size:64;not null" json:"name"`
+	// Source 依据（官方称号 / 社区通称 / 简称 ✓）—— 只进表与后台 ✗，不进注入文本 ✓
+	Source    string    `gorm:"size:64" json:"source"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// TableName 固定表名 ✓（避免 GORM 复数化差异 ✓）
+func (CharacterAlias) TableName() string { return "character_aliases" }
+
 // Missing 翻译缺漏收集（补录依据，不阻塞查询）
 type Missing struct {
 	Kind      string    `gorm:"primaryKey;size:16" json:"kind"` // character|weapon|relic_set|text|prop|affix

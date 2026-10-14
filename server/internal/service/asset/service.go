@@ -33,8 +33,11 @@ var ErrDBNotInitialized = errors.New("数据库未初始化，无法管理映射
 type Service struct {
 	db *gorm.DB
 
-	mu           sync.RWMutex
-	characters   map[int64]Character
+	mu         sync.RWMutex
+	characters map[int64]Character
+	// aliases 角色别名 → 角色名（「雷神」→「雷电将军」✓，2026-10-14 加 ✓）
+	//   真源 scripts/data/character_aliases.json ✓（表：character_aliases ✓，`-aliases-file` 导入 ✓）
+	aliases      map[string]string
 	weapons      map[int64]Weapon
 	relicSets    map[int]RelicSet
 	texts        map[int64]string
@@ -240,8 +243,21 @@ func (s *Service) Load() error {
 		setEffectMap[id] = list
 	}
 
+	// 角色别名（「雷神」→「雷电将军」✓）—— ⚠️ 表不存在时**不报错** ✓（迁移前的老库也要能启动 ✓）
+	aliasMap := map[string]string{}
+	var aliasRows []CharacterAlias
+	if err := s.db.Find(&aliasRows).Error; err != nil {
+		logger.L().Warnw("character_aliases 读取失败（忽略 ✓）", "err", err)
+	}
+	for _, a := range aliasRows {
+		if a.Alias != "" && a.Name != "" {
+			aliasMap[a.Alias] = a.Name
+		}
+	}
+
 	s.mu.Lock()
 	s.characters = charMap
+	s.aliases = aliasMap
 	s.weapons = weaponMap
 	s.relicSets = setMap
 	s.texts = textMap
@@ -263,6 +279,7 @@ func (s *Service) Load() error {
 		"relicSets", len(sets), "relicSetEffects", len(setEffects),
 		"texts", len(texts), "props", len(props),
 		"fightProps", len(fightProps), "affixes", len(affixes), "statRecs", len(recMap),
+		"aliases", len(aliasMap),
 		"relicWeights", len(relicWeightMap), "relicRules", len(relicRuleRows))
 	return nil
 }
@@ -522,6 +539,39 @@ func (s *Service) CharactersMentioned(question string) []Character {
 		if aliasHit {
 			if c, ok := s.travelerCharacter(); ok {
 				matched = append(matched, c)
+			}
+		}
+	}
+	// 角色别名（「雷神」→「雷电将军」「帝君」→「钟离」「万叶」→「枫原万叶」✓，2026-10-14 加 ✓）
+	//
+	// 为什么 ✗：玩家几乎不说全名 ✓，而上面的名字匹配是**精确匹配** ✗ ⇒ 这些叫法命不中任何角色 ✓
+	//   ⇒ 攻略卡 / 机制卡 / 词条全都不注入 ✓ ⇒ 回答只能靠模型记忆泛谈 ✓。
+	// 真源 = `scripts/data/character_aliases.json` ✓（别在代码里写死 ✗）；只**补**未命中的角色 ✓。
+	// ⚠️ map 遍历无序 ✗ ⇒ 先按**别名长度倒序**收集再追加 ✓（「岩王帝君」先于「帝君」✓），保证结果可复现 ✓。
+	if len(s.aliases) > 0 {
+		type aliasHit struct{ alias, name string }
+		hits := make([]aliasHit, 0, 2)
+		for alias, name := range s.aliases {
+			if strings.Contains(question, alias) && !containsCharacter(matched, name) {
+				hits = append(hits, aliasHit{alias, name})
+			}
+		}
+		sort.Slice(hits, func(i, j int) bool {
+			li, lj := len([]rune(hits[i].alias)), len([]rune(hits[j].alias))
+			if li != lj {
+				return li > lj
+			}
+			return hits[i].alias < hits[j].alias
+		})
+		for _, h := range hits {
+			if containsCharacter(matched, h.name) {
+				continue
+			}
+			for _, c := range s.characters {
+				if c.Name == h.name {
+					matched = append(matched, c)
+					break
+				}
 			}
 		}
 	}
