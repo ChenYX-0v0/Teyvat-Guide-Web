@@ -658,6 +658,32 @@ func unionFacts(baseJSON, addJSON string) (string, int, error) {
 				if seen[kk] {
 					continue
 				}
+				// ⚠️ **包含关系也去重** ✗→✓（2026-10-14 加 ✓）：
+				//   人工卡常写短句 ✓、自动卡写页面长句 ✓ ⇒ 同一条事实会以两种长度并存 ✓，
+				//   渲染时单段只取前 4 条 ✗ ⇒ 重复会白占位置 ✓（实测：芙宁娜「增伤对剧变反应不生效」
+				//   与它的长句版本同时进过上下文 ✓）。口径：**只留信息更全的那条** ✓。
+				if _, isStr := it.(string); isStr {
+					drop := false
+					for i := 0; i < len(bt); i++ {
+						bs, isStr2 := bt[i].(string)
+						if !isStr2 {
+							continue
+						}
+						bn := normalizeFactText(bs)
+						if bn == kk || strings.Contains(bn, kk) {
+							drop = true // 库里已有更全的 ✓
+							break
+						}
+						if strings.Contains(kk, bn) { // 新这条更全 ⇒ 换掉旧的 ✓
+							delete(seen, bn)
+							bt = append(bt[:i], bt[i+1:]...)
+							i--
+						}
+					}
+					if drop {
+						continue
+					}
+				}
 				seen[kk] = true
 				bt = append(bt, it)
 				added++
