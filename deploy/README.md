@@ -505,6 +505,7 @@ ssh -L 3000:127.0.0.1:3000 <user>@<ECS公网IP>
 | 回答"憋"到最后一次性出现 | 外层 Nginx 缓冲了 SSE | `web/nginx.conf` 已 `proxy_buffering off`；若前面再接一层，也要关 |
 | 公网能访问到 8090 | 安全组放错了 | 8090 **永远不开**；`curl -m 5 http://<公网IP>:8090/health` 必须失败 |
 | 改提示词没生效 | AI 服务 60s TTL 缓存 | 等 ≤60s 或重启；改法见后台「提示词管理」 |
+| **改数据/规则"看着导成功"了、线上却没变** ✗ | **SSH 隧道断了**（`127.0.0.1:13306` ECONNREFUSED ✓），而 `go run ./cmd/mechanicsimport` **只打印连接错误、`exit=0`** ✗ —— 于是**像成功但一条都没写进库** ✓（2026-10-15 实测踩到 ✓：规则改动差点被当成已生效 ✗） | ① 先验通路：`node -e` 连一次 13306 或看 `Get-NetTCPConnection -LocalPort 13306 -State Listen` ✓；② 断了就拉起：`powershell -ExecutionPolicy Bypass -File scripts\tunnel-remote.ps1` ✓（看门狗计划任务 `TeyvatTunnelKeep` 在，但当时没在跑 ✓）；③ **验证一律查库或跑探针** ✗ —— **不要用导入命令的 exit code 当判据** ✓（`go run ./cmd/mechanicsimport -probe \"…\"` 里能看到新正文才算过 ✓） |
 | 不小心把 `.env` 传上去了 | 打包时没排除 | 立刻轮换所有密钥（三把 + AI + DB） |
 | `mysql -e "source X.sql"` 报 `Failed to open file` | **路径含中文**（Windows 常见，实测过） | 用 `<` 重定向（`mysql ... < X.sql`），或把文件复制到纯英文路径再 source |
 | PowerShell 脚本跑一半就中断 | `mysqldump`/`docker` 把进度与提示写到 **stderr**，`$ErrorActionPreference='Stop'` 会当成终止性错误 | 本包的 ps1 已统一用 `'Continue'` + 显式检查 `$LASTEXITCODE`（踩过，别再改回去） |
