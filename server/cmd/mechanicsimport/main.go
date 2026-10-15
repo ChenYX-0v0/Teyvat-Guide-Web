@@ -146,6 +146,89 @@ func renderMoonEnablers(f moonEnablersFile) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// ---------------------------------------------------------------- 星烁角色（{{星体系开门人}} 占位符）
+
+// starEnablersFile 星烁体系（7.0 至冬）角色的**唯一事实源**（`scripts/data/star_enablers.json` ✓）。
+//
+// ⚠️ 为什么要有这层 ✗（2026-10-15 用户**连续纠正三轮** ✓）：
+//
+//	① 规则正文原来只有一句手写的「星超导的开门人是桑多涅」✗ ⇒ 读起来像"星扩散不需要开门人"✗；
+//	② 补名单时我把 **薇斯纳** 先归成"只吃收益"✗、又写成"输出位但需要别人开门"✗，
+//	   而她自己的攻略页写着「二阶与三阶翔风剑**在「辉映·星扩散」状态下**…造成星扩散伤害」✓；
+//	③ 用户最终给的判据**只有一条** ✓：**天赋 / 技能说明里明写**能引发或转换星系反应 ✓。
+//	   ⇒ **不许从"他在打星扩散"倒推** ✗（我两次都栽在这 ✓）。
+//	与前一条同法 ✓：事实源一份 JSON ✓，正文写 `{{星体系开门人}}` ✓，导入时自动渲染 ✓。
+type starEnablersFile struct {
+	Meta     map[string]any `json:"_meta"`
+	Enablers []starEnabler  `json:"enablers"`
+}
+
+type starEnabler struct {
+	Name     string   `json:"name"`
+	Talent   string   `json:"talent"`
+	Kind     string   `json:"kind"`
+	Branches []string `json:"branches"`
+	Evidence string   `json:"evidence"`
+	Verified bool     `json:"verified"`
+}
+
+// starEnablers 进程内唯一一份（main 里加载 ✓，规则导入时用 ✓）
+var starEnablers starEnablersFile
+
+// starEnablerPlaceholder 规则正文里的占位符 ✓（`character_mechanics.json` 用 ✓）
+const starEnablerPlaceholder = "{{星体系开门人}}"
+
+// loadStarEnablers 读**与机制卡 JSON 同目录**的 star_enablers.json ✓
+//
+//	缺文件 ⇒ 返回空 ✓（占位符原样留在正文里 ⇒ 一眼看得出没渲染 ✗，比悄悄少一段好 ✓）
+func loadStarEnablers(dir string) starEnablersFile {
+	var f starEnablersFile
+	raw, err := os.ReadFile(filepath.Join(dir, "star_enablers.json"))
+	if err != nil {
+		return f
+	}
+	_ = json.Unmarshal(raw, &f)
+	return f
+}
+
+// renderStarEnablers 渲染成规则正文 —— **按「管哪条反应」分组** ✓
+//
+// ⚠️ 只渲染 kind == "开门人" 且 verified == true 的 ✓：
+//
+//	体系辅助（阿罗夏 / 迪奥娜 / 沃雅妮莎 …✓）打得出星反应**但不是开门人** ✗，
+//	混进同一行会读成"谁都能开门" ✗ ⇒ 它们留在 JSON 的 `_meta.backlog` 里，等逐条确认 ✓。
+func renderStarEnablers(f starEnablersFile) string {
+	order := []string{"星超导", "星扩散"}
+	byBranch := map[string][]string{}
+	for _, e := range f.Enablers {
+		if !e.Verified || e.Kind != "开门人" || strings.TrimSpace(e.Name) == "" {
+			continue
+		}
+		label := e.Name
+		if t := strings.TrimSpace(e.Talent); t != "" {
+			label += "「" + t + "」"
+		}
+		// ⚠️ **覆盖几条就列几条** ✓（2026-10-15 单测抓到 ✗）：桑多涅 / 冰主 / 奥黛塔 都覆盖两条 ✓，
+		//   先前"多覆盖的只进『两条全通』一行"的写法 ⇒ **「星超导」那一行会整行空掉** ✗
+		//   ⇒ 旅行者问"星超导的开门人是谁"反而查不到人 ✓（同月兆那次的教训：分组是为了**别再答错**✗，
+		//   不是为了压缩行数 ✓）。
+		for _, br := range e.Branches {
+			byBranch[br] = append(byBranch[br], label)
+		}
+	}
+	var b strings.Builder
+	b.WriteString("**开门人（判据只有一条 ✓：天赋 / 技能说明里**明写**了能引发或转换星系反应 ✓；**不是随便一个风系 / 雷系** ✗）**：\n")
+	for _, br := range order {
+		if len(byBranch[br]) == 0 {
+			continue
+		}
+		b.WriteString("· **" + br + "** = " + strings.Join(byBranch[br], "、") + " ✓\n")
+	}
+	b.WriteString("⚠️ 名单**不封口** ✗（没列到 ≠ 不能开门 ✓，以角色卡为准 ✓）；" +
+		"⚠️ **别把「在打星反应」当成「能开门」** ✗ —— 输出位 / 增伤 / 减抗角色打得出来，是因为**队里有开门人** ✓。")
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // ---------------------------------------------------------------- 内容哈希（幂等导入用）
 
 // hashParts 用"要写进库的内容"算哈希 ⇒ 脚本改了措辞才会重写 ✓，纯重跑不会动库 ✓
@@ -220,6 +303,21 @@ func main() {
 			fmt.Println("  ⚠️ 月兆角色：没读到 moon_enablers.json（或没有已核实条目）⇒ 规则里的 {{月兆开门人}} 不会被替换 ✗")
 		} else {
 			fmt.Printf("  月兆角色：%d 位已核实（moon_enablers.json ✓；规则正文自动渲染 ✓）\n", n)
+		}
+	}
+	// 星体系角色事实源（规则正文里的 {{星体系开门人}} 由它渲染 ✓；缺文件 ⇒ 占位符原样留着 ✗ 可见 ✓）
+	starEnablers = loadStarEnablers(filepath.Dir(*file))
+	{
+		n := 0
+		for _, e := range starEnablers.Enablers {
+			if e.Verified && e.Kind == "开门人" {
+				n++
+			}
+		}
+		if n == 0 {
+			fmt.Println("  ⚠️ 星体系开门人：没读到 star_enablers.json（或没有已核实的开门人）⇒ 规则里的 {{星体系开门人}} 不会被替换 ✗")
+		} else {
+			fmt.Printf("  星体系开门人：%d 位已核实（star_enablers.json ✓；规则正文自动渲染 ✓）\n", n)
 		}
 	}
 	fmt.Printf("  机制卡：%d 位角色、%d 条全局规则（%s）\n",
@@ -325,6 +423,12 @@ func main() {
 		//   ⚠️ 名单**必须**从这里来 ✗（2026-10-14：手抄名单连续漏人 4 次 ✓ ⇒ 见 moonEnablersFile 的注释 ✓）
 		if strings.Contains(content, moonEnablerPlaceholder) {
 			content = strings.ReplaceAll(content, moonEnablerPlaceholder, renderMoonEnablers(moonEnablers))
+		}
+		// {{星体系开门人}} ⇒ 用 star_enablers.json 渲染 ✓
+		//   ⚠️ 同一条教训 ✗（2026-10-15：星体系名单手写 ⇒ 漏奥黛塔 / 冰主 / 薇斯纳，
+		//   还把开门人误判成"只吃收益"✓ ⇒ 见 starEnablersFile 的注释 ✓）
+		if strings.Contains(content, starEnablerPlaceholder) {
+			content = strings.ReplaceAll(content, starEnablerPlaceholder, renderStarEnablers(starEnablers))
 		}
 		// ⚠️ 自检：单条规则按**注入格式**渲染后若超过额度 ⇒ 注入时会被**整条跳过** ✗（静默丢失 ✗）
 		//   2026-10-14 实测踩到：855 字的反应体系规则一直进不去、且**没有任何报错** ✓ ⇒ 导入时就把话说出来 ✓

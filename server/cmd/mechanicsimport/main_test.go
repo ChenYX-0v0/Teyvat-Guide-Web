@@ -143,3 +143,44 @@ func TestUnionFactsNoop(t *testing.T) {
 		t.Fatalf("内容不该变：%s", got)
 	}
 }
+
+// 星体系开门人（2026-10-15 用户连续纠正三轮 ✓）—— 与月兆同一套护栏：
+//
+//	① 只渲染 kind=开门人 且 verified=true ✓（**体系辅助不许混进来** ✗ —— 否则读成"谁都能开门"✗）
+//	② 按「管哪条反应」分组 ✓
+//	③ 判据（只看天赋明写）与"不封口"两条约束自动带上 ✓
+func TestRenderStarEnablers(t *testing.T) {
+	f := starEnablersFile{Enablers: []starEnabler{
+		{Name: "桑多涅", Talent: "极星辉域", Kind: "开门人", Branches: []string{"星超导", "星扩散"}, Verified: true},
+		{Name: "薇斯纳", Talent: "辉映·星扩散", Kind: "开门人", Branches: []string{"星扩散"}, Verified: true},
+		{Name: "阿罗夏", Kind: "体系辅助", Branches: []string{"星超导"}, Verified: true},
+		{Name: "待核角色", Kind: "开门人", Branches: []string{"星扩散"}, Verified: false},
+	}}
+	got := renderStarEnablers(f)
+
+	// ⚠️ 覆盖两条的角色（桑多涅 ✓）**两条都要出现** ✗ —— 先前"只进『两条全通』一行"的写法
+	//   会让「星超导」整行空掉，等于问星超导查不到人 ✓（本单测就是为它写的 ✓）
+	if !strings.Contains(got, "· **星超导** = 桑多涅「极星辉域」 ✓") {
+		t.Fatalf("星超导一行必须列出桑多涅，实际：%s", got)
+	}
+	if !strings.Contains(got, "· **星扩散** = 桑多涅「极星辉域」、薇斯纳「辉映·星扩散」 ✓") {
+		t.Fatalf("星扩散该按 JSON 顺序列出桑多涅、薇斯纳，实际：%s", got)
+	}
+	if strings.Contains(got, "两条全通") {
+		t.Fatalf("已改成「每条都列」，不该再有『两条全通』这一行（会重复），实际：%s", got)
+	}
+	if strings.Contains(got, "阿罗夏") {
+		t.Fatalf("体系辅助不是开门人，不得混进名单 ✗，实际：%s", got)
+	}
+	if strings.Contains(got, "待核角色") {
+		t.Fatalf("verified=false 不得渲染 ✗，实际：%s", got)
+	}
+	for _, keep := range []string{"判据只有一条", "明写", "不封口", "别把「在打星反应」当成「能开门」"} {
+		if !strings.Contains(got, keep) {
+			t.Fatalf("约束句缺 %q，实际：%s", keep, got)
+		}
+	}
+	if s := renderStarEnablers(starEnablersFile{}); strings.Contains(s, "星超导") || strings.Contains(s, "星扩散") {
+		t.Fatalf("空输入不该列出任何分支，实际：%s", s)
+	}
+}
