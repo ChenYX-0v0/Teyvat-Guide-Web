@@ -2,36 +2,39 @@
 /**
  * 把识图抽到的「配队」**清洗后**并进角色攻略卡的 **`team`** 字段（2026-10-15 用户口径 ✓）
  *
- * 用户决定 ✓：「配队要**先清洗再入库**（拆 A/B 备选 ＋ 用机制卡交叉校验 ＋ 加防回潮测试）」
- *   ⇒ 本脚本是 **`.guide.json` → 攻略卡** 的唯一入口 ✓（抽取脚本**只落本地** ✗，从不直接写卡 ✓）。
+ * 用户决定 ✓：「配队要**先清洗再入库**（拆 A/B 备选 ＋ 用机制卡交叉校验 ＋ 加防回潮测试）」✓；
+ *   并对「跨角色回填」要求**先看样例** ✓（钟离 / 班尼特 / 香菱 ✓）⇒ 带 `--dry` 就能只看不写 ✓。
  *
- * 输入：`scripts/cache/baike_teams/<角色>.guide.json` ✓
+ * 输入：`scripts/cache/baike_teams/<角色>.guide.json` ✓（抽取脚本只落本地 ✗，从不直接写卡 ✓）
  * 输出：`scripts/data/character_guides.json` 的 **`team`** 字段 ✓（**只动这一列** ✗）
- *      ⇒ 之后照旧 `cd server && go run ./cmd/guideimport` 进库 ✓（本脚本**不连数据库** ✓）
+ *      ⇒ 之后照旧 `cd server && go run ./cmd/guideimport` 进库 ✓（本脚本不连数据库 ✓）
  *
  * ⚠️⚠️ **为什么是"追加"而不是"覆盖"** ✗（2026-10-15 差点犯的错 ✓）：
  *   攻略卡的 `team` **本来就有内容** ✓ —— 121 张卡是从 biligame wiki 抓的**散文式配队思路** ✓
- *   （`teamFrom=page/reverse` ✓，里面也有具体队友名 ✓）。我一开始用错了字段名（查 `teamPick` ✗）
- *   才误以为"128 位全空"✗ ⇒ 若照那个结论**覆盖**，就是把 wiki 的原文**删掉** ✗（信息只少不多 ✗）。
- *   ⇒ 现在只**追加我们这一段** ✓：开头一个**固定小标题** ✓，重跑时先按它**剥掉上一次的段** ✓
- *   ⇒ 幂等 ✓、原 wiki 文字**一字不动** ✓、`teamFrom` 保持原值 ✓（它描述的是 wiki 那半 ✓）。
+ *   （`teamFrom=page/reverse` ✓）。我一开始查错了字段名（查不存在的 `teamPick` ✗）才误以为"全空"✗
+ *   ⇒ 若照那结论**覆盖**，就是把 wiki 原文删掉 ✗。现在只**追加我们两段** ✓：
+ *   `【常见配队（图片攻略口径）】`（本角色自己的页 ✓）＋ `【其他角色页里含本角色的配队】`（回填 ✓）
+ *   ⇒ 重跑时按小标题**剥掉旧段** ✓（幂等 ✓），wiki 文字**一字不动** ✓。
+ *
+ * ⭐ **跨角色回填**（TODO-29 的原设计 ✓「很多新角色的最佳队友仍是老角色 ✓」）：
+ *   老角色（钟离/班尼特/香菱…✓）自己的配队帖常常搜不到 ✗ ⇒ 就扫**所有**角色的抽取结果 ✓，
+ *   把"**含他**"的队伍补给他 ✓（纯本地计算 ✓，**零 API 成本** ✓）。
+ *   排序 = 「队伍里**最新成员**的 id」降序 ✓（`character_ids.json` ✓，id 越大越新 ✓）；
+ *   本角色自己的队**永远排前面** ✓（更权威 ✓）；最多回填 `--backfill-cap`（默认 3 ✓）支 ✓。
  *
  * 清洗工序（每条都对得上一次踩坑 ✓）：
- *   ① **拆 A/B 备选** ✓：图上「万叶/菈乌玛」「2号位备选：申鹤」✗ ⇒ 主选进正文、其余写「备选：X」✓
- *      （提示词"不要让用户继续猜" ✓ ⇒ 备选也得写出来 ✗ 不许丢 ✓）
- *   ② **位置 / 职能词不算人名** ✗：`增益生存副C`、`4号火系`、`班`（单字 ✗）一律丢 ✓
- *   ③ **别名归一** ✓：`万叶→枫原万叶`、`神子→八重神子` ✓（唯一事实源 = character_aliases.json ✓）
- *      ⇒ 注入文本里的名字与库里**完全一致** ✓（主服务的角色命中也能认 ✓）
- *   ④ **机制卡交叉校验** ✓：主角 `conflicts` 点到的人出现在队里 ⇒ 标 ⚠️ ✓（现只有 9 位有机制卡 ✓）
- *   ⑤ **不署名** ✓（用户 2026-10-14 口径 ✓）：来源帖只留在本地 `.guide.json` ✗
- *      ⇒ team 文本里**不许出现**平台名 / URL / 作者 / 点赞数 ✓
- *   ⑥ 每角色最多 `--cap` 支（默认 5 ✓）；有名队 ≥2 人 ✓、**未标名队 ≥3 人** ✓（后者读得最脏 ✗）
+ *   ① **拆 A/B 备选** ✓（图上「万叶/菈乌玛」「2号位备选：申鹤」✗ ⇒ 主选 ＋「备选：X」✓）
+ *   ② **位置 / 职能词不算人名** ✗（`增益生存副C`、`4号火系`、单字 `班` 一律丢 ✓）
+ *   ③ **别名归一** ✓（`万叶→枫原万叶`、`神子→八重神子` ✓；唯一事实源 = character_aliases.json ✓）
+ *   ④ **机制卡交叉校验** ✓（主角 conflicts 点到的人出现在队里 ⇒ ⚠️ 标注 ✓；现只有 9 位有机制卡 ✓）
+ *   ⑤ **不署名** ✓（用户 2026-10-14 口径 ✓）：团队文本里不许出现平台名 / URL / 作者 / 点赞数 ✓
+ *   ⑥ 有名队 ≥2 人 ✓、未标名队 ≥3 人 ✓（后者读得最脏 ✗）；本角色自己最多 `--cap` 支（默认 5 ✓）
  *
  * 用法：
- *   node scripts/build-team-picks.mjs --dry     # 只打印（不写盘 ✓）—— 改规则时先这样看 ✓
- *   node scripts/build-team-picks.mjs          # 写进 character_guides.json ✓（追加 ✓，可重复跑 ✓）
- *   node scripts/build-team-picks.mjs --check  # 防回潮自检 ✓（有硬伤 exit 1 ✓）
- *   node scripts/build-team-picks.mjs --names 芙宁娜,菲林斯 --dry
+ *   node scripts/build-team-picks.mjs --names 钟离,班尼特,香菱 --dry   # 看回填样例 ✓
+ *   node scripts/build-team-picks.mjs                                  # 写盘（追加 ✓ 幂等 ✓）
+ *   node scripts/build-team-picks.mjs --no-backfill                    # 关掉回填 ✓
+ *   node scripts/build-team-picks.mjs --check                          # 防回潮自检 ✓（有硬伤 exit 1 ✓）
  */
 
 import fs from 'node:fs'
@@ -42,9 +45,12 @@ const GUIDE_JSON = path.join(ROOT, 'scripts/data/character_guides.json')
 const CACHE = path.join(ROOT, 'scripts/cache/baike_teams')
 const MECH_JSON = path.join(ROOT, 'scripts/data/character_mechanics.json')
 const ALIAS_JSON = path.join(ROOT, 'scripts/data/character_aliases.json')
+const IDS_JSON = path.join(ROOT, 'scripts/data/character_ids.json')
 
-// 我们自己那一段的**固定小标题** ✓（幂等靠它认边界 ✓；文案里**不带平台名** ✗ —— 不署名 ✓）
-const HEAD = '【常见配队（图片攻略口径）】'
+// 我们自己那两段的**固定小标题** ✓（幂等靠它认边界 ✓；文案里**不带平台名** ✗ —— 不署名 ✓）
+const HEAD_OWN = '【常见配队（图片攻略口径）】'
+const HEAD_BACK = '【其他角色页里含本角色的配队】'
+const HEADS = [HEAD_OWN, HEAD_BACK]
 
 const arg = (k, d) => {
   const i = process.argv.indexOf('--' + k)
@@ -54,7 +60,9 @@ const arg = (k, d) => {
 }
 const DRY = !!arg('dry', false)
 const CHECK = !!arg('check', false)
+const BACKFILL = !arg('no-backfill', false)
 const CAP = Number(arg('cap', 5))
+const BCAP = Number(arg('backfill-cap', 3))
 const NAMES = typeof arg('names', null) === 'string' ? String(arg('names')).split(',').map((s) => s.trim()).filter(Boolean) : null
 
 // ---------------------------------------------------------------- 载入
@@ -74,6 +82,12 @@ try {
   for (const x of a.aliases || []) if (x.alias && x.name) aliasMap.set(x.alias, x.name)
 } catch { /* 拿不到别名表就原样 ✓ */ }
 const withAlias = (n) => aliasMap.get(n) || n
+
+const ids = {}
+try {
+  const j = JSON.parse(fs.readFileSync(IDS_JSON, 'utf8'))
+  Object.assign(ids, j.ids || {})
+} catch { /* 拿不到 id 表就不排序（保持原顺序 ✓） */ }
 
 const conflictText = new Map()
 try {
@@ -136,8 +150,19 @@ function parseMembers(team) {
   const seen = new Set()
   return out.filter((x) => (seen.has(x.main) ? false : (seen.add(x.main), true)))
 }
+const validTeam = (t) => {
+  const n = parseMembers(t).length
+  if (n > MAX_MEM) { dropped.tooMany++; return false }     // 矩阵型表格 ✗ ⇒ 丢 ✓
+  return n >= (UNNAMED.test(String(t?.name ?? '').trim()) ? 3 : 2)
+}
+const membersOf = (team) => parseMembers(team).map((m) => m.main)
+// ⚠️ **人数上限** ✓ —— 一支队最多 4 人（＋偶尔 1 个替补槽 ✓）⇒ 超过 5 人**说明那不是一支队** ✗
+//   实测 2026-10-15：一图流的"矩阵型"表格被读成「烈绽放+卡绽」**15 人** ✗（卡维＋夜兰＋行秋＋托马＋香菱＋…）
+//   ⇒ 那种一律**丢掉** ✗（宁可少 ✗，不能把矩阵当配队喂给模型 ✓）
+const MAX_MEM = Number(arg('max-members', 5))
+const dropped = { tooMany: 0 }
 
-function teamLine(name, team) {
+function teamLine(viewer, team) {
   const raw = String(team.name ?? '').trim()
   const un = UNNAMED.exec(raw)
   const label = un ? '未标名队伍 ' + un[1] : raw
@@ -146,8 +171,13 @@ function teamLine(name, team) {
   const mem = parseMembers(team)
   const unknown = mem.filter((m) => !roster.has(m.main)).map((m) => m.main)
   const warn = []
-  const ct = conflictText.get(name)
-  if (ct) for (const m of mem) if (ct.includes(m.main) || (m.alts || []).some((a) => ct.includes(a))) warn.push(m.main)
+  // ⚠️ 机制卡冲突判定：**必须跳过角色自己** ✗ —— 踩过的坑 ✓：班尼特的 conflicts 文本里
+  //   本来就写着"班尼特"三个字（"而班尼特的治疗条件与频率不匹配"✗）⇒ 不排除自己就**全队误报** ✗
+  const ct = conflictText.get(viewer)
+  if (ct) for (const m of mem) {
+    if (m.main === viewer) continue
+    if (ct.includes(m.main) || (m.alts || []).some((a) => a !== viewer && ct.includes(a))) warn.push(m.main)
+  }
 
   const body = mem.map((m) => {
     const alt = m.alts.length ? '；备选：' + m.alts.join('、') : ''
@@ -161,50 +191,83 @@ function teamLine(name, team) {
   }
 }
 
-// ---------------------------------------------------------------- 主流程
-const files = fs.readdirSync(CACHE).filter((f) => f.endsWith('.guide.json')).sort()
-const report = { built: [], empty: [], unknownNames: new Map(), conflicts: 0, teams: 0, capped: [] }
-const applied = new Map()      // name → 我们那一段的文本 ✓
-
-for (const f of files) {
+// ---------------------------------------------------------------- 全量索引（供回填 ✓）
+const cacheByName = new Map()
+for (const f of fs.readdirSync(CACHE).filter((x) => x.endsWith('.guide.json'))) {
   const g = JSON.parse(fs.readFileSync(CACHE + '/' + f, 'utf8'))
-  const name = g.name
-  if (NAMES && !NAMES.includes(name)) continue
+  if (g?.name) cacheByName.set(g.name, g)
+}
+// 每支队伍摊平成一条：{ page 出自哪页, team, members, newest 队里最新成员 id ✓ }
+const allTeams = []
+for (const [page, g] of cacheByName) {
+  for (const t of g.teams || []) {
+    if (!validTeam(t)) continue
+    const mem = membersOf(t)
+    const newest = Math.max(0, ...mem.map((n) => Number(ids[n]) || 0))
+    allTeams.push({ page, team: t, members: mem, newest })
+  }
+}
+const sigOf = (team) => membersOf(team).slice().sort().join('|')
 
-  const teams = (g.teams || []).filter((t) => parseMembers(t).length >= (UNNAMED.test(String(t.name ?? '').trim()) ? 3 : 2))
-  if (!teams.length) { report.empty.push(name); continue }
+// ---------------------------------------------------------------- 主流程
+const report = { built: [], empty: [], unknownNames: new Map(), conflicts: 0, own: 0, back: 0, capped: [] }
+const applied = new Map()      // name → 我们那两段的文本 ✓
 
-  const rows = teams.map((t) => teamLine(name, t))
-  for (const r of rows) {
+const targets = cards.filter((c) => !NAMES || NAMES.includes(c.name))
+for (const c of targets) {
+  const name = c.name
+  const g = cacheByName.get(name)
+  const own = (g?.teams || []).filter(validTeam)
+  const ownRows = own.map((t) => teamLine(name, t))
+
+  let backRows = []
+  if (BACKFILL) {
+    const ownSigs = new Set(own.map(sigOf))
+    backRows = allTeams
+      .filter((x) => x.page !== name && x.members.includes(name) && !ownSigs.has(sigOf(x.team)))
+      .sort((a, b) => b.newest - a.newest)      // 队里最新成员 id 降序 ✓（TODO-29 的设计 ✓）
+      .map((x) => teamLine(name, x.team))
+  }
+
+  if (!ownRows.length && !backRows.length) { report.empty.push(name); continue }
+
+  for (const r of [...ownRows, ...backRows]) {
     for (const u of r.unknown) report.unknownNames.set(u, (report.unknownNames.get(u) || 0) + 1)
     if (r.warn.length) report.conflicts++
   }
-  const sorted = rows.slice().sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0))
-  const kept = sorted.slice(0, CAP)
-  if (sorted.length > CAP) report.capped.push(name + '（' + sorted.length + ' → ' + CAP + '）')
+  const ownSorted = ownRows.slice().sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0)).slice(0, CAP)
+  const backSorted = backRows.slice(0, BCAP)
+  if (ownRows.length > CAP) report.capped.push(name + '（自有 ' + ownRows.length + ' → ' + CAP + '）')
 
-  applied.set(name, HEAD + '\n' + kept.map((r) => r.text).join('\n'))
-  report.built.push({ name, teams: teams.length, kept: kept.length, star: rows.filter((r) => r.star).length })
-  report.teams += teams.length
+  // ⚠️ 只在**真有内容**时才写标题 ✗（本角色自己 0 支时留个空标题既难看又费 token ✓）
+  const parts = []
+  if (ownSorted.length) parts.push(HEAD_OWN + '\n' + ownSorted.map((r) => r.text).join('\n'))
+  if (backSorted.length) parts.push(HEAD_BACK + '\n' + backSorted.map((r) => r.text).join('\n'))
+  const seg = parts.join('\n')
+  applied.set(name, seg)
+  report.own += ownSorted.length
+  report.back += backSorted.length
+  report.built.push({ name, own: ownSorted.length, back: backSorted.length, star: ownRows.filter((r) => r.star).length })
 }
 
-// 剥掉上一次我们加的段 ✓（幂等 ✓；原 wiki 文字**一字不动** ✓）
+// 剥掉上一次我们加的段 ✓（幂等 ✓；wiki 原文**一字不动** ✓）
 function stripOurs(t) {
   const s = String(t ?? '')
-  const i = s.indexOf(HEAD)
-  return i < 0 ? s.replace(/\s+$/, '') : s.slice(0, i).replace(/\s+$/, '')
+  const idx = HEADS.map((h) => s.indexOf(h)).filter((i) => i >= 0)
+  return idx.length ? s.slice(0, Math.min(...idx)).replace(/\s+$/, '') : s.replace(/\s+$/, '')
 }
 const compose = (base, seg) => (base ? base + '\n\n' + seg : seg)
 
 // ---------------------------------------------------------------- 自检
 if (CHECK) {
-  console.log('  ==== 防回潮自检（只看我们那一段 ✓，wiki 原文不归本脚本管 ✗）====')
+  console.log('  ==== 防回潮自检（只看我们那两段 ✓，wiki 原文不归本脚本管 ✗）====')
   let bad = 0, checked = 0
   for (const c of cards) {
-    const i = String(c.team ?? '').indexOf(HEAD)
-    if (i < 0) continue
+    const s = String(c.team ?? '')
+    const idx = HEADS.map((h) => s.indexOf(h)).filter((i) => i >= 0)
+    if (!idx.length) continue
     checked++
-    const seg = String(c.team).slice(i)
+    const seg = s.slice(Math.min(...idx))
     const errs = []
     if (/https?:|miyoushe|米游社|bbs|赞\d|作者|原帖|攻略帖/.test(seg)) errs.push('带来源/署名 ✗（口径：转载可用但不署名 ✓）')
     if (/图上未标队名/.test(seg)) errs.push('占位符没清理 ✗')
@@ -215,57 +278,44 @@ if (CHECK) {
     }
     if (errs.length) { bad++; console.log('   ✗ ' + c.name + '：' + errs.join('；')) }
   }
-  console.log('   带我们那段（' + HEAD + '）的卡 = ' + checked + ' / ' + cards.length)
+  console.log('   带我们段落（含回填 ✓）的卡 = ' + checked + ' / ' + cards.length)
   console.log(bad ? '   ✗ ' + bad + ' 张卡有硬伤' : '   ✓ 全部通过（无署名 / 无占位符 / 无未拆备选 / 每行 ≥2 人）')
   process.exit(bad ? 1 : 0)
 }
 
-// ---------------------------------------------------------------- 写盘 / 打印
-console.log('  本地已抽 ' + files.length + ' 份，本次处理 ' + report.built.length + ' 位（cap=' + CAP + ' ✓）')
-if (report.empty.length) {
-  console.log('  ⚠️ 图上没抽到有效队伍（' + report.empty.length + ' 位 ⇒ **不写** ✓，原来是 wiki 原文的**保持原样** ✓）：')
-  console.log('     ' + report.empty.join('、'))
-}
-if (report.capped.length) console.log('  截断（cap 取 ★ 优先 ＋ 前几支 ✓）：' + report.capped.join('、'))
-if (report.conflicts) console.log('  ⚠️ 有 ' + report.conflicts + ' 支队伍被机制卡标了冲突 ✓（照旧入库 ✓，文本带 ⚠️ 标注 ✓）')
-if (report.unknownNames.size) {
-  console.log('  ❓ 不在我们名单里的成员名（**请人眼过一眼** ✗）：')
-  console.log('     ' + [...report.unknownNames.entries()].sort((a, b) => b[1] - a[1]).map(([n, c]) => n + '×' + c).join('、'))
-}
+// ---------------------------------------------------------------- 打印
+console.log('  本地已抽 ' + cacheByName.size + ' 份；本次看 ' + targets.length + ' 位（cap=' + CAP + '，回填 ' + (BACKFILL ? '开 ≤' + BCAP + ' ✓' : '关 ✗') + '）')
+console.log('  全量队伍池 = ' + allTeams.length + ' 支 ✓')
+if (report.empty.length) console.log('  ⚠️ 自有与回填都没分到队（' + report.empty.length + ' 位 ⇒ 不写 ✓，wiki 原文保持原样 ✓）：' + report.empty.join('、'))
+if (report.capped.length) console.log('  截断：' + report.capped.join('、'))
+if (report.conflicts) console.log('  ⚠️ ' + report.conflicts + ' 支被机制卡标冲突 ✓（照旧入库 ✓，文本带 ⚠️ ✓）')
+if (report.unknownNames.size) console.log('  ❓ 不在名单里的成员名（请人眼过 ✗）：' + [...report.unknownNames.entries()].sort((a, b) => b[1] - a[1]).map(([n, c2]) => n + '×' + c2).join('、'))
 
-console.log('\n  ==== 预览（前 4 位 ✓；wiki 原文省略 ✓）====')
-for (const b of report.built.slice(0, 4)) {
-  console.log('\n  【' + b.name + '】（图上 ' + b.teams + ' 支 ⇒ 保留 ' + b.kept + '，★ ' + b.star + '）')
+console.log('\n  ==== 预览（' + Math.min(6, report.built.length) + ' 位 ✓；wiki 原文省略 ✓）====')
+for (const b of report.built.slice(0, 6)) {
+  console.log('\n  【' + b.name + '】（自有 ' + b.own + ' 支 ＋ 回填 ' + b.back + ' 支 ✓）')
   for (const line of applied.get(b.name).split('\n')) console.log('    ' + line)
 }
 
 if (DRY) {
   console.log('\n  （--dry：**没有写盘** ✓）')
 } else {
-  let changed = 0, added = 0
-  for (const [name, seg] of applied) {
-    const c = cardByName.get(name)
-    if (!c) continue
-    const next = compose(stripOurs(c.team), seg)
-    if (c.team !== next) { c.team = next; changed++ }
-    if (c.teamPick !== undefined) delete c.teamPick       // 清掉我 2026-10-15 写错字段名的残留 ✗
-    if (c.teamFrom) { /* 原样保留 ✓（它描述 wiki 那半 ✓） */ } else c.teamFrom = 'baike'
-    added++
-  }
-  // 没抽到队伍的角色：只**剥掉旧段** ✓，wiki 原文保留 ✓（2026-10-15：写错字段时误"全清"过一次 ✗）
-  let stripped = 0
+  let changed = 0
   for (const c of cards) {
-    if (c.teamPick !== undefined) delete c.teamPick    // 残留键一律清掉 ✓（所有卡 ✓）
-    if (applied.has(c.name) || !String(c.team ?? '').includes(HEAD)) continue
-    if (DRY) continue
-    c.team = stripOurs(c.team); stripped++
+    if (c.teamPick !== undefined) delete c.teamPick        // 清掉 2026-10-15 写错字段名的残留 ✗
+    const seg = applied.get(c.name)
+    const base = stripOurs(c.team)
+    if (!seg) continue                                     // 没分到队 ⇒ 只保留剥掉旧段后的 wiki 原文 ✓
+    const next = compose(base, seg)
+    if (c.team !== next) { c.team = next; changed++ }
+    if (!c.teamFrom) c.teamFrom = 'baike'
   }
   guidesDoc.teamPicksBuiltAt = new Date().toISOString().slice(0, 19)
-  guidesDoc.teamPicksNote = '配队段落来自角色攻略长图识图 ⇒ 本脚本清洗后**追加**到 team ✓（wiki 原文保留 ✓）；本地 .guide.json 为来源备查 ✓；**不署名** ✗'
+  guidesDoc.teamPicksNote = '配队段落来自角色攻略长图识图 ⇒ 本脚本清洗后**追加**到 team ✓（wiki 原文保留 ✓）；含跨角色回填段 ✓；本地 .guide.json 为来源备查 ✓；**不署名** ✗'
   // ⚠️ 原子写 ✓（2026-10-15 踩过：管道提前收工把进程掐断 ⇒ 落成 0 字节 ✗）
   const tmp = GUIDE_JSON + '.tmp'
   fs.writeFileSync(tmp, JSON.stringify(guidesDoc, null, 2) + '\n', 'utf8')
   fs.renameSync(tmp, GUIDE_JSON)
-  console.log('\n  ✓ 写入 ' + changed + ' 张卡（追加段 ✓，wiki 原文一字未动 ✓）' + (stripped ? '；剥掉 ' + stripped + ' 张的旧段 ✓' : ''))
+  console.log('\n  ✓ 写入 ' + changed + ' 张卡（自有 ' + report.own + ' 支 ＋ 回填 ' + report.back + ' 支 ✓；wiki 原文一字未动 ✓）')
   console.log('  下一步：cd server && go run ./cmd/guideimport   ⇒ 进库 ✓')
 }
