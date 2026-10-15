@@ -129,6 +129,30 @@ const zhCN = {
   'home.backendStatus': '后端状态：',
   'home.statusUp': '正常',
   'home.statusDown': '未连接（请先启动 Go 服务）',
+  // 开发进度三态卡（2026-10-16 恢复并升级 ✓；2026-09-28 的首版是「正在做 / 计划中」两态，同日撤掉 ✓）
+  // ⚠️ 内容**硬编码在本字典**（即前端，不入库）✓ —— 记的是"开发进度"这类产品文案，
+  //    不是资产映射 / 枚举那类业务数据，与 `AGENTS.md` §4.4 不冲突 ✓（2026-09-28 首版同样硬编码 ✓）。
+  // ⚠️ 措辞一律**使用者视角** ✓（不写 RAG / PWA / lint 之类内部词 ✗）；后台与工程类任务不进这里 ✗。
+  'home.plan.title': '开发进度',
+  'home.plan.subtitle': '站点还在长身体 —— 下面是已经能用的、正在做的、以及排上队的。',
+  'home.plan.online': '已上线',
+  'home.plan.onlineItem1': '角色养成推荐',
+  'home.plan.onlineItem2': '账号注册登录体系',
+  'home.plan.onlineItem3': '角色拉取',
+  'home.plan.onlineItem4': '圣遗物评分',
+  'home.plan.onlineItem5': '无关问题识别',
+  'home.plan.doing': '开发中',
+  'home.plan.doingItem1': '角色配队推荐',
+  'home.plan.doingItem2': '游戏内机制资料',
+  'home.plan.doingItem3': '移动端 UI 优化',
+  'home.plan.planned': '待排期',
+  'home.plan.plannedItem1': '面向新手的更详细解读',
+  'home.plan.plannedItem2': '对话操作增强',
+  'home.plan.plannedItem3': 'AI 超时处理与分段回复',
+  'home.plan.plannedItem4': '截图提问 / 截图信息导入',
+  'home.plan.plannedItem5': '按现有角色推荐配队与养成',
+  'home.plan.plannedItem6': '优先处理事项推荐',
+  'home.plan.plannedItem7': '剧情回顾 / NPC 回顾',
   // 2026-09-28：曾加过首页「接下来会有什么」开发计划板块（22 个 home.roadmap* 文案键），
   // 用户看过觉得没必要 ⇒ 整块撤掉 ✓（组件里的 ROADMAP 数组也一并删了）。要恢复就翻这次提交的反向 diff ✓
   // 智能问答

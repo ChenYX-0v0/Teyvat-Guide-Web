@@ -134,6 +134,29 @@ const en: Partial<Dict> = {
   'home.backendStatus': 'Backend: ',
   'home.statusUp': 'Up',
   'home.statusDown': 'Offline (please start the Go server)',
+  // Development progress: three status cards — live / in progress / planned (2026-10-16).
+  // Hardcoded here (frontend, not in the database) on purpose; see zh-CN.ts for the rationale.
+  'home.plan.title': 'Development progress',
+  'home.plan.subtitle':
+    'The site is still growing — here is what works today, what is in progress, and what is queued up.',
+  'home.plan.online': 'Live',
+  'home.plan.onlineItem1': 'Character build recommendations',
+  'home.plan.onlineItem2': 'Sign-up & login',
+  'home.plan.onlineItem3': 'Character showcase import',
+  'home.plan.onlineItem4': 'Artifact scoring',
+  'home.plan.onlineItem5': 'Off-topic question detection',
+  'home.plan.doing': 'In progress',
+  'home.plan.doingItem1': 'Team composition recommendations',
+  'home.plan.doingItem2': 'In-game mechanics reference',
+  'home.plan.doingItem3': 'Mobile UI improvements',
+  'home.plan.planned': 'Planned',
+  'home.plan.plannedItem1': 'More detailed guides for beginners',
+  'home.plan.plannedItem2': 'Better chat controls',
+  'home.plan.plannedItem3': 'AI timeout handling & segmented replies',
+  'home.plan.plannedItem4': 'Screenshot Q&A / screenshot info import',
+  'home.plan.plannedItem5': 'Team & build advice based on your own characters',
+  'home.plan.plannedItem6': 'Suggested next steps',
+  'home.plan.plannedItem7': 'Story / NPC recap',
   // 2026-09-28: the home page "What is coming next" roadmap block (22 home.roadmap* keys)
   // was removed — the user judged it unnecessary; see web/06 for the plan itself.
   // Chat
