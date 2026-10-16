@@ -23,6 +23,15 @@ const THINK_MS = 900 // "思考"（气泡三个呼吸点）的时长
 const TYPE_TICK_MS = 24 // 逐字输出的节拍
 const CHARS_PER_TICK = 2 // 每拍吐几个字（中文 2 字/24ms ≈ 每秒 80 字，接近真人打字速度）
 
+/**
+ * 演示组的分组键（`preset_qas.scene_key`）。
+ *
+ * ⚠️ 必须只取这一组 ✗：线上 `preset_qas` 里**同时**躺着老分组（onboarding / build / explore，给匿名对话页兜底用 ✓），
+ * 全列出来演示页会混进 6 条和演示无关的通用问答 ✗（2026-10-17 自检发现线上 12 条里只有 6 条是演示组 ✓）。
+ * 这一组也正是 `scripts/gen-demo-mock.mjs qa` 刷新的对象 ✓ —— 两边认的是同一个键 ✓。
+ */
+const DEMO_SCENE = 'guest_demo'
+
 /** 回放阶段：idle 可点 / thinking 思考中 / typing 逐字输出中 */
 type Phase = 'idle' | 'thinking' | 'typing'
 
@@ -53,7 +62,10 @@ export default function DemoChatPage() {
     chatApi
       .presetQa()
       .then((data) => {
-        if (alive) setPresets(data.items)
+        if (!alive) return
+        // 只取演示组 ✓；线上若还没配这一组，退回"全部启用项"，别给个空页 ✗
+        const demoItems = data.items.filter((i) => i.sceneKey === DEMO_SCENE)
+        setPresets(demoItems.length > 0 ? demoItems : data.items)
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : t('errors.unknown'))
