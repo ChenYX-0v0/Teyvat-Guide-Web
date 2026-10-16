@@ -262,6 +262,30 @@ const en: Partial<Dict> = {
   'character.recommendTitle': 'Recommended Substats',
   'character.mainStatsLabel': 'Recommended main stats',
 
+  // Guest demo mode (2026-10-17, public /demo and /demo/chat)
+  // The demo content itself (character cards / "analysis") is NOT in the dictionary: it lives in the
+  // database so it can be edited without a release. Only the UI copy lives here.
+  'demo.badge': 'Demo',
+  'demo.loginCta': 'Sign in / Sign up',
+  'demo.loginEntry': 'See the demo first (no sign-up)',
+  'demo.tabAccount': 'Demo profile',
+  'demo.tabChat': 'Demo chat',
+  'demo.guestName': 'Traveler (guest)',
+  'demo.noticeFallback':
+    'This is demo content: the character profile and the analysis are preset samples, not live account data.',
+  'demo.accountTitle': 'Demo profile',
+  'demo.accountCtaHint':
+    'After you sign in and bind your UID, Paimon sees your own character profile.',
+  'demo.analysisTitle': '{name} analysis',
+  'demo.analysisNote': 'Preset sample · no quota used',
+  'demo.chatTitle': 'Demo chat',
+  'demo.chatHint':
+    'These Q&As are preset: tap one to watch Paimon think and type the answer out. The demo makes no AI calls and uses no quota.',
+  'demo.chatPick': 'Pick a question',
+  'demo.chatLocked': 'Sign in to ask anything (your own profile / teams / builds)',
+  'demo.chatReset': 'Start over',
+  'demo.empty': 'Demo content is not ready yet, please try again later.',
+
   // Wiki
   'wiki.title': 'Wiki',
   'wiki.placeholder': 'Placeholder module. Real data coming later.',

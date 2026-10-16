@@ -254,6 +254,27 @@ const zhCN = {
   'character.recommendTitle': '推荐强化词条',
   'character.mainStatsLabel': '主词条推荐',
 
+  // 游客演示模式（2026-10-17，免登录公开页 /demo 与 /demo/chat）
+  // ⚠️ 演示内容（角色卡 / 「分析」）**不在词典里** ✗ —— 它是运营在库里预置的数据（改库即可改文案 ✓），
+  // 这里只放界面自身的文案 ✓。
+  'demo.badge': '演示',
+  'demo.loginCta': '登录 / 注册',
+  'demo.loginEntry': '先看看演示（免注册）',
+  'demo.tabAccount': '演示档案',
+  'demo.tabChat': '演示对话',
+  'demo.guestName': '旅行者（游客）',
+  'demo.noticeFallback': '以下为演示内容：角色档案与「分析」都是预置示例，不是实时账号数据。',
+  'demo.accountTitle': '演示档案',
+  'demo.accountCtaHint': '登录并绑定 UID 后，派蒙看到的就是你自己角色的真实档案。',
+  'demo.analysisTitle': '{name} 的分析',
+  'demo.analysisNote': '预置示例 · 不消耗额度',
+  'demo.chatTitle': '演示对话',
+  'demo.chatHint': '下面几条都是预置问答：点一条看派蒙「思考 + 逐字回答」的过程。演示不联网、不消耗额度。',
+  'demo.chatPick': '选一条问题试试',
+  'demo.chatLocked': '登录后可自由提问（你的角色档案 / 配队 / 养成）',
+  'demo.chatReset': '重来',
+  'demo.empty': '演示内容还没准备好，请稍后再试。',
+
   // 图鉴
   'wiki.title': '图鉴',
   'wiki.placeholder': '该页面为占位模块，后续接入真实数据。',

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Compass } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Compass, Sparkles } from 'lucide-react'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
 import SiteFooter from '@/components/layout/SiteFooter'
@@ -314,6 +314,18 @@ export default function LoginPage() {
             )}
           </form>
         )}
+
+        {/* 演示入口（2026-10-17）：不想注册的人也能先看"档案 + 派蒙分析"长什么样 ✓。
+            演示页是**公开路由**（/demo），内容全部预置，不调模型、不消耗 token ✓ */}
+        <div className="mt-4 border-t border-teyvat-line pt-4 text-center">
+          <Link
+            to="/demo"
+            className="inline-flex items-center gap-1.5 text-xs text-teyvat-text-3 transition hover:text-teyvat-gold"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('demo.loginEntry')}
+          </Link>
+        </div>
       </Card>
       {/* 登录页在 AppLayout 之外：备案号必须自带（公安审核的第一屏很可能就是这里，见 web/11 §6.5） */}
       <SiteFooter className="fixed inset-x-0 bottom-0" />

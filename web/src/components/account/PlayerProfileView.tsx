@@ -94,7 +94,11 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
             <Chip tone="gold">Lv.{profile.level}</Chip>
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="text-[11px] text-teyvat-text-3">UID {profile.uid}</span>
+            {/* uid 为空则不渲染（2026-10-17）：演示档案是编的、没有游戏 UID，
+                空值渲染出"UID "这样的半截文案很难看 ✗（真实档案一定有 uid ✓，不受影响 ✓） */}
+            {profile.uid && (
+              <span className="text-[11px] text-teyvat-text-3">UID {profile.uid}</span>
+            )}
             <span
               className={clsx('block text-[10px] leading-none text-teyvat-text-4', headOpen && 'rotate-180')}
             >
