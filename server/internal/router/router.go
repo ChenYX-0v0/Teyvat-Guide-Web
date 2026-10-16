@@ -78,6 +78,9 @@ func New(cfg *config.Config) *gin.Engine {
 	chat := handler.NewChatHandler(service.NewChatService(cfg.AI, playerSvc, quotaSvc))
 	// 预设问答（免登录）：匿名用户在对话页看到的内容
 	preset := handler.NewPresetHandler(service.NewPresetQAService())
+	// 游客演示模式（免登录）：**不连 AI 服务** —— 演示账号头与 4 位演示角色（含预置「AI 分析」）
+	// 全部取自库里预置数据（demo_profiles / demo_characters），改文案改库即可、不用发版 ✓
+	demo := handler.NewDemoHandler(service.NewDemoShowcaseService())
 	// 埋点采集（shared-docs/07-前端埋点与使用统计.md）：只收"服务端看不见"的前端行为，
 	// 匿名可上报但不带任何匿名标识（D1）；失败一律静默，绝不影响主流程
 	usageSvc := service.NewUsageService(cfg.Usage)
@@ -111,6 +114,11 @@ func New(cfg *config.Config) *gin.Engine {
 		// 预设问答：**无需登录**——匿名用户在对话页看到的内容，不调模型、不消耗 token
 		// （匿名禁用 AI 后的替代体验，见 shared-docs/05-AI使用边界设计（匿名·配额·内容治理）.md §1）
 		api.GET("/preset-qa", preset.List)
+
+		// 游客演示模式：**无需登录**——一次取回「演示账号头 + 4 位演示角色（含预置 AI 分析）」。
+		// 演示页的"思考 + 流式输出"由前端本地回放，服务端只发数据：
+		// 不调模型、不消耗 token、不查 Enka、不落库会话 ✓（对应 web 的 /demo 页）
+		api.GET("/demo/showcase", demo.Showcase)
 
 		// 埋点上报：**匿名可访问**（不带任何匿名标识，D1 定案）；带 Token 时记 user_id。
 		// 契约见 shared-docs/07 §4.1 —— 任何情况都返回 200（accepted 只用于观测）
@@ -237,6 +245,10 @@ func autoMigrate() {
 		&model.ChatSession{},
 		&model.ChatMessage{},
 		&model.PresetQA{},
+		// 游客演示数据（2026-10-17）：**与真实档案分表** ✓ —— 演示角色卡/分析是运营预置内容，
+		// 塞进 player_characters（真实用户累积池）会污染真库 ✗
+		&model.DemoProfile{},
+		&model.DemoCharacter{},
 		&model.PlayerProfileSnapshot{},
 		// 已收录角色（2026-10-11）：**只增/只改不删** 的角色池 ✓
 		// ⚠️ 与快照分表是刻意的：purge-snapshots 清的是缓存，**不该把用户攒的角色池一起清掉** ✗
