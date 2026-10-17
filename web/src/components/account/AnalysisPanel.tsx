@@ -24,7 +24,7 @@ interface Props {
  * 而不是另写一张页内卡 ✗（见 TODO-32）。
  */
 export default function AnalysisPanel({ open, onClose, uid, character, characters }: Props) {
-  const { messages, loading, restoring, error, dailyLimited, send, rerun } = useAnalysisChat({
+  const { messages, loading, restoring, error, dailyLimited, send, rerun, stop } = useAnalysisChat({
     enabled: open,
     uid,
     character,
@@ -49,7 +49,14 @@ export default function AnalysisPanel({ open, onClose, uid, character, character
       onRerun={character ? rerun : undefined}
       rerunning={loading}
       scrollSignal={messages}
-      footer={<ChatInput disabled={Boolean(blocked) || loading} onSend={(text) => void send(text)} />}
+      footer={
+        <ChatInput
+          disabled={Boolean(blocked)}
+          busy={loading}
+          onStop={stop}
+          onSend={(text) => void send(text)}
+        />
+      }
     >
       {blocked ? (
         <p className="pt-8 text-center text-sm text-teyvat-text-3">{blocked}</p>

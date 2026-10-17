@@ -7,6 +7,8 @@ export interface ChatMessage {
   createdAt: number
   pending?: boolean
   error?: string
+  /** 用户主动停止生成（内容保留，不是错误） */
+  stopped?: boolean
 }
 
 export interface ChatRequest {

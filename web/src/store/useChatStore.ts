@@ -3,7 +3,11 @@ import { chatApi } from '@/api/chat'
 import { getAuthToken } from '@/store/useAuthStore'
 import { t } from '@/i18n'
 import { EVENTS, track } from '@/lib/track'
+import { createAbortHandle, isAbortError } from '@/utils/abort'
 import type { ChatMessage, ChatSessionItem, ChatSessionMessage, PresetQAItem } from '@/types'
+
+/** 全店共用一个停止句柄：同一时刻只允许一轮流（`loading` 已保证不并发） */
+const abortHandle = createAbortHandle()
 
 // 会话管理（需登录；契约见 docs/04-API接口文档.md §3）
 // 口径：匿名不持久化——本地只记登录用户的当前会话；消息一律从服务端拉（换设备/清缓存后一致）。
@@ -52,6 +56,8 @@ interface ChatState {
   presetsLoading: boolean
   loadPresets: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
+  /** 停止生成：掐断当前 SSE（不可续），已生成的文字保留并标「已停止生成」 */
+  stop: () => void
   /** 新对话：只清当前视图，旧会话仍在服务端（可从列表找回；不提供删除） */
   startNewSession: () => void
   loadSessions: () => Promise<void>
@@ -124,10 +130,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }))
     }
 
+    const signal = abortHandle.begin()
+
     try {
       await chatApi.stream(
         { sessionId: session, message: text },
         {
+          signal,
           onSession: (sessionId) => {
             set({ sessionId })
             persistSession(sessionId)
@@ -146,6 +155,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 回答结束后刷新列表：新会话（首问即建、标题取首问）与消息数都会更新
       if (getAuthToken()) void get().loadSessions()
     } catch (err) {
+      // 用户主动停止：不是失败 —— 保留已生成内容、标「已停止生成」，不弹错误、不打失败埋点
+      if (isAbortError(err)) {
+        set((s) => ({
+          loading: false,
+          messages: s.messages.map((m) =>
+            m.id === pendingMsg.id ? { ...m, pending: false, stopped: true } : m,
+          ),
+        }))
+        return
+      }
       // 中断时已生成的内容保留在气泡里，错误文案另起一行提示
       const message = err instanceof Error ? err.message : t('errors.paimonDistracted')
       // 埋点：失败原因粗分（后端也靠这个判断"卡在哪一类失败"）
@@ -164,7 +183,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           m.id === pendingMsg.id ? { ...m, pending: false, error: message } : m,
         ),
       }))
+    } finally {
+      // 这一轮无论正常 / 失败 / 被停止都清掉句柄，避免下一次 stop 打到已经收尾的流
+      abortHandle.end()
     }
+  },
+
+  stop() {
+    abortHandle.stop()
   },
 
   startNewSession() {

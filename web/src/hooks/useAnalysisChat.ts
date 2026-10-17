@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatApi } from '@/api/chat'
 import { t } from '@/i18n'
 import { EVENTS, track } from '@/lib/track'
+import { createAbortHandle, isAbortError, type AbortHandle } from '@/utils/abort'
 import {
   analyzedCount,
   autoFailuresExceeded,
@@ -65,6 +66,10 @@ export function useAnalysisChat({ enabled, uid, character }: Options) {
   const [dailyLimited, setDailyLimited] = useState(false)
 
   const sessionRef = useRef<string | undefined>(undefined)
+  /** 停止句柄（与对话页共用同一套口径，见 utils/abort.ts） */
+  const abortRef = useRef<AbortHandle | null>(null)
+  abortRef.current ??= createAbortHandle()
+  const abort = abortRef.current
   /** 同步防重：StrictMode 双跑 effect、连点、自动+手动撞车都从这里拦住 */
   const inflightRef = useRef(false)
   /** 本次"面板打开"内已自动尝试过的角色，避免失败后立刻无限重试 */
@@ -133,14 +138,14 @@ export function useAnalysisChat({ enabled, uid, character }: Options) {
       setError('')
 
       const startedAt = Date.now()
-      const controller = new AbortController()
+      const signal = abort.begin()
       let ok = false
 
       try {
         await chatApi.stream(
           { sessionId: sessionRef.current, message: content },
           {
-            signal: controller.signal,
+            signal,
             onSession: (sessionId) => {
               sessionRef.current = sessionId
               writeSessionId(uid, sessionId)
@@ -164,26 +169,28 @@ export function useAnalysisChat({ enabled, uid, character }: Options) {
         )
         setMessages((m) => m.map((x) => (x.id === pendingMsg.id ? { ...x, pending: false } : x)))
       } catch (err) {
-        // 用户离开/取消：保留已生成内容，不提示、不记账
-        const aborted = err instanceof DOMException && err.name === 'AbortError'
-        const message = err instanceof Error ? err.message : t('errors.paimonDistracted')
-        if (aborted) {
-          setMessages((m) => m.map((x) => (x.id === pendingMsg.id ? { ...x, pending: false } : x)))
-        } else {
-          setError(message)
+        // 用户主动停止 / 离开：保留已生成内容，不提示、不记账，只标「已停止生成」
+        if (isAbortError(err)) {
           setMessages((m) =>
-            m.map((x) => (x.id === pendingMsg.id ? { ...x, pending: false, error: message } : x)),
+            m.map((x) => (x.id === pendingMsg.id ? { ...x, pending: false, stopped: true } : x)),
           )
-          // 失败不记"已体检"（§4.3），但要记失败次数（连续 2 次停止自动重试）
-          if (opts.auto && opts.characterId !== undefined) {
-            markAutoFailure(uid, opts.characterId)
-          }
-          track(EVENTS.accountAnalysisEnd, {
-            result: failureReason(message),
-            elapsed_ms: Date.now() - startedAt,
-          })
+          return
         }
+        const message = err instanceof Error ? err.message : t('errors.paimonDistracted')
+        setError(message)
+        setMessages((m) =>
+          m.map((x) => (x.id === pendingMsg.id ? { ...x, pending: false, error: message } : x)),
+        )
+        // 失败不记"已体检"（§4.3），但要记失败次数（连续 2 次停止自动重试）
+        if (opts.auto && opts.characterId !== undefined) {
+          markAutoFailure(uid, opts.characterId)
+        }
+        track(EVENTS.accountAnalysisEnd, {
+          result: failureReason(message),
+          elapsed_ms: Date.now() - startedAt,
+        })
       } finally {
+        abort.end()
         inflightRef.current = false
         setLoading(false)
       }
@@ -193,7 +200,7 @@ export function useAnalysisChat({ enabled, uid, character }: Options) {
         markAnalyzed(uid, opts.characterId)
       }
     },
-    [uid],
+    [uid, abort],
   )
 
   // 自动体检：面板打开 + 有选中角色 + 该角色未体检过 + 当日未超上限
@@ -229,5 +236,8 @@ export function useAnalysisChat({ enabled, uid, character }: Options) {
     void send(t('analysis.question', { name: character.name }))
   }, [character, send])
 
-  return { messages, loading, restoring, error, dailyLimited, send, rerun }
+  /** 停止生成：掐断当前流（不可续）；已生成的内容保留并标「已停止生成」 */
+  const stop = useCallback(() => abort.stop(), [abort])
+
+  return { messages, loading, restoring, error, dailyLimited, send, rerun, stop }
 }

@@ -167,6 +167,8 @@ const en: Partial<Dict> = {
   'chat.inputPlaceholder': 'Ask Paimon: e.g. "Is Kazuha worth pulling?"',
   'chat.loadEarlier': 'Load earlier messages',
   'chat.send': 'Send',
+  'chat.stop': 'Stop generating',
+  'chat.stopped': 'Generation stopped',
   // Empty-state sample questions (click to ask)
   'chat.emptySample1': 'How should a new player start?',
   'chat.emptySample2': 'Is Kazuha worth pulling?',

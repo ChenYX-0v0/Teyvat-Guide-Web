@@ -21,6 +21,7 @@ export default function ChatPage() {
     error,
     hasEarlier,
     sendMessage,
+    stop,
     loadEarlier,
     startNewSession,
     restore,
@@ -174,7 +175,8 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        <ChatInput disabled={loading} onSend={sendMessage} />
+        {/* 生成中把发送键换成「停止生成」：掐断流但保留已吐出的文字（见 utils/abort.ts） */}
+        <ChatInput busy={loading} onStop={stop} onSend={sendMessage} />
       </div>
 
       {/* 移动端历史会话抽屉（复用同一个 SessionList，选中后自动关闭） */}

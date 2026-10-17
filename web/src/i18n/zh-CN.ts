@@ -163,6 +163,8 @@ const zhCN = {
   'chat.inputPlaceholder': '问问派蒙吧：比如「万叶值得抽吗？」',
   'chat.loadEarlier': '加载更早的消息',
   'chat.send': '发送',
+  'chat.stop': '停止生成',
+  'chat.stopped': '已停止生成',
   // 空态示例问题（点一下即问）
   'chat.emptySample1': '新手开局怎么玩？',
   'chat.emptySample2': '万叶值得抽吗？',

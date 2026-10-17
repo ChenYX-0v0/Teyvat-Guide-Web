@@ -59,6 +59,12 @@ export default function MessageBubble({ message, caret }: Props) {
                 {message.error}
               </p>
             )}
+            {/* 用户主动停止：不算错误，只标一句"已停止生成"（内容保留，见 utils/abort.ts） */}
+            {!isUser && message.stopped && (
+              <p className="mt-1.5 text-[10px] leading-none text-teyvat-text-4">
+                {t('chat.stopped')}
+              </p>
+            )}
             {/*
               AI 生成内容标识（合规要求，见 teyvat-docs/web/11 §7.4）：
               每个助手回答末尾都有一条，明示"机器生成、仅供参考"。
