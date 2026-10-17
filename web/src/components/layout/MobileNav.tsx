@@ -50,9 +50,14 @@ export default function MobileNav({ open, onClose, items = navItems, aside }: Pr
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 touch-none md:hidden" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 touch-none md:hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('header.menu')}
+    >
       <div className="absolute inset-0 bg-teyvat-scrim backdrop-blur-sm" onClick={onClose} />
-      <nav className="absolute inset-y-0 left-0 flex w-64 max-w-[80vw] flex-col border-r border-teyvat-line bg-teyvat-panel-soft px-3 py-4 shadow-2xl">
+      <nav className="absolute inset-y-0 left-0 flex w-64 max-w-[80vw] flex-col overscroll-contain border-r border-teyvat-line bg-teyvat-panel-soft px-3 py-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between px-2">
           <span className="text-[11px] font-medium tracking-[0.08em] text-teyvat-text-4">
             {t('header.menu')}

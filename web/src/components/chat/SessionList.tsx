@@ -161,6 +161,8 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                 ) : editingId === item.sessionId ? (
                   <>
                     <input
+                      name="sessionTitle"
+                      aria-label={t('chat.rename')}
                       autoFocus
                       value={draft}
                       maxLength={50}

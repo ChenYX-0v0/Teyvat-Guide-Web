@@ -177,13 +177,17 @@ export default function LoginPage() {
               <p className="text-[11px] leading-relaxed text-teyvat-text-4">{t('login.inviteCodeNotice')}</p>
             )}
 
-            {/* 邀请码在**手机号上方** ✓：不填就拿不到验证码（服务端同样会拦 ✓） */}
+            {/* 邀请码在**手机号上方** ✓：不填就拿不到验证码（服务端同样会拦 ✓）
+                2026-10-18：补 aria-label —— 只有 placeholder 不算标签（屏读用户听不到字段名） */}
             {requireInvite && (
               <input
+                name="inviteCode"
+                aria-label={t('login.inviteCode')}
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 placeholder={t('login.inviteCode')}
                 autoComplete="off"
+                spellCheck={false}
                 autoFocus
                 className={inputClass}
               />
@@ -191,6 +195,8 @@ export default function LoginPage() {
 
             <div className="flex gap-2">
               <input
+                name="phone"
+                aria-label={t('login.phone')}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={t('login.phone')}
@@ -216,14 +222,19 @@ export default function LoginPage() {
             </div>
 
             <input
+              name="code"
+              aria-label={t('login.smsCode')}
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder={t('login.smsCode')}
               inputMode="numeric"
               autoComplete="one-time-code"
+              spellCheck={false}
               className={inputClass}
             />
             <input
+              name="newPassword"
+              aria-label={t('login.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
@@ -232,9 +243,12 @@ export default function LoginPage() {
               className={inputClass}
             />
             <input
+              name="displayName"
+              aria-label={t('login.displayName')}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={t('login.displayName')}
+              autoComplete="nickname"
               className={inputClass}
             />
             {!passValid && password.length > 0 && (
@@ -267,13 +281,19 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={submitLogin} className="mt-5 space-y-3">
             <input
+              name="username"
+              aria-label={t('login.username')}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder={t('login.username')}
+              autoComplete="username"
+              spellCheck={false}
               autoFocus
               className={inputClass}
             />
             <input
+              name="password"
+              aria-label={t('login.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"

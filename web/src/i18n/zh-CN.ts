@@ -163,6 +163,7 @@ const zhCN = {
   'chat.new': '新对话',
   'chat.emptyHint': '还没有对话，试着问一句「新手开局怎么玩？」',
   'chat.inputPlaceholder': '问问派蒙吧：比如「万叶值得抽吗？」',
+  'chat.inputLabel': '输入消息',
   'chat.loadEarlier': '加载更早的消息',
   'chat.send': '发送',
   'chat.stop': '停止生成',
@@ -200,6 +201,8 @@ const zhCN = {
   // 账号信息
   'account.title': '账号信息',
   'account.queryTitle': '查询玩家档案',
+  // 仅用于无障碍名（aria-label）：输入框不能只有 placeholder
+  'account.uidInputLabel': '游戏 UID',
   'account.queryPlaceholder': '输入 9 位游戏 UID，如 197794747',
   // 'account.forceRefresh' 已于 2026-09-28 移除（档案一律走服务端快照，前端不再暴露绕过缓存的开关 ✓）
   // 'account.bind'（"绑定 {uid} 到我的账号"）已于 2026-10-12 移除 ✗ ——
@@ -208,6 +211,9 @@ const zhCN = {
   'account.queryAutoBindHint': '查询成功后会把这个 UID 绑定到你的账号（可在展开「已绑定 UID」后解绑或换绑）。',
   'account.bindSuccess': '绑定成功，UID {uid} 已与账号一对一关联，下次进入自动加载。',
   'account.unbind': '解绑',
+  // 解绑二次确认（2026-10-18）：破坏性操作不许一点就执行
+  'account.unbindConfirm': '确认解绑？',
+  'account.unbindConfirmYes': '确认',
   'account.unbindSuccess': '已解除绑定。',
   'account.boundLabel': '已绑定 UID',
   'account.emptyShowcase': '该玩家未摆放角色展柜，或未公开详细信息',

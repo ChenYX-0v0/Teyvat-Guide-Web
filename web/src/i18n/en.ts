@@ -166,6 +166,7 @@ const en: Partial<Dict> = {
   'chat.new': 'New Chat',
   'chat.emptyHint': 'No messages yet. Try asking "How should a new player start?"',
   'chat.inputPlaceholder': 'Ask Paimon: e.g. "Is Kazuha worth pulling?"',
+  'chat.inputLabel': 'Message input',
   'chat.loadEarlier': 'Load earlier messages',
   'chat.send': 'Send',
   'chat.stop': 'Stop generating',
@@ -206,6 +207,7 @@ const en: Partial<Dict> = {
   'account.title': 'Account',
   'account.queryTitle': 'Look Up Player Profile',
   'account.queryPlaceholder': 'Enter a 9-digit game UID, e.g. 197794747',
+  'account.uidInputLabel': 'Game UID',
   // 'account.forceRefresh' removed 2026-09-28 (profiles always use the server snapshot; no bypass switch in the UI)
   // 'account.bind' removed 2026-10-12 (option A): a successful lookup now auto-binds server-side,
   // so the UI no longer needs a second "bind" click. The backend endpoint POST /api/genshin/binding
@@ -214,6 +216,8 @@ const en: Partial<Dict> = {
     'A successful lookup binds this UID to your account (unbind or switch it inside "Bound UID").',
   'account.bindSuccess': 'Bound! UID {uid} is now linked to your account and loads automatically.',
   'account.unbind': 'Unbind',
+  'account.unbindConfirm': 'Unbind this UID?',
+  'account.unbindConfirmYes': 'Confirm',
   'account.unbindSuccess': 'Unbound.',
   'account.boundLabel': 'Bound UID',
   'account.emptyShowcase': 'This player has no characters on display, or their info is private',

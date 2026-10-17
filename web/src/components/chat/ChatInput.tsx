@@ -41,6 +41,8 @@ export default function ChatInput({ disabled, busy, onSend, onStop }: Props) {
       className="flex items-end gap-3 border-t border-teyvat-line bg-teyvat-sunken p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
       <textarea
+        name="message"
+        aria-label={t('chat.inputLabel')}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}

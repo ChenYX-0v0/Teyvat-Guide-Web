@@ -143,7 +143,12 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+        {/* aria-live：流式回答是"异步更新"，屏读用户必须能听到增量（体检面板早已有，主对话页此前漏了） */}
+        <div
+          aria-live="polite"
+          aria-atomic="false"
+          className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6"
+        >
           {hasEarlier && (
             <div className="pt-4 text-center">
               <button
@@ -191,8 +196,16 @@ export default function ChatPage() {
 
       {/* 移动端历史会话抽屉（复用同一个 SessionList，选中后自动关闭） */}
       {sessionsOpen && (
-        <div className="fixed inset-0 z-40 touch-none md:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-teyvat-scrim backdrop-blur-sm" onClick={() => setSessionsOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 touch-none md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('chat.sessions')}
+        >
+          <div
+            className="absolute inset-0 bg-teyvat-scrim backdrop-blur-sm"
+            onClick={() => setSessionsOpen(false)}
+          />
           <div className="absolute inset-y-0 left-0">
             <SessionList variant="drawer" onNavigate={() => setSessionsOpen(false)} />
           </div>

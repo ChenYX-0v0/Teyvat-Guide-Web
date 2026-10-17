@@ -32,6 +32,8 @@ export default function AccountPage() {
   const bindingRef = useRef<UIDBinding | null>(null)
   // 账号信息默认折叠：只留「标题 + 已绑定 UID」，解绑点开才出现（手机上把首屏留给展柜与圣遗物）
   const [infoOpen, setInfoOpen] = useState(false)
+  // 解绑是破坏性操作（换号 = 档案/绑定全丢），2026-10-18 起加**行内二次确认**，不再一点就解
+  const [confirmUnbind, setConfirmUnbind] = useState(false)
 
   // 2026-09-28：**去掉「强制刷新（绕过本地缓存）」入口** ✓ ——
   // 档案一律走服务端快照（TTL 10 分钟 / 资产 reload 时清），用户侧不需要绕过缓存的开关；
@@ -152,22 +154,39 @@ export default function AccountPage() {
             <span className="text-sm font-semibold text-teyvat-gold tabular-nums">
               {binding.uid}
             </span>
-            {infoOpen && (
-              <>
+            {infoOpen && !confirmUnbind && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmUnbind(true)}
+                className="hover:border-err/40 hover:text-err"
+              >
+                <Link2Off className="h-3 w-3" />
+                {t('account.unbind')}
+              </Button>
+            )}
+            {infoOpen && confirmUnbind && (
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] text-err">{t('account.unbindConfirm')}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={unbind}
-                  className="hover:border-err/40 hover:text-err"
+                  onClick={() => void unbind()}
+                  className="border-err/50 text-err hover:border-err hover:bg-err/10 hover:text-err"
                 >
-                  <Link2Off className="h-3 w-3" />
-                  {t('account.unbind')}
+                  {t('account.unbindConfirmYes')}
                 </Button>
-              </>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmUnbind(false)}>
+                  {t('common.cancel')}
+                </Button>
+              </span>
             )}
             <button
               type="button"
-              onClick={() => setInfoOpen((v) => !v)}
+              onClick={() => {
+                setConfirmUnbind(false)
+                setInfoOpen((v) => !v)
+              }}
               aria-expanded={infoOpen}
               aria-label={infoOpen ? t('common.collapse') : t('common.expand')}
               className="tap-44 rounded-lg p-1 text-teyvat-text-4 transition tx-ease tx-fast hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
@@ -186,6 +205,10 @@ export default function AccountPage() {
           </h3>
           <div className="mt-3 flex gap-2">
             <input
+              name="uid"
+              aria-label={t('account.uidInputLabel')}
+              inputMode="numeric"
+              autoComplete="off"
               value={uid}
               onChange={(e) => setUid(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && query()}

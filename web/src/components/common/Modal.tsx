@@ -36,6 +36,8 @@ export default function Modal({ open, blocking = false, title, onClose, footer, 
     <div
       role="dialog"
       aria-modal="true"
+      // 有 title 时用 aria-labelledby 把它挂上（否则屏读只念"对话框"）
+      aria-labelledby={title ? 'tx-modal-title' : undefined}
       className="fixed inset-0 z-50 flex items-center justify-center bg-teyvat-scrim px-3 py-6 backdrop-blur-sm sm:px-4"
       onClick={() => {
         if (!blocking) onClose?.()
@@ -46,12 +48,16 @@ export default function Modal({ open, blocking = false, title, onClose, footer, 
         onClick={(e) => e.stopPropagation()}
       >
         {title ? (
-          <div className="shrink-0 border-b border-teyvat-line px-5 py-3.5 text-[13px] font-semibold tracking-[0.04em] text-teyvat-gold">
+          <div
+            id="tx-modal-title"
+            className="shrink-0 border-b border-teyvat-line px-5 py-3.5 text-[13px] font-semibold tracking-[0.04em] text-teyvat-gold"
+          >
             {title}
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {/* overscroll-contain：内容滚到底不再把页面一起带着滚 */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
 
         {footer ? <div className="shrink-0 border-t border-teyvat-line px-5 py-3">{footer}</div> : null}
       </div>
