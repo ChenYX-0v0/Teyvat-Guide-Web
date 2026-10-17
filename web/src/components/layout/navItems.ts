@@ -1,5 +1,6 @@
 import { House, MessagesSquare, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 
 export type NavItem = {
@@ -9,6 +10,14 @@ export type NavItem = {
   /** 精确匹配（首页需要，见 NavLink end） */
   end: boolean
 }
+
+/**
+ * 侧栏 / 抽屉**底部区块**的渲染上下文。
+ *
+ * 为什么是函数而不是节点 ✗：真实页底部是 `UserCard`，它在抽屉里需要"点完顺手关掉抽屉" ✓
+ * （`onNavigate`），而桌面侧栏不需要 —— 一个现成节点没法同时满足两边 ✓。
+ */
+export type AsideRender = (ctx: { onNavigate?: () => void }) => ReactNode
 
 /**
  * 主导航配置：桌面侧栏（Sidebar）与移动端抽屉（MobileNav）共用这一份。
@@ -25,4 +34,18 @@ export const navItems: NavItem[] = [
   // 上面的 BookOpen 导入、i18n 的 sidebar.wiki（zh/en）一起恢复 ✓。
   // 一起撤的还有首页那个「查看图鉴」次 CTA（`HomePage.tsx`）✓ —— 否则首页会指着一个刚被藏起来的页面 ✗。
   // { to: '/wiki', label: t('sidebar.wiki'), icon: BookOpen, end: false },
+]
+
+/**
+ * 演示模式的导航项（2026-10-17 ✓，见 TODO-32）。
+ *
+ * 与登录区**共用同一份外壳**（`AppShell` ✓）：侧栏位置、宽度、图标、选中态全都一致 ✓，
+ * 只换导航项与底部区块 —— 访客先看演示页、登录后再看真实页，不该有"换了产品"的错觉 ✗。
+ */
+export const demoNavItems: NavItem[] = [
+  // 顺序与登录区一致：首页 → 对话 → 账号 ✓（演示区补了首页之后，访客进来先看到"这是什么产品" ✓）
+  // 演示首页是 /demo 的 index 路由 ⇒ 必须 end 精确匹配，否则在 /demo/chat 上两项会同时高亮 ✗
+  { to: '/demo', label: t('demo.tabHome'), icon: House, end: true },
+  { to: '/demo/chat', label: t('demo.tabChat'), icon: MessagesSquare, end: false },
+  { to: '/demo/account', label: t('demo.tabAccount'), icon: UserRound, end: false },
 ]

@@ -270,13 +270,16 @@ const en: Partial<Dict> = {
   'demo.loginEntry': 'See the demo first (no sign-up)',
   'demo.tabAccount': 'Demo profile',
   'demo.tabChat': 'Demo chat',
+  'demo.tabHome': 'Demo home',
+  'demo.homeCta': 'Try the chat',
+  'demo.homeHint':
+    'Demo mode: the profile and chat below are preset samples — no AI calls, no quota used.',
   'demo.guestName': 'Traveler (guest)',
   'demo.noticeFallback':
     'This is demo content: the character profile and the analysis are preset samples, not live account data.',
   'demo.accountTitle': 'Demo profile',
   'demo.accountCtaHint':
     'After you sign in and bind your UID, Paimon sees your own character profile.',
-  'demo.analysisTitle': '{name} analysis',
   'demo.analysisNote': 'Preset sample · no quota used',
   'demo.chatTitle': 'Demo chat',
   'demo.chatHint':
@@ -285,6 +288,12 @@ const en: Partial<Dict> = {
   'demo.chatLocked': 'Sign in to ask anything (your own profile / teams / builds)',
   'demo.chatReset': 'Start over',
   'demo.empty': 'Demo content is not ready yet, please try again later.',
+  'demo.asideHint':
+    'Demo mode: everything here is a preset sample. Sign in to see your own characters.',
+  'demo.asideTerms': 'Terms of use',
+  'demo.sessionHint':
+    'Demo mode keeps no chat history. After you sign in, your conversations show up here.',
+  'demo.analysisCta': 'Sign in to analyse your own characters',
 
   // Wiki
   'wiki.title': 'Wiki',

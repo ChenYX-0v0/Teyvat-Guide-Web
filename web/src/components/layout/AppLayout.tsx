@@ -1,25 +1,25 @@
-import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
-import Header from './Header'
-import MobileNav from './MobileNav'
-import Sidebar from './Sidebar'
-import SiteFooter from './SiteFooter'
+import { useEffect } from 'react'
+import { Outlet } from 'react-router-dom'
+import AppShell from './AppShell'
+import UserCard from './UserCard'
+import { navItems } from './navItems'
 import TermsModal from '@/components/legal/TermsModal'
 import { useAuthStore } from '@/store/useAuthStore'
-import { trackRouteChange } from '@/lib/track'
 
+/**
+ * 登录区外壳 = **鉴权层 ＋ 纯外壳**（2026-10-17 拆分，见 TODO-32 ✓）。
+ *
+ * 这里只剩下"登录区专属"的三件事 ✓：
+ *  1. 启动校验本地 Token（过期/失效清凭据回登录页 ✓）；
+ *  2. 用户须知强制确认（版本不一致时只渲染阻断弹窗 ✓）；
+ *  3. 装入登录区的导航项与底部用户卡片 ✓。
+ * 骨架、导航形态、页脚、路由埋点都在 `AppShell` 里 ✓ —— 与演示区（`DemoLayout`）共用同一份 ✓。
+ */
 export default function AppLayout() {
   const verify = useAuthStore((s) => s.verify)
   const termsAcceptedVersion = useAuthStore((s) => s.termsAcceptedVersion)
   const termsCurrentVersion = useAuthStore((s) => s.termsCurrentVersion)
   const termsLoaded = useAuthStore((s) => s.termsLoaded)
-  const [navOpen, setNavOpen] = useState(false)
-  const location = useLocation()
-
-  // 埋点：路由变化 → 上一次的 page_leave（含停留时长）+ 本次 page_view
-  useEffect(() => {
-    trackRouteChange(location.pathname)
-  }, [location.pathname])
 
   // 启动时校验本地 Token：过期/失效则清凭据回登录页，避免"以为登录了其实在匿名聊天"
   useEffect(() => {
@@ -34,19 +34,8 @@ export default function AppLayout() {
   if (needTerms) return <TermsModal version={termsCurrentVersion} />
 
   return (
-    // h-dvh：移动端浏览器地址栏收起/展开时按动态视口取高，避免 h-full 导致的高度跳动与底部裁切
-    <div className="flex h-dvh flex-col">
-      <Header onMenuClick={() => setNavOpen(true)} />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
-      {/* 备案号（合规必需，见组件内注释与 web/11 §6.4）；放在滚动区之外 → 任何页面都常显 */}
-      <SiteFooter />
-      {/* 抽屉放在 Header 之外：Header 的 backdrop-blur 会成为 fixed 后代的包含块 */}
-      <MobileNav open={navOpen} onClose={() => setNavOpen(false)} />
-    </div>
+    <AppShell navItems={navItems} aside={({ onNavigate }) => <UserCard onNavigate={onNavigate} />}>
+      <Outlet />
+    </AppShell>
   )
 }

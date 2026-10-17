@@ -5,6 +5,7 @@ import LoginPage from '@/pages/LoginPage'
 import HomePage from '@/pages/HomePage'
 import ChatPage from '@/pages/ChatPage'
 import AccountPage from '@/pages/AccountPage'
+import DemoHomePage from '@/pages/DemoHomePage'
 import DemoAccountPage from '@/pages/DemoAccountPage'
 import DemoChatPage from '@/pages/DemoChatPage'
 import WikiPage from '@/pages/WikiPage'
@@ -32,8 +33,10 @@ export const router = createBrowserRouter([
     path: '/demo',
     element: <DemoLayout />,
     children: [
-      { index: true, element: <DemoAccountPage /> },
+      // 三页与登录区一一对应：首页 / 对话 / 账号 ✓（顺序同 `demoNavItems` ✓）
+      { index: true, element: <DemoHomePage /> },
       { path: 'chat', element: <DemoChatPage /> },
+      { path: 'account', element: <DemoAccountPage /> },
     ],
   },
   {

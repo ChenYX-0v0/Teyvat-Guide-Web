@@ -2,13 +2,17 @@ import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
-import { navItems } from './navItems'
+import { navItems, type AsideRender, type NavItem } from './navItems'
 import UserCard from './UserCard'
 import { t } from '@/i18n'
 
 type Props = {
   open: boolean
   onClose: () => void
+  /** 导航项（登录区是 navItems，演示区是 demoNavItems ✓） */
+  items?: NavItem[]
+  /** 底部区块（不传就是登录区的 UserCard ✓；传了会把 onClose 交回去让调用方顺手收抽屉 ✓） */
+  aside?: AsideRender
 }
 
 /**
@@ -19,7 +23,7 @@ type Props = {
  * 2026-10-11：底部同样放一块用户卡片（与桌面侧栏**同一组件** ✓）——
  * 否则账号/退出登录在手机上就没入口了 ✗（它们已从顶部栏移走 ✓）。
  */
-export default function MobileNav({ open, onClose }: Props) {
+export default function MobileNav({ open, onClose, items = navItems, aside }: Props) {
   const location = useLocation()
 
   // 路由变化后自动关闭（点导航项、或代码里跳转）
@@ -62,7 +66,7 @@ export default function MobileNav({ open, onClose }: Props) {
         </div>
 
         <div className="flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {items.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -83,8 +87,8 @@ export default function MobileNav({ open, onClose }: Props) {
           ))}
         </div>
 
-        {/* 用户一栏：贴抽屉底部；点条目后顺手关掉抽屉（onNavigate ✓） */}
-        <UserCard onNavigate={onClose} />
+        {/* 底部一栏：贴抽屉底部；点条目后顺手关掉抽屉（onNavigate ✓） */}
+        {aside ? aside({ onNavigate: onClose }) : <UserCard onNavigate={onClose} />}
       </nav>
     </div>
   )

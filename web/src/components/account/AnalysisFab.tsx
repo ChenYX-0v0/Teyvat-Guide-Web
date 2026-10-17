@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles } from 'lucide-react'
 import AnalysisPanel from './AnalysisPanel'
+import AnalysisFabButton from './AnalysisFabButton'
 import { t } from '@/i18n'
 import { EVENTS, track } from '@/lib/track'
 import type { CharacterCard } from '@/types/genshin'
@@ -17,6 +17,9 @@ interface Props {
 /**
  * 账号页悬浮体检入口：右下角按钮 + 面板（真源：teyvat-docs/web/13）。
  * 未绑定 UID 时**禁用而不是隐藏**——用户需要看到"为什么不能问"。
+ *
+ * 2026-10-17：按钮视觉抽到 `AnalysisFabButton` ✓（演示页复用同一颗 ✓），
+ * 这里只留逻辑：置灰判断 + 埋点 + 关闭后焦点归还 ✓。
  */
 export default function AnalysisFab({ uid, characters, character }: Props) {
   const [open, setOpen] = useState(false)
@@ -36,21 +39,16 @@ export default function AnalysisFab({ uid, characters, character }: Props) {
   return (
     <>
       {!open && (
-        <button
-          ref={fabRef}
-          type="button"
+        <AnalysisFabButton
+          buttonRef={fabRef}
+          disabled={disabled}
+          label={label}
           onClick={() => {
             if (disabled) return
             setOpen(true)
             track(EVENTS.accountAnalysisOpen)
           }}
-          disabled={disabled}
-          title={label}
-          aria-label={label}
-          className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex h-14 w-14 items-center justify-center rounded-full border border-teyvat-line-strong bg-gradient-to-b from-teyvat-gold-hi to-teyvat-gold text-teyvat-ink shadow-panel transition duration-150 hover:shadow-glow focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:right-6 sm:bottom-6"
-        >
-          <Sparkles className="h-5 w-5" />
-        </button>
+        />
       )}
 
       <AnalysisPanel

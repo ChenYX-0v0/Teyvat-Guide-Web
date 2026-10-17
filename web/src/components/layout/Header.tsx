@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react'
 import { Compass, Menu } from 'lucide-react'
 import { t } from '@/i18n'
 
 type Props = {
-  /** 移动端汉堡按钮：由 AppLayout 控制抽屉开关 */
+  /** 移动端汉堡按钮：由外壳（AppShell）控制抽屉开关 */
   onMenuClick: () => void
+  /** 标题右侧附加块（演示模式放「演示」徽标 ✓；登录区不传 ✓） */
+  extra?: ReactNode
 }
 
 /**
@@ -13,7 +16,7 @@ type Props = {
  * （`layout/UserCard` ✓，桌面侧栏与移动抽屉共用同一块卡片 ✓）——
  * 头像/昵称/个人信息/改密码/退出登录聚在一处，顶部栏不再散着账号入口 ✓。
  */
-export default function Header({ onMenuClick }: Props) {
+export default function Header({ onMenuClick, extra }: Props) {
   return (
     <header className="flex items-center justify-between gap-3 border-b border-teyvat-line bg-black/20 px-4 py-3 backdrop-blur sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -35,6 +38,8 @@ export default function Header({ onMenuClick }: Props) {
             <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('header.subtitle')}</p>
           ) : null}
         </div>
+        {/* 标题右侧附加块（演示页放「演示」徽标 ✓）：贴品牌名而不是甩到右侧空白处 */}
+        {extra ? <span className="shrink-0">{extra}</span> : null}
       </div>
 
     </header>
