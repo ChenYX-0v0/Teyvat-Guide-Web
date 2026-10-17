@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import clsx from 'clsx'
-import { UserRound } from 'lucide-react'
+import { Link2Off, RefreshCw, UserRound } from 'lucide-react'
 import RelicDetailCard from './RelicDetailCard'
 import Card from '@/components/common/Card'
+import Button from '@/components/common/Button'
 import Chip from '@/components/common/Chip'
 import EmptyState from '@/components/common/EmptyState'
 import { elementColor } from '@/utils/elementColor'
@@ -22,6 +23,14 @@ interface Props {
   /** 受控选中角色：由 AccountPage 持有，悬浮体检面板据此知道"当前在看谁"（设计 §7.5） */
   selectedId: number | null
   onSelect: (id: number) => void
+  /**
+   * 账号级动作（2026-10-18 从页面右上那枚「已绑定 UID」胶囊搬进来）。
+   *
+   * 不传 ⇒ 不渲染（演示页 `/demo/account` 用假档案，本来就不该出现"解绑"这种真操作 ✓）。
+   */
+  onSync?: () => void
+  syncing?: boolean
+  onUnbind?: () => void
 }
 
 /** 是不是"累积池里的角色"（只有它带 inShowcase / lastSeenAt ✓） */
@@ -29,7 +38,15 @@ function isCollected(c: CharacterCard | CollectedCharacter): c is CollectedChara
   return 'lastSeenAt' in c
 }
 
-export default function PlayerProfileView({ profile, collected, selectedId, onSelect }: Props) {
+export default function PlayerProfileView({
+  profile,
+  collected,
+  selectedId,
+  onSelect,
+  onSync,
+  syncing,
+  onUnbind,
+}: Props) {
   // 角色条用哪个集合：优先**累积池** ✓，拿不到才退回当前展柜 ✓（两个口径别混 ✗）
   const pool: (CharacterCard | CollectedCharacter)[] =
     collected && collected.length > 0 ? collected : profile.characters
@@ -37,6 +54,8 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
   const selected = pool.find((c) => c.id === selectedId) ?? pool[0]
   // 玩家头部默认折叠：只留「头像 + 昵称 + 等级 + UID」，签名与三个统计点开才看（把首屏留给展柜）
   const [headOpen, setHeadOpen] = useState(false)
+  // 解绑是破坏性操作（换号 = 档案/绑定全丢）⇒ 二次确认，不能一点就解
+  const [confirmUnbind, setConfirmUnbind] = useState(false)
 
   const stats = [
     { label: t('profile.statsAchievements'), value: profile.achievements },
@@ -135,6 +154,49 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                 </div>
               ))}
             </div>
+
+            {/* 账号级动作（2026-10-18）：原来挂在页面右上「已绑定 UID」胶囊里，和 UID 一起重复；
+                现在 UID 只留上面那一行，同步 / 解绑收进这里 —— 折叠态不占地方 ✓ */}
+            {(onSync || onUnbind) && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-teyvat-line pt-3">
+                {onSync && (
+                  <Button variant="ghost" size="sm" onClick={onSync} disabled={syncing}>
+                    <RefreshCw className={clsx('h-3 w-3', syncing && 'animate-spin')} />
+                    {t('account.sync')}
+                  </Button>
+                )}
+                {onUnbind && !confirmUnbind && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmUnbind(true)}
+                    className="hover:border-err/40 hover:text-err"
+                  >
+                    <Link2Off className="h-3 w-3" />
+                    {t('account.unbind')}
+                  </Button>
+                )}
+                {onUnbind && confirmUnbind && (
+                  <>
+                    <span className="text-[11px] text-err">{t('account.unbindConfirm')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="border-err/50 text-err hover:border-err hover:bg-err/10 hover:text-err"
+                      onClick={() => {
+                        setConfirmUnbind(false)
+                        onUnbind()
+                      }}
+                    >
+                      {t('account.unbindConfirmYes')}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmUnbind(false)}>
+                      {t('common.cancel')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Card>

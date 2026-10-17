@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import clsx from 'clsx'
 import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
 import { genshinApi, type CollectedCharacter, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
@@ -28,16 +27,26 @@ export default function AccountPage() {
   const [syncedAt, setSyncedAt] = useState('')
   /** 「已绑定但库里一条数据都没有」时，引导用户做那一次手动同步（见 loadFromDb） */
   const [loadedFromDb, setLoadedFromDb] = useState(false)
+  /**
+   * `binding()` 是否**已经有结论**（2026-10-18）。
+   *
+   * ⚠️ 不能用 `binding === null` 代替：初值就是 `null`，而绑定查询是异步的 ⇒
+   * 挂载后到响应回来之间，`!binding?.bound` 也成立，于是**未绑定用户才该看到的 UID 输入卡
+   * 会先闪一下**，等绑定结果回来才消失 ✗。必须等"确实没绑定"再渲染那张卡 ✓。
+   */
+  const [bindingReady, setBindingReady] = useState(false)
+  /** 兜底卡片里的解绑二次确认（正常路径的解绑在玩家头部卡里，见 PlayerProfileView） */
+  const [confirmUnbindFallback, setConfirmUnbindFallback] = useState(false)
   // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
   // binding 的"上一帧"镜像：`doQuery` 是 useCallback([])（闭包会读到旧的 binding ✗），
   // 而"查询后是否**新产生**了绑定"必须拿旧值比 ⇒ 用 ref 才拿得到当前值 ✓（2026-10-12 口径 A ✓）
   const bindingRef = useRef<UIDBinding | null>(null)
-  // 账号信息默认折叠：只留「标题 + 已绑定 UID」，解绑点开才出现（手机上把首屏留给展柜与圣遗物）
-  const [infoOpen, setInfoOpen] = useState(false)
-  // 解绑是破坏性操作（换号 = 档案/绑定全丢），2026-10-18 起加**行内二次确认**，不再一点就解
-  const [confirmUnbind, setConfirmUnbind] = useState(false)
+  // 2026-10-18：「已绑定 UID」那枚胶囊卡已**整体移除** ✓ —— UID 本来就印在玩家头部卡里
+  // （`PlayerProfileView` 折叠行右侧「UID …」），再放一个只是重复。
+  // 「同步展柜 / 解除绑定」两个动作随之挪进**玩家头部卡展开区**（折叠态不占地方 ✓）。
+  // 解绑的二次确认也一起搬过去，由 `PlayerProfileView` 自己持有 ✓。
 
   /**
    * 手动同步（2026-10-18 口径）：**这是全站唯一会打 Enka 上游的入口** ✓。
@@ -135,12 +144,14 @@ export default function AccountPage() {
       .then((b) => {
         setBinding(b)
         bindingRef.current = b
+        setBindingReady(true)
         if (b.bound && b.uid) void loadFromDb(b.uid)
         else setLoadedFromDb(true)
       })
       .catch(() => {
         setBinding(null)
         bindingRef.current = null
+        setBindingReady(true)
         setLoadedFromDb(true)
       })
   }, [loadFromDb])
@@ -197,67 +208,6 @@ export default function AccountPage() {
           </div>
         </div>
 
-        {/* 已绑定：一行摘要（UID + 展开按钮）；解绑在展开后出现，隐藏查询卡 */}
-        {binding?.bound && (
-          <div className="flex items-center gap-2 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-1.5">
-            <span className="text-xs text-teyvat-text-3">{t('account.boundLabel')}</span>
-            <span className="text-sm font-semibold text-teyvat-gold tabular-nums">
-              {binding.uid}
-            </span>
-            {/* 手动同步（2026-10-18）：全站唯一会打 Enka 上游的入口，进页面不再自动查询 */}
-            {infoOpen && !confirmUnbind && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void loadFromDb(binding.uid ?? '', { refresh: true })}
-                disabled={loading}
-                title={t('account.syncHint')}
-              >
-                <RefreshCw className={clsx('h-3 w-3', loading && 'animate-spin')} />
-                {t('account.sync')}
-              </Button>
-            )}
-            {infoOpen && !confirmUnbind && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmUnbind(true)}
-                className="hover:border-err/40 hover:text-err"
-              >
-                <Link2Off className="h-3 w-3" />
-                {t('account.unbind')}
-              </Button>
-            )}
-            {infoOpen && confirmUnbind && (
-              <span className="flex items-center gap-1.5">
-                <span className="text-[11px] text-err">{t('account.unbindConfirm')}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void unbind()}
-                  className="border-err/50 text-err hover:border-err hover:bg-err/10 hover:text-err"
-                >
-                  {t('account.unbindConfirmYes')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmUnbind(false)}>
-                  {t('common.cancel')}
-                </Button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmUnbind(false)
-                setInfoOpen((v) => !v)
-              }}
-              aria-expanded={infoOpen}
-              aria-label={infoOpen ? t('common.collapse') : t('common.expand')}
-              className="tap-44 rounded-lg p-1 text-teyvat-text-4 transition tx-ease tx-fast hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
-            >
-              <span className={clsx('block text-[10px] leading-none', infoOpen && 'rotate-180')}>▾</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* 回源没成功（上游超时 / 该 UID 没有公开展柜 / 从没同步过）⇒ 给一个**重试**入口 ✓
@@ -266,20 +216,52 @@ export default function AccountPage() {
       {binding?.bound && loadedFromDb && !loading && !profile && (
         <Card className="p-5">
           <h3 className="text-sm font-medium text-teyvat-text">{t('account.syncEmptyTitle')}</h3>
-          <Button
-            variant="primary"
-            className="mt-3"
-            disabled={loading}
-            onClick={() => void loadFromDb(binding.uid ?? '', { refresh: true })}
-          >
-            <RefreshCw className="h-4 w-4" />
-            {loading ? t('common.querying') : t('account.resync')}
-          </Button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              disabled={loading}
+              onClick={() => void loadFromDb(binding.uid ?? '', { refresh: true })}
+            >
+              <RefreshCw className="h-4 w-4" />
+              {loading ? t('common.querying') : t('account.resync')}
+            </Button>
+            {/* 兜底出口：没有档案时玩家头部卡渲染不出来，解绑不能因此变成死路 ✓ */}
+            {confirmUnbindFallback ? (
+              <>
+                <span className="text-[11px] text-err">{t('account.unbindConfirm')}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="border-err/50 text-err hover:border-err hover:bg-err/10 hover:text-err"
+                  onClick={() => {
+                    setConfirmUnbindFallback(false)
+                    void unbind()
+                  }}
+                >
+                  {t('account.unbindConfirmYes')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmUnbindFallback(false)}>
+                  {t('common.cancel')}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hover:border-err/40 hover:text-err"
+                onClick={() => setConfirmUnbindFallback(true)}
+              >
+                <Link2Off className="h-3 w-3" />
+                {t('account.unbind')}
+              </Button>
+            )}
+          </div>
         </Card>
       )}
 
-      {/* 未绑定：显示查询卡（**查询成功即自动绑定** ✓，2026-10-12 口径 A） */}
-      {!binding?.bound && (
+      {/* 未绑定：显示查询卡（**查询成功即自动绑定** ✓，2026-10-12 口径 A）
+          ⚠️ 必须等 bindingReady：否则绑定查询返回前会先闪一下这张卡（已绑定用户也能看到输入框 ✗） */}
+      {bindingReady && !binding?.bound && (
         <Card className="tx-enter p-5">
           <h3 className="text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
             {t('account.queryTitle')}
@@ -310,8 +292,9 @@ export default function AccountPage() {
         </Card>
       )}
 
-      {/* 查询中：骨架直接画出「档案」的形状（比一行"查询中…"少一次布局跳动） */}
-      {loading && !profile && <ProfileSkeleton />}
+      {/* 查询中：骨架直接画出「档案」的形状（比一行"查询中…"少一次布局跳动）
+          绑定态未就绪时也走骨架：这一小段既不该出现未绑定查询卡，也不该是一片空白 ✓ */}
+      {(!bindingReady || (loading && !profile)) && <ProfileSkeleton />}
 
       {notice && <Alert tone="ok">{notice}</Alert>}
 
@@ -339,6 +322,10 @@ export default function AccountPage() {
           collected={collected}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          // 同步 / 解绑原先在页面右上那枚「已绑定 UID」胶囊里，2026-10-18 挪进玩家头部卡展开区
+          onSync={() => void loadFromDb(binding?.uid ?? profile.uid, { refresh: true })}
+          syncing={loading}
+          onUnbind={() => void unbind()}
         />
       )}
 
