@@ -82,7 +82,7 @@ export default function AnalysisPanel({ open, onClose, uid, character, character
               type="button"
               onClick={rerun}
               disabled={loading}
-              className="shrink-0 rounded-lg border border-err/40 px-2 py-1 transition duration-150 hover:bg-err/10 focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
+              className="shrink-0 rounded-lg border border-err/40 px-2 py-1 transition tx-ease tx-fast hover:bg-err/10 focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
             >
               {t('analysis.retry')}
             </button>

@@ -21,7 +21,7 @@ type Props = {
  */
 export default function Sidebar({ items = navItems, aside }: Props) {
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-teyvat-line bg-black/20 p-3 md:flex md:flex-col">
+    <aside className="hidden w-56 shrink-0 border-r border-teyvat-line bg-teyvat-sunken p-3 md:flex md:flex-col">
       <nav className="flex flex-col gap-1">
         {items.map(({ to, label, icon: Icon, end }) => (
           <NavLink
@@ -30,11 +30,11 @@ export default function Sidebar({ items = navItems, aside }: Props) {
             end={end}
             className={({ isActive }) =>
               clsx(
-                'relative flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
+                'relative flex h-9 items-center gap-2 rounded-xl px-3 text-sm transition tx-ease tx-fast focus-visible:shadow-glow focus-visible:outline-none',
                 isActive
                   ? // 选中态：面板提亮 + 左侧金色指示条（而不是只变文字颜色）
                     'bg-teyvat-raised font-semibold text-teyvat-text before:absolute before:top-1/2 before:left-1 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-teyvat-gold before:shadow-glow'
-                  : 'text-teyvat-text-2 hover:bg-white/5 hover:text-teyvat-text',
+                  : 'text-teyvat-text-2 hover:bg-teyvat-fill-2 hover:text-teyvat-text',
               )
             }
           >
@@ -44,8 +44,10 @@ export default function Sidebar({ items = navItems, aside }: Props) {
         ))}
       </nav>
 
-      {/* 底部一栏：贴侧栏底部（mt-auto 在 UserCard / 演示说明卡内部 ✓） */}
-      {aside ? aside({}) : <UserCard />}
+      {/* 底部一栏：贴侧栏底部；上边一条极淡分隔线，把「导航」与「账号」分开（不加花边） */}
+      <div className="mt-auto border-t border-teyvat-line pt-3">
+        {aside ? aside({}) : <UserCard />}
+      </div>
     </aside>
   )
 }

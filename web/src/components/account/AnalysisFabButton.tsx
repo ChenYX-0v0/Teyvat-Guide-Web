@@ -24,7 +24,7 @@ export default function AnalysisFabButton({ label, disabled, onClick, buttonRef 
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex h-14 w-14 items-center justify-center rounded-full border border-teyvat-line-strong bg-gradient-to-b from-teyvat-gold-hi to-teyvat-gold text-teyvat-ink shadow-panel transition duration-150 hover:shadow-glow focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:right-6 sm:bottom-6"
+      className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex h-14 w-14 items-center justify-center rounded-full border border-teyvat-line-strong bg-gradient-to-b from-teyvat-gold-hi to-teyvat-gold text-teyvat-ink shadow-panel transition tx-ease tx-fast hover:shadow-glow focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:right-6 sm:bottom-6"
     >
       <Sparkles className="h-5 w-5" />
     </button>

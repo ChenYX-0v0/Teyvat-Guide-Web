@@ -6,6 +6,7 @@ import Sidebar from './Sidebar'
 import SiteFooter from './SiteFooter'
 import type { AsideRender, NavItem } from './navItems'
 import { trackRouteChange } from '@/lib/track'
+import { t } from '@/i18n'
 
 interface Props {
   /** 导航项：登录区 `navItems` / 演示区 `demoNavItems` ✓ */
@@ -42,10 +43,20 @@ export default function AppShell({ navItems, aside, headerExtra, children }: Pro
   return (
     // h-dvh：移动端浏览器地址栏收起/展开时按动态视口取高，避免 h-full 导致的高度跳动与底部裁切
     <div className="flex h-dvh flex-col">
+      {/* 跳转链接（2026-10-18）：键盘 / 屏读用户不必逐个 Tab 过侧栏才能到正文。
+          平时 sr-only，聚焦时才出现 —— 这是可达性硬要求，不是装饰 */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-lg focus:border focus:border-teyvat-line-strong focus:bg-teyvat-panel focus:px-3 focus:py-2 focus:text-xs focus:text-teyvat-text focus:shadow-glow"
+      >
+        {t('common.skipToContent')}
+      </a>
       <Header onMenuClick={() => setNavOpen(true)} extra={headerExtra} />
       <div className="flex min-h-0 flex-1">
         <Sidebar items={navItems} aside={aside} />
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto focus-visible:outline-none">
+          {children}
+        </main>
       </div>
       {/* 备案号（合规必需，见组件内注释与 web/11 §6.4）；放在滚动区之外 → 任何页面都常显 */}
       <SiteFooter />

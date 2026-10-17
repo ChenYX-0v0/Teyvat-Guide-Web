@@ -81,8 +81,8 @@ export default function HomeView({ ctaTo, ctaLabel, onCtaClick, extraCta, hint }
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
       {/* 英雄区：定位一句话 + 主 CTA */}
-      <p className="text-xs tracking-[0.24em] text-teyvat-text-4">TEYVAT GUIDE</p>
-      <h2 className="mt-3 text-2xl font-bold tracking-wide text-teyvat-gold sm:text-3xl">
+      <p className="text-[11px] tracking-[0.24em] text-teyvat-text-4">TEYVAT GUIDE</p>
+      <h2 className="mt-3 text-2xl leading-tight font-semibold tracking-[0.01em] text-teyvat-gold sm:text-[32px]">
         {t('home.welcome')}
       </h2>
 
@@ -109,20 +109,20 @@ export default function HomeView({ ctaTo, ctaLabel, onCtaClick, extraCta, hint }
       {hint}
 
       {/* 开发进度：三张状态卡（已上线 / 开发中 / 待排期） */}
-      <section className="mt-10 sm:mt-12">
-        <h3 className="text-sm font-semibold tracking-wide text-teyvat-text-2">
+      <section className="mt-12 sm:mt-16">
+        <h3 className="text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
           {t('home.plan.title')}
         </h3>
-        <p className="mt-1 text-xs text-teyvat-text-4">{t('home.plan.subtitle')}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-teyvat-text-4">{t('home.plan.subtitle')}</p>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
           {PLAN.map((card) => (
-            <Card key={card.label} className="p-4">
+            <Card key={card.label} className="p-5">
               <Chip dot={card.dot}>{t(card.label)}</Chip>
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-4 space-y-2.5">
                 {card.items.map((key) => (
-                  <li key={key} className="flex gap-2 text-sm text-teyvat-text-2">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-teyvat-text-4" />
+                  <li key={key} className="flex gap-2 text-[13px] leading-relaxed text-teyvat-text-2">
+                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-teyvat-text-4" />
                     {t(key)}
                   </li>
                 ))}

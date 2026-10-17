@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { Info, UserRound } from 'lucide-react'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
 import DemoAnalysis from '@/components/account/DemoAnalysis'
+import Alert from '@/components/common/Alert'
+import EmptyState from '@/components/common/EmptyState'
+import Skeleton from '@/components/common/Skeleton'
 import { demoApi } from '@/api/demo'
 import { buttonClass } from '@/utils/buttonStyles'
 import { t } from '@/i18n'
@@ -72,32 +75,46 @@ export default function DemoAccountPage() {
   }, [data, selectedId])
 
   if (loading) {
-    return <p className="py-16 text-center text-sm text-teyvat-text-3">{t('common.loading')}</p>
+    return <DemoProfileSkeleton />
   }
   if (error) {
-    return <p className="py-16 text-center text-sm text-err">{error}</p>
+    return (
+      <div className="mx-auto max-w-5xl px-4 pt-6 sm:px-6 sm:pt-8">
+        <Alert tone="error">{error}</Alert>
+      </div>
+    )
   }
   if (!profile || !data) {
-    return <p className="py-16 text-center text-sm text-teyvat-text-3">{t('demo.empty')}</p>
+    return (
+      <EmptyState
+        icon={UserRound}
+        title={t('demo.empty')}
+        className="mx-auto max-w-5xl px-6 py-16"
+      />
+    )
   }
 
   return (
     // 留白与 AccountPage 一致（pb-24：给右下角悬浮按钮让位 ✓）
-    <div className="mx-auto max-w-5xl space-y-6 px-6 pt-8 pb-24 sm:pb-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pt-6 pb-24 sm:px-6 sm:pt-8 sm:pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-xl font-semibold text-teyvat-gold">
-          <UserRound className="h-5 w-5" />
-          {t('demo.accountTitle')}
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-gold/10 text-teyvat-gold">
+            <UserRound className="h-4 w-4" />
+          </span>
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-gold">
+            {t('demo.accountTitle')}
+          </h2>
+        </div>
       </div>
 
       {/* 演示提示条：措辞由服务端从库里给（可运营），拿不到才用词典兜底 ✓ */}
-      <div className="flex gap-2 rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/5 p-4">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teyvat-gold" />
-        <p className="text-[11px] leading-relaxed text-teyvat-text-2">
-          {data.notice || t('demo.noticeFallback')}
-        </p>
-      </div>
+      <Alert tone="info" className="tx-enter">
+        <span className="flex gap-2">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teyvat-gold" />
+          <span className="text-[11px]">{data.notice || t('demo.noticeFallback')}</span>
+        </span>
+      </Alert>
 
       <PlayerProfileView profile={profile} selectedId={selectedId} onSelect={setSelectedId} />
 
@@ -116,6 +133,33 @@ export default function DemoAccountPage() {
           charKey={selected.charKey}
         />
       )}
+    </div>
+  )
+}
+
+/** 演示档案加载骨架：形状与真实档案一致（头部 + 角色条 + 属性格） */
+function DemoProfileSkeleton() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pt-6 sm:px-6 sm:pt-8">
+      <Skeleton className="h-6 w-32" />
+      <Skeleton className="h-14 rounded-xl" />
+      <div className="rounded-2xl border border-teyvat-line bg-teyvat-panel p-3 shadow-panel sm:p-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="ml-auto h-6 w-20 rounded-full" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-12 w-12 rounded-lg" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <Skeleton key={i} className="h-9 rounded-xl" />
+        ))}
+      </div>
     </div>
   )
 }

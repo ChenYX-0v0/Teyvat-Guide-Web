@@ -82,7 +82,7 @@ export default function AnalysisFrame({
     >
       {/* 移动端遮罩；桌面是浮动窗口，不锁页面 */}
       <div
-        className="absolute inset-x-0 bottom-0 h-[100dvh] bg-black/60 sm:hidden"
+        className="absolute inset-x-0 bottom-0 h-[100dvh] bg-teyvat-scrim sm:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -135,7 +135,7 @@ export default function AnalysisFrame({
               disabled={rerunning}
               title={t('analysis.rerun')}
               aria-label={t('analysis.rerun')}
-              className="rounded-lg p-1.5 text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
+              className="tap-44 rounded-lg p-1.5 text-teyvat-text-3 transition tx-ease tx-fast hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
             >
               <RotateCcw className={clsx('h-3.5 w-3.5', rerunning && 'animate-spin')} />
             </button>
@@ -145,7 +145,7 @@ export default function AnalysisFrame({
             onClick={onClose}
             title={t('header.close')}
             aria-label={t('header.close')}
-            className="rounded-lg p-1.5 text-teyvat-text-3 transition duration-150 hover:bg-white/5 hover:text-teyvat-text focus-visible:shadow-glow focus-visible:outline-none"
+            className="tap-44 rounded-lg p-1.5 text-teyvat-text-3 transition tx-ease tx-fast hover:bg-teyvat-fill-2 hover:text-teyvat-text focus-visible:shadow-glow focus-visible:outline-none"
           >
             <X className="h-4 w-4" />
           </button>

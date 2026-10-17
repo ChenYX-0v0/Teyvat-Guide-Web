@@ -68,7 +68,7 @@ export default function ProfileModal({ open, onClose }: Props) {
 
   // 输入框字号移动端 ≥16px：iOS 聚焦更小字号会自动放大页面（与登录页同一口径 ✓）
   const inputClass =
-    'mt-1 w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
+    'mt-1 w-full rounded-xl border border-teyvat-line bg-teyvat-fill px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
 
   return (
     <Modal
@@ -91,7 +91,7 @@ export default function ProfileModal({ open, onClose }: Props) {
       <form id="profile-form" onSubmit={save} className="space-y-4">
         <div>
           <span className="text-xs text-teyvat-text-3">{t('profile.account')}</span>
-          <p className="mt-1 truncate rounded-xl border border-teyvat-line bg-white/[0.02] px-3 py-2 text-sm text-teyvat-text-2">
+          <p className="mt-1 truncate rounded-xl border border-teyvat-line bg-teyvat-fill px-3 py-2 text-sm text-teyvat-text-2">
             {me?.username ?? '—'}
           </p>
         </div>
@@ -117,7 +117,7 @@ export default function ProfileModal({ open, onClose }: Props) {
 
         <div>
           <span className="text-xs text-teyvat-text-3">{t('profile.uidLabel')}</span>
-          <p className="mt-1 truncate rounded-xl border border-teyvat-line bg-white/[0.02] px-3 py-2 text-sm text-teyvat-text-2">
+          <p className="mt-1 truncate rounded-xl border border-teyvat-line bg-teyvat-fill px-3 py-2 text-sm text-teyvat-text-2">
             {me?.genshinUid ? me.genshinUid : t('profile.notBound')}
           </p>
         </div>

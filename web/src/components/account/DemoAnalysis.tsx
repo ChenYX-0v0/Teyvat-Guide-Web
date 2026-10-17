@@ -63,7 +63,7 @@ export default function DemoAnalysis({ character, analysis, charKey }: Props) {
         rerunning={phase !== 'idle'}
         scrollSignal={text}
         footer={
-          <div className="border-t border-teyvat-line bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+          <div className="border-t border-teyvat-line bg-teyvat-sunken p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
             <Link
               to="/login"
               className={buttonClass({ variant: 'primary' }) + ' w-full justify-center'}

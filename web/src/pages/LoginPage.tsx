@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Compass, Sparkles } from 'lucide-react'
 import Card from '@/components/common/Card'
+import Alert from '@/components/common/Alert'
 import Button from '@/components/common/Button'
 import SiteFooter from '@/components/layout/SiteFooter'
 import { ApiError } from '@/api/client'
@@ -128,38 +129,42 @@ export default function LoginPage() {
 
   // 输入框字号移动端 ≥16px：iOS 聚焦更小字号会自动放大页面（sm 起回到 text-sm）
   const inputClass =
-    'w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
+    'w-full rounded-xl border border-teyvat-line bg-teyvat-fill px-4 py-2.5 text-base text-teyvat-text outline-none transition tx-ease tx-fast placeholder:text-teyvat-text-4 hover:border-teyvat-line-strong focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
   const registering = mode === 'register' && canRegister
 
   return (
     // pb-10：给底部固定的备案号页脚留位，避免短屏时卡片与页脚重叠
     <div className="flex h-full items-center justify-center px-4 pb-10">
-      <Card className="relative w-full max-w-sm overflow-hidden p-7">
+      <Card className="tx-enter relative w-full max-w-sm overflow-hidden p-7">
         {/* 顶部金色微光：给登录卡一点"仪式感"，不做花哨装饰 */}
         <span
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teyvat-gold/60 to-transparent"
         />
 
-        <div className="flex flex-col items-center gap-2 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/10">
-            <Compass className="h-6 w-6 text-teyvat-gold" />
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-gold/10 text-teyvat-gold">
+            <Compass className="h-6 w-6" />
           </span>
-          <h1 className="text-lg font-semibold tracking-wide text-teyvat-gold">
-            {t('header.title')}
-          </h1>
-          {/* 2026-10-11：注册模式不再重复一句「创建你的旅行者账号」（上方标题已经说明身份 ✓），
-              这个位置只在登录态显示欢迎语 ✓；注册须知统一放到下面的表单顶部 ✓ */}
-          {!registering && <p className="text-xs text-teyvat-text-3">{t('login.welcome')}</p>}
+          <div>
+            <h1 className="text-[20px] leading-tight font-semibold tracking-[0.02em] text-teyvat-gold">
+              {t('header.title')}
+            </h1>
+            {/* 2026-10-11：注册模式不再重复一句「创建你的旅行者账号」（上方标题已经说明身份 ✓），
+                这个位置只在登录态显示欢迎语 ✓；注册须知统一放到下面的表单顶部 ✓ */}
+            {!registering && (
+              <p className="mt-1.5 text-xs text-teyvat-text-4">{t('login.welcome')}</p>
+            )}
+          </div>
         </div>
 
         {/* 注册关闭时的口径说明（服务端 allow_register=false / 短信未开启）*/}
         {!canRegister && (
-          <p className="mt-4 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-teyvat-text-3">
+          <Alert tone="info" className="mt-4 justify-center text-center">
             {t('login.inviteOnly')}
             <br />
             {t('login.inviteHint')}
-          </p>
+          </Alert>
         )}
 
         {registering ? (
@@ -236,16 +241,8 @@ export default function LoginPage() {
               <p className="text-[11px] text-teyvat-text-4">{t('login.passwordRule')}</p>
             )}
 
-            {error && (
-              <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
-                {error}
-              </p>
-            )}
-            {notice && !error && (
-              <p className="rounded-lg border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-2 text-xs text-teyvat-text-3">
-                {notice}
-              </p>
-            )}
+            {error && <Alert tone="error">{error}</Alert>}
+            {notice && !error && <Alert tone="info">{notice}</Alert>}
 
             <Button
               type="submit"
@@ -285,11 +282,7 @@ export default function LoginPage() {
               className={inputClass}
             />
 
-            {error && (
-              <p className="rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-xs text-err">
-                {error}
-              </p>
-            )}
+            {error && <Alert tone="error">{error}</Alert>}
 
             <Button
               type="submit"

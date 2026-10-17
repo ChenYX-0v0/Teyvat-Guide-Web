@@ -50,12 +50,12 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
     />
   ) : null
   const posEl = (
-    <span className="shrink-0 rounded-md border border-teyvat-line bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
+    <span className="shrink-0 rounded-md border border-teyvat-line bg-teyvat-fill px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
       {relicPosNames[relic.pos] ?? relic.pos}
     </span>
   )
   const levelEl = (
-    <span className="shrink-0 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-3 sm:text-xs">
+    <span className="shrink-0 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-4 tabular-nums sm:text-xs">
       +{relic.level}
     </span>
   )
@@ -64,7 +64,7 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
     relic.scoreCls && relic.score !== undefined ? (
       <span
         className={clsx(
-          'shrink-0 text-sm leading-tight font-semibold whitespace-nowrap sm:text-base',
+          'shrink-0 text-sm leading-tight font-semibold whitespace-nowrap tabular-nums sm:text-base',
           scoreClsText[relic.scoreCls] ?? 'text-teyvat-text-2',
         )}
         title={`${t('character.relicScoreNote')}${relic.weightTag ? `（${relic.weightTag}）` : ''}`}
@@ -107,7 +107,7 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
       {relic.mainStat && (
         <p
           className={clsx(
-            'mt-1.5 truncate text-sm leading-tight font-semibold sm:mt-2',
+            'mt-1.5 truncate text-sm leading-tight font-semibold tabular-nums sm:mt-2',
             relic.mainStatTier === 'primary'
               ? 'text-teyvat-gold'
               : relic.mainStatTier === 'secondary'
@@ -149,12 +149,12 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
             <p
               key={s.name}
               className={clsx(
-                'truncate text-[11px] leading-tight sm:text-xs',
+                'truncate text-[11px] leading-tight tabular-nums sm:text-xs',
                 s.tier === 'primary'
                   ? 'text-teyvat-gold'
                   : s.tier === 'secondary'
                     ? 'text-teyvat-text-2'
-                    : 'text-teyvat-text-3',
+                    : 'text-teyvat-text-4',
               )}
             >
               {s.name} +{s.value}
@@ -162,10 +162,10 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
               {s.count > 1 && (s.tier === 'primary' || s.tier === 'secondary') && (
                 <span
                   className={clsx(
-                    'ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border align-middle text-[10px] leading-none font-medium',
+                    'ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border align-middle text-[10px] leading-none font-medium tabular-nums',
                     s.tier === 'primary'
                       ? 'border-teyvat-line-strong bg-teyvat-gold/15 text-teyvat-gold'
-                      : 'border-teyvat-line bg-white/[0.04] text-teyvat-text-2',
+                      : 'border-teyvat-line bg-teyvat-fill text-teyvat-text-2',
                   )}
                   title={t('character.enhanceTimes', { n: s.count - 1 })}
                 >

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, MessageSquarePlus, Pencil, Trash2, X } from 'lucide-react'
 import clsx from 'clsx'
+import Skeleton from '@/components/common/Skeleton'
 import { useChatStore } from '@/store/useChatStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { t } from '@/i18n'
@@ -84,13 +85,15 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
 
   const rootClass =
     variant === 'sidebar'
-      ? 'hidden w-64 shrink-0 flex-col border-r border-teyvat-line bg-black/20 md:flex'
+      ? 'hidden w-64 shrink-0 flex-col border-r border-teyvat-line bg-teyvat-sunken md:flex'
       : 'flex h-full w-72 max-w-[85vw] flex-col border-r border-teyvat-line bg-teyvat-panel-soft'
 
   return (
     <aside className={rootClass}>
-      <div className="flex items-center justify-between px-3 py-3">
-        <span className="text-xs font-medium text-teyvat-text-3">{t('chat.sessions')}</span>
+      <div className="flex h-14 shrink-0 items-center justify-between px-3">
+        <span className="text-[11px] font-medium tracking-[0.08em] text-teyvat-text-4">
+          {t('chat.sessions')}
+        </span>
         {token && (
           <button
             onClick={() => {
@@ -98,7 +101,7 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
               onNavigate?.()
             }}
             title={t('chat.new')}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-teyvat-text-3 transition duration-150 hover:bg-white/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
+            className="flex h-7 w-7 tap-44 items-center justify-center rounded-lg text-teyvat-text-3 transition tx-ease tx-fast hover:bg-teyvat-fill-2 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
           >
             <MessageSquarePlus className="h-4 w-4" />
           </button>
@@ -109,11 +112,18 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
         <p className="px-4 py-4 text-xs leading-relaxed text-teyvat-text-4">{t('chat.loginHint')}</p>
       ) : (
         <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+          {/* 加载中：画 4 行骨架（形状先到位，避免"空一片再跳出内容"） */}
           {sessionsLoading && sessions.length === 0 && (
-            <p className="px-2 py-1 text-xs text-teyvat-text-4">{t('common.loading')}</p>
+            <div className="space-y-2 px-1 py-1" aria-hidden>
+              {[64, 88, 52, 76].map((w) => (
+                <Skeleton key={w} className="h-7" style={{ width: `${w}%` }} />
+              ))}
+            </div>
           )}
           {!sessionsLoading && sessions.length === 0 && (
-            <p className="px-2 py-1 text-xs text-teyvat-text-4">{t('chat.sessionsEmpty')}</p>
+            <p className="px-2 py-3 text-xs leading-relaxed text-teyvat-text-4">
+              {t('chat.sessionsEmpty')}
+            </p>
           )}
 
           {sessions.map((item) => {
@@ -122,10 +132,10 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
               <div
                 key={item.sessionId}
                 className={clsx(
-                  'group flex items-center gap-1 rounded-xl px-2 py-2 transition duration-150',
+                  'group flex items-center gap-1 rounded-xl px-2 py-2 transition tx-ease tx-fast',
                   active
                     ? 'bg-teyvat-raised font-medium text-teyvat-text'
-                    : 'text-teyvat-text-2 hover:bg-white/5 hover:text-teyvat-text',
+                    : 'text-teyvat-text-2 hover:bg-teyvat-fill-2 hover:text-teyvat-text',
                 )}
               >
                 {confirmingId === item.sessionId ? (
@@ -136,14 +146,14 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                     <button
                       onClick={() => void submitDelete(item.sessionId)}
                       title={t('chat.delete')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-err transition hover:text-err/80"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-err transition hover:text-err/80"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => setConfirmingId(undefined)}
                       title={t('chat.renameCancel')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-text"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-text"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -159,19 +169,19 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                         if (e.key === 'Enter') void submitRename()
                         if (e.key === 'Escape') cancelRename()
                       }}
-                      className="min-w-0 flex-1 rounded border border-teyvat-line-strong bg-white/[0.04] px-1.5 py-1 text-xs text-teyvat-text outline-none focus:shadow-glow"
+                      className="min-w-0 flex-1 rounded border border-teyvat-line-strong bg-teyvat-fill px-1.5 py-1 text-xs text-teyvat-text outline-none focus:shadow-glow"
                     />
                     <button
                       onClick={() => void submitRename()}
                       title={t('chat.renameSave')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-gold"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-teyvat-gold"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={cancelRename}
                       title={t('chat.renameCancel')}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-err"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-teyvat-text-3 transition hover:text-err"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -191,14 +201,14 @@ export default function SessionList({ variant = 'sidebar', onNavigate }: Props) 
                     <button
                       onClick={() => beginRename(item.sessionId, item.title)}
                       title={t('chat.rename')}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-teyvat-gold"
+                      className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-teyvat-gold"
                     >
                       <Pencil className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => beginDelete(item.sessionId)}
                       title={t('chat.delete')}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-err"
+                      className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-teyvat-text-4 transition group-hover:flex hover:text-err"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>

@@ -93,8 +93,8 @@ export default function UserCard({ onNavigate }: Props) {
         className={clsx(
           'flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition focus-visible:shadow-glow focus-visible:outline-none',
           menuOpen
-            ? 'border-teyvat-line-strong bg-white/5'
-            : 'border-teyvat-line bg-white/[0.03] hover:border-teyvat-line-strong hover:bg-white/5',
+            ? 'border-teyvat-line-strong bg-teyvat-fill-2'
+            : 'border-teyvat-line bg-teyvat-fill hover:border-teyvat-line-strong hover:bg-teyvat-fill-2',
         )}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-teyvat-line-strong bg-teyvat-gold/10 text-[11px] font-semibold text-teyvat-gold">
@@ -132,7 +132,7 @@ function MenuRow({
         'flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition',
         danger
           ? 'text-teyvat-text-3 hover:bg-err/10 hover:text-err'
-          : 'text-teyvat-text-2 hover:bg-white/5 hover:text-teyvat-text',
+          : 'text-teyvat-text-2 hover:bg-teyvat-fill-2 hover:text-teyvat-text',
       )}
     >
       <Icon className="h-3.5 w-3.5" />

@@ -18,24 +18,27 @@ type Props = {
  */
 export default function Header({ onMenuClick, extra }: Props) {
   return (
-    <header className="flex items-center justify-between gap-3 border-b border-teyvat-line bg-black/20 px-4 py-3 backdrop-blur sm:px-6">
+    <header className="flex h-14 items-center justify-between gap-3 border-b border-teyvat-line bg-teyvat-sunken px-4 backdrop-blur sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onMenuClick}
           aria-label={t('header.menu')}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-teyvat-line text-teyvat-text-2 transition hover:border-teyvat-line-strong hover:text-teyvat-text md:hidden"
+          className="flex h-9 w-9 tap-44 shrink-0 items-center justify-center rounded-lg border border-teyvat-line text-teyvat-text-2 transition tx-ease tx-fast hover:border-teyvat-line-strong hover:bg-teyvat-fill hover:text-teyvat-text md:hidden"
         >
           <Menu className="h-4 w-4" />
         </button>
         <Compass className="h-6 w-6 shrink-0 text-teyvat-gold" />
         <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold tracking-wide text-teyvat-gold sm:text-lg">
+          <h1 className="truncate text-base font-semibold tracking-[0.02em] text-teyvat-gold sm:text-[17px]">
             {t('header.title')}
           </h1>
-          {/* 副标题为空时不渲染（英文界面下标题已是 Teyvat Guide，无需重复） */}
+          {/* 副标题为空时不渲染（英文界面下标题已是 Teyvat Guide，无需重复）
+              小字 + 0.18em 字距 = 「铭牌」排法，和 16px 的品牌名拉开层级 */}
           {t('header.subtitle') ? (
-            <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('header.subtitle')}</p>
+            <p className="hidden truncate text-[10px] tracking-[0.18em] text-teyvat-text-4 uppercase sm:block">
+              {t('header.subtitle')}
+            </p>
           ) : null}
         </div>
         {/* 标题右侧附加块（演示页放「演示」徽标 ✓）：贴品牌名而不是甩到右侧空白处 */}

@@ -38,7 +38,7 @@ export default function ChatInput({ disabled, busy, onSend, onStop }: Props) {
   return (
     <form
       onSubmit={onSubmit}
-      className="flex items-end gap-2 border-t border-teyvat-line bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur"
+      className="flex items-end gap-3 border-t border-teyvat-line bg-teyvat-sunken p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
       <textarea
         value={value}
@@ -46,7 +46,7 @@ export default function ChatInput({ disabled, busy, onSend, onStop }: Props) {
         onKeyDown={onKeyDown}
         rows={1}
         placeholder={t('chat.inputPlaceholder')}
-        className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm"
+        className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-teyvat-line bg-teyvat-fill px-4 py-2.5 text-base text-teyvat-text outline-none transition tx-ease tx-fast placeholder:text-teyvat-text-4 hover:border-teyvat-line-strong focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm"
       />
       {canStop ? (
         <button
@@ -54,7 +54,7 @@ export default function ChatInput({ disabled, busy, onSend, onStop }: Props) {
           onClick={onStop}
           aria-label={t('chat.stop')}
           title={t('chat.stop')}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-raised text-teyvat-text-2 transition duration-150 hover:border-warn/60 hover:text-warn focus-visible:shadow-glow focus-visible:outline-none"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-teyvat-line-strong bg-teyvat-raised text-teyvat-text-2 transition tx-ease tx-fast hover:border-warn/60 hover:text-warn focus-visible:shadow-glow focus-visible:outline-none"
         >
           <Square className="h-3.5 w-3.5 fill-current" />
         </button>
@@ -64,7 +64,7 @@ export default function ChatInput({ disabled, busy, onSend, onStop }: Props) {
           disabled={disabled || !value.trim()}
           aria-label={t('chat.send')}
           title={t('chat.send')}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teyvat-gold text-teyvat-ink transition duration-150 hover:bg-teyvat-gold-hi hover:shadow-glow focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teyvat-gold text-teyvat-ink shadow-panel transition tx-ease tx-fast hover:bg-teyvat-gold-hi hover:shadow-glow focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Send className="h-4 w-4" />
         </button>

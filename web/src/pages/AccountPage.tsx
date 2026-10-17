@@ -6,6 +6,8 @@ import PlayerProfileView from '@/components/account/PlayerProfileView'
 import AnalysisFab from '@/components/account/AnalysisFab'
 import Card from '@/components/common/Card'
 import Button from '@/components/common/Button'
+import Alert from '@/components/common/Alert'
+import Skeleton from '@/components/common/Skeleton'
 import { t } from '@/i18n'
 import { EVENTS, track } from '@/lib/track'
 import { resetAnalyzed } from '@/lib/analysisGate'
@@ -132,18 +134,24 @@ export default function AccountPage() {
 
   return (
     // 底部留出悬浮体检按钮的位置，避免它压住最后一排圣遗物
-    <div className="mx-auto max-w-5xl space-y-6 px-6 pt-8 pb-24 sm:pb-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pt-6 pb-24 sm:px-6 sm:pt-8 sm:pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-xl font-semibold text-teyvat-gold">
-          <UserRound className="h-5 w-5" />
-          {t('account.title')}
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-gold/10 text-teyvat-gold">
+            <UserRound className="h-4 w-4" />
+          </span>
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-gold">
+            {t('account.title')}
+          </h2>
+        </div>
 
         {/* 已绑定：一行摘要（UID + 展开按钮）；解绑在展开后出现，隐藏查询卡 */}
         {binding?.bound && (
           <div className="flex items-center gap-2 rounded-xl border border-teyvat-line-strong bg-teyvat-gold/5 px-3 py-1.5">
             <span className="text-xs text-teyvat-text-3">{t('account.boundLabel')}</span>
-            <span className="text-sm font-semibold text-teyvat-gold">{binding.uid}</span>
+            <span className="text-sm font-semibold text-teyvat-gold tabular-nums">
+              {binding.uid}
+            </span>
             {infoOpen && (
               <>
                 <Button
@@ -162,7 +170,7 @@ export default function AccountPage() {
               onClick={() => setInfoOpen((v) => !v)}
               aria-expanded={infoOpen}
               aria-label={infoOpen ? t('common.collapse') : t('common.expand')}
-              className="rounded-lg p-1 text-teyvat-text-4 transition duration-150 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
+              className="tap-44 rounded-lg p-1 text-teyvat-text-4 transition tx-ease tx-fast hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none"
             >
               <span className={clsx('block text-[10px] leading-none', infoOpen && 'rotate-180')}>▾</span>
             </button>
@@ -172,15 +180,17 @@ export default function AccountPage() {
 
       {/* 未绑定：显示查询卡（**查询成功即自动绑定** ✓，2026-10-12 口径 A） */}
       {!binding?.bound && (
-        <Card className="p-5">
-          <h3 className="text-sm font-medium text-teyvat-text">{t('account.queryTitle')}</h3>
+        <Card className="tx-enter p-5">
+          <h3 className="text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
+            {t('account.queryTitle')}
+          </h3>
           <div className="mt-3 flex gap-2">
             <input
               value={uid}
               onChange={(e) => setUid(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && query()}
               placeholder={t('account.queryPlaceholder')}
-              className="flex-1 rounded-xl border border-teyvat-line bg-white/[0.04] px-4 py-2.5 text-sm text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow"
+              className="min-w-0 flex-1 rounded-xl border border-teyvat-line bg-teyvat-fill px-4 py-2.5 text-sm text-teyvat-text outline-none transition tx-ease tx-fast placeholder:text-teyvat-text-4 hover:border-teyvat-line-strong focus:border-teyvat-line-strong focus:shadow-glow"
             />
             <Button variant="primary" onClick={query} disabled={loading || !uid.trim()}>
               <Search className="h-4 w-4" />
@@ -196,14 +206,27 @@ export default function AccountPage() {
         </Card>
       )}
 
-      {notice && (
-        <div className="rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/5 p-4 text-sm text-teyvat-gold-hi">
-          {notice}
-        </div>
-      )}
+      {/* 查询中：骨架直接画出「档案」的形状（比一行"查询中…"少一次布局跳动） */}
+      {loading && !profile && <ProfileSkeleton />}
+
+      {notice && <Alert tone="ok">{notice}</Alert>}
 
       {error && (
-        <div className="rounded-2xl border border-err/30 bg-err/10 p-4 text-sm text-err">{error}</div>
+        <Alert
+          tone="error"
+          action={
+            <button
+              type="button"
+              onClick={query}
+              disabled={loading}
+              className="rounded-lg border border-err/40 px-2 py-1 text-[11px] transition tx-ease tx-fast hover:bg-err/10 focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
+            >
+              {t('analysis.retry')}
+            </button>
+          }
+        >
+          {error}
+        </Alert>
       )}
 
       {profile && (
@@ -222,6 +245,40 @@ export default function AccountPage() {
         characters={pool}
         character={pool.find((c) => c.id === selectedId) ?? pool[0]}
       />
+    </div>
+  )
+}
+
+/**
+ * 查询中的骨架（2026-10-17 · UI 优化第 1 轮）：
+ * 直接画出「玩家头部 + 角色条 + 属性格」的形状 —— 比一行「查询中…」少一次布局跳动。
+ */
+function ProfileSkeleton() {
+  return (
+    <div className="space-y-5" aria-hidden>
+      <div className="rounded-2xl border border-teyvat-line bg-teyvat-panel p-3 shadow-panel sm:p-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-2.5 w-20" />
+          </div>
+          <Skeleton className="ml-auto h-6 w-20 rounded-full" />
+        </div>
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-28" />
+        <div className="flex gap-2">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-12 w-12 rounded-lg" />
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <Skeleton key={i} className="h-9 rounded-xl" />
+        ))}
+      </div>
     </div>
   )
 }

@@ -69,7 +69,7 @@ export default function PasswordModal({ open, onClose }: Props) {
   }
 
   const inputClass =
-    'mt-1 w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
+    'mt-1 w-full rounded-xl border border-teyvat-line bg-teyvat-fill px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
 
   return (
     <Modal

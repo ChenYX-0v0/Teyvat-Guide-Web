@@ -120,7 +120,7 @@ export default function FeedbackModal({ open, onClose }: Props) {
   }
 
   const inputClass =
-    'mt-1 w-full rounded-xl border border-teyvat-line bg-white/[0.04] px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
+    'mt-1 w-full rounded-xl border border-teyvat-line bg-teyvat-fill px-3 py-2 text-base text-teyvat-text outline-none transition placeholder:text-teyvat-text-4 focus:border-teyvat-line-strong focus:shadow-glow sm:text-sm'
 
   const left = content.trim().length
 
@@ -183,8 +183,8 @@ export default function FeedbackModal({ open, onClose }: Props) {
                 className={clsx(
                   'mt-1 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-base text-teyvat-text outline-none transition sm:text-sm',
                   catOpen
-                    ? 'border-teyvat-line-strong bg-white/[0.06] shadow-glow'
-                    : 'border-teyvat-line bg-white/[0.04] hover:border-teyvat-line-strong',
+                    ? 'border-teyvat-line-strong bg-teyvat-fill shadow-glow'
+                    : 'border-teyvat-line bg-teyvat-fill hover:border-teyvat-line-strong',
                 )}
               >
                 <span>{t(CATEGORY_LABEL[category])}</span>

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Lock, MessagesSquare, RotateCcw } from 'lucide-react'
 import MessageBubble from '@/components/chat/MessageBubble'
+import Alert from '@/components/common/Alert'
+import EmptyState from '@/components/common/EmptyState'
+import Skeleton from '@/components/common/Skeleton'
 import { chatApi } from '@/api/chat'
 import { useDemoReplay } from '@/hooks/useDemoReplay'
 import { buttonClass } from '@/utils/buttonStyles'
@@ -95,7 +98,7 @@ export default function DemoChatPage() {
   return (
     <div className="flex h-full">
       {/* 左列：真实页是历史会话（SessionList），演示页同宽同位给一句说明 ✓ */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-teyvat-line bg-black/20 p-3 md:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-teyvat-line bg-teyvat-sunken p-3 md:flex">
         <div className="flex items-center gap-2 px-2 py-2 text-xs font-medium text-teyvat-text-3">
           <MessagesSquare className="h-3.5 w-3.5" />
           {t('chat.sessions')}
@@ -107,9 +110,11 @@ export default function DemoChatPage() {
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {/* 标题栏：与真实页同构（标题 + 副标题 + 右侧动作） */}
-        <div className="flex items-center justify-between gap-2 border-b border-teyvat-line px-4 py-3 sm:px-6">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-teyvat-line px-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-medium text-teyvat-text">{t('chat.title')}</h2>
+            <h2 className="truncate text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-text">
+              {t('chat.title')}
+            </h2>
             <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('chat.subtitle')}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -132,32 +137,47 @@ export default function DemoChatPage() {
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+          {/* 加载：骨架气泡 + 一排示例胶囊的形状 */}
           {loading && (
-            <p className="py-8 text-center text-sm text-teyvat-text-3">{t('common.loading')}</p>
-          )}
-          {!loading && error && <p className="py-8 text-center text-sm text-err">{error}</p>}
-          {!loading && !error && presets.length === 0 && (
-            <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetEmpty')}</p>
-          )}
-
-          {/* 空态：与真实页的示例问题同一个位置与形态（mt-16 居中 + 胶囊 chip ✓） */}
-          {messages.length === 0 && presets.length > 0 && (
-            <div className="mt-16 text-center">
-              <p className="text-sm text-teyvat-text-3">{t('demo.chatPick')}</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {presets.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => ask(item, index)}
-                    disabled={busy}
-                    className="rounded-full border border-teyvat-line bg-white/[0.03] px-3 py-1.5 text-xs text-teyvat-text-2 transition duration-150 hover:border-teyvat-line-strong hover:bg-teyvat-gold/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {item.question}
-                  </button>
+            <div className="mx-auto w-full max-w-2xl space-y-4 pt-6" aria-hidden>
+              <div className="flex gap-3">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <Skeleton className="h-16 flex-1 rounded-2xl" />
+              </div>
+              <div className="flex justify-center gap-2 pt-4">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-8 w-28 rounded-full" />
                 ))}
               </div>
             </div>
+          )}
+          {!loading && error && (
+            <Alert tone="error" className="mx-auto mt-6 max-w-md">
+              {error}
+            </Alert>
+          )}
+          {!loading && !error && presets.length === 0 && (
+            <EmptyState title={t('chat.presetEmpty')} className="py-10" />
+          )}
+
+          {/* 空态：与真实页的示例问题同一个位置与形态（居中 + 胶囊 chip ✓） */}
+          {messages.length === 0 && presets.length > 0 && (
+            <EmptyState
+              icon={MessagesSquare}
+              title={t('demo.chatPick')}
+              className="tx-enter pt-10"
+              action={presets.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => ask(item, index)}
+                  disabled={busy}
+                  className="rounded-full border border-teyvat-line bg-teyvat-fill px-3.5 py-1.5 text-xs text-teyvat-text-2 transition tx-ease tx-fast hover:border-teyvat-line-strong hover:bg-teyvat-gold/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {item.question}
+                </button>
+              ))}
+            />
           )}
 
           {messages.map((m) => (
@@ -173,9 +193,9 @@ export default function DemoChatPage() {
         {/* 底部输入区：位置与真实页 ChatInput 一致，但**禁用**并只留登录入口 ✓ */}
         <form
           onSubmit={(e) => e.preventDefault()}
-          className="flex items-end gap-2 border-t border-teyvat-line bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur"
+          className="flex items-end gap-3 border-t border-teyvat-line bg-teyvat-sunken p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
-          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-teyvat-line bg-white/[0.04] px-4 text-base text-teyvat-text-4 sm:text-sm">
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-teyvat-line bg-teyvat-fill px-4 text-base text-teyvat-text-4 sm:text-sm">
             <Lock className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t('demo.chatLocked')}</span>
           </div>

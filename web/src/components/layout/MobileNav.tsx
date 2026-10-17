@@ -51,15 +51,17 @@ export default function MobileNav({ open, onClose, items = navItems, aside }: Pr
 
   return (
     <div className="fixed inset-0 z-50 touch-none md:hidden" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-teyvat-scrim backdrop-blur-sm" onClick={onClose} />
       <nav className="absolute inset-y-0 left-0 flex w-64 max-w-[80vw] flex-col border-r border-teyvat-line bg-teyvat-panel-soft px-3 py-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between px-2">
-          <span className="text-xs font-medium text-teyvat-text-3">{t('header.menu')}</span>
+          <span className="text-[11px] font-medium tracking-[0.08em] text-teyvat-text-4">
+            {t('header.menu')}
+          </span>
           <button
             type="button"
             onClick={onClose}
             aria-label={t('header.close')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-teyvat-text-3 transition hover:bg-white/5 hover:text-teyvat-text"
+            className="flex h-8 w-8 tap-44 items-center justify-center rounded-lg text-teyvat-text-3 transition tx-ease tx-fast hover:bg-teyvat-fill-2 hover:text-teyvat-text"
           >
             <X className="h-4 w-4" />
           </button>
@@ -74,10 +76,10 @@ export default function MobileNav({ open, onClose, items = navItems, aside }: Pr
               onClick={onClose}
               className={({ isActive }) =>
                 clsx(
-                  'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition duration-150',
+                  'relative flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition tx-ease tx-fast',
                   isActive
                     ? 'bg-teyvat-raised font-semibold text-teyvat-text before:absolute before:top-1/2 before:left-1 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-teyvat-gold before:shadow-glow'
-                    : 'text-teyvat-text-2 hover:bg-white/5 hover:text-teyvat-text',
+                    : 'text-teyvat-text-2 hover:bg-teyvat-fill-2 hover:text-teyvat-text',
                 )
               }
             >
@@ -88,7 +90,9 @@ export default function MobileNav({ open, onClose, items = navItems, aside }: Pr
         </div>
 
         {/* 底部一栏：贴抽屉底部；点条目后顺手关掉抽屉（onNavigate ✓） */}
-        {aside ? aside({ onNavigate: onClose }) : <UserCard onNavigate={onClose} />}
+        <div className="mt-auto border-t border-teyvat-line pt-3">
+          {aside ? aside({ onNavigate: onClose }) : <UserCard onNavigate={onClose} />}
+        </div>
       </nav>
     </div>
   )

@@ -33,7 +33,7 @@ export default function DemoLayout() {
 /** 侧栏 / 抽屉底部区块：与登录区的 `UserCard` 同位同宽（`mt-auto` 压到底部 ✓） */
 function DemoAside() {
   return (
-    <div className="mt-auto flex flex-col gap-2 rounded-xl border border-teyvat-line bg-white/[0.03] p-3">
+    <div className="mt-auto flex flex-col gap-2 rounded-xl border border-teyvat-line bg-teyvat-fill p-3">
       <p className="text-[11px] leading-relaxed text-teyvat-text-4">{t('demo.asideHint')}</p>
       <Link
         to="/login"
@@ -43,7 +43,7 @@ function DemoAside() {
       </Link>
       <Link
         to="/terms"
-        className="text-center text-[11px] text-teyvat-text-3 transition duration-150 hover:text-teyvat-gold"
+        className="text-center text-[11px] text-teyvat-text-3 transition tx-ease tx-fast hover:text-teyvat-gold"
       >
         {t('demo.asideTerms')}
       </Link>

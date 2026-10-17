@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import clsx from 'clsx'
+import { UserRound } from 'lucide-react'
 import RelicDetailCard from './RelicDetailCard'
 import Card from '@/components/common/Card'
 import Chip from '@/components/common/Chip'
+import EmptyState from '@/components/common/EmptyState'
 import { elementColor } from '@/utils/elementColor'
 import { t } from '@/i18n'
 import type { CollectedCharacter } from '@/api/genshin'
@@ -90,14 +92,20 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
             </span>
           )}
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-base font-semibold text-teyvat-text">{profile.nickname}</span>
-            <Chip tone="gold">Lv.{profile.level}</Chip>
+            <span className="truncate text-[17px] leading-tight font-semibold tracking-[0.01em] text-teyvat-text">
+              {profile.nickname}
+            </span>
+            <Chip tone="gold" className="tabular-nums">
+              Lv.{profile.level}
+            </Chip>
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-2">
             {/* uid 为空则不渲染（2026-10-17）：演示档案是编的、没有游戏 UID，
                 空值渲染出"UID "这样的半截文案很难看 ✗（真实档案一定有 uid ✓，不受影响 ✓） */}
             {profile.uid && (
-              <span className="text-[11px] text-teyvat-text-3">UID {profile.uid}</span>
+              <span className="text-[11px] tracking-[0.04em] text-teyvat-text-4 tabular-nums">
+                UID {profile.uid}
+              </span>
             )}
             <span
               className={clsx('block text-[10px] leading-none text-teyvat-text-4', headOpen && 'rotate-180')}
@@ -114,9 +122,14 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
             </p>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {stats.map((s) => (
-                <div key={s.label} className="rounded-xl bg-teyvat-raised px-2 py-1.5 text-center">
-                  <p className="text-base font-semibold text-teyvat-text">{s.value}</p>
-                  <p className="mt-0.5 text-[11px] text-teyvat-text-3">{s.label}</p>
+                <div
+                  key={s.label}
+                  className="rounded-xl border border-teyvat-line bg-teyvat-fill px-2 py-2 text-center"
+                >
+                  <p className="text-[17px] leading-none font-semibold text-teyvat-text tabular-nums">
+                    {s.value}
+                  </p>
+                  <p className="mt-1.5 text-[11px] text-teyvat-text-4">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -128,7 +141,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
       {pool.length > 0 ? (
         <div className="space-y-5">
           <div>
-            <h3 className="text-sm font-medium text-teyvat-text">
+            <h3 className="text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
               {t('profile.collectedCount', { count: pool.length })}
             </h3>
             {/* 两个口径都露出来：**已收录总数**（只增不减 ✓）+ **本轮展柜数**（≤12 ✓）
@@ -154,7 +167,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                     aria-label={tip}
                     aria-pressed={isSelected}
                     className={clsx(
-                      'relative shrink-0 rounded-xl border p-0.5 transition duration-150 focus-visible:shadow-glow focus-visible:outline-none',
+                      'relative shrink-0 rounded-xl border p-0.5 transition tx-ease tx-fast focus-visible:shadow-glow focus-visible:outline-none',
                       // 已移出展柜：弱化，一眼能看出"这张是历史数据"
                       out && 'opacity-60',
                       // 未选中用透明边框（而不是去掉边框），切换时不跳动
@@ -199,14 +212,16 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
               {/* 角色概要 */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-teyvat-line-strong bg-teyvat-gold/5 px-5 py-4">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-teyvat-text">{selected.name}</p>
+                  <p className="text-[15px] font-semibold tracking-[0.01em] text-teyvat-text">
+                    {selected.name}
+                  </p>
                   <Chip dot={elementColor(selected.element)}>{selected.element}</Chip>
                 </div>
-                <p className="text-xs text-teyvat-text-2">
+                <p className="text-xs text-teyvat-text-2 tabular-nums">
                   Lv.{selected.level} ·{' '}
                   {t('character.constellation', { n: selected.constellation })}
                 </p>
-                <p className="text-xs text-teyvat-text-2">
+                <p className="text-xs text-teyvat-text-2 tabular-nums">
                   {t('character.fetter', { n: selected.fetter })}
                 </p>
                 {selected.weapon && (
@@ -231,7 +246,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
               {/* 面板属性 */}
               {selected.stats && selected.stats.length > 0 && (
                 <div>
-                  <h4 className="mb-2 text-sm font-medium text-teyvat-text">
+                  <h4 className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
                     {t('profile.statsTitle')}
                   </h4>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -245,7 +260,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                             'flex items-center justify-between rounded-xl border px-3 py-2',
                             highlighted
                               ? 'border-teyvat-line-strong bg-teyvat-gold/5'
-                              : 'border-teyvat-line bg-teyvat-panel',
+                              : 'border-teyvat-line bg-teyvat-fill',
                           )}
                         >
                           <span
@@ -258,8 +273,8 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                           </span>
                           <span
                             className={clsx(
-                              'text-sm font-semibold',
-                              highlighted ? 'text-teyvat-gold' : 'text-teyvat-text-3',
+                              'text-sm font-semibold tabular-nums',
+                              highlighted ? 'text-teyvat-gold' : 'text-teyvat-text-2',
                             )}
                           >
                             {s.value}
@@ -274,7 +289,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
               {/* 圣遗物详情 */}
               {selected.relics && selected.relics.length > 0 && (
                 <div>
-                  <h4 className="mb-1.5 text-sm font-medium text-teyvat-text">
+                  <h4 className="mb-1.5 text-[13px] font-semibold tracking-[0.04em] text-teyvat-text-2">
                     {t('character.relicsCount', { n: selected.relics.length })}
                   </h4>
 
@@ -283,7 +298,11 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                     <div className="flex flex-wrap items-center gap-1.5">
                       {/* 总评分（2026-09-27 起）：平均分 + 档位，悬停看口径说明；旧快照无字段不渲染 */}
                       {selected.relicScoreClass && selected.relicScoreAvg !== undefined && (
-                        <Chip tone="gold" title={t('character.relicScoreNote')}>
+                        <Chip
+                          tone="gold"
+                          title={t('character.relicScoreNote')}
+                          className="tabular-nums"
+                        >
                           {t('character.relicScore')} {selected.relicScoreAvg.toFixed(1)} ·{' '}
                           {selected.relicScoreClass}
                         </Chip>
@@ -316,7 +335,7 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                         {rollsByStat.slice(0, 4).map((x) => (
                           <span
                             key={x.name}
-                            className="rounded-full border border-teyvat-line bg-white/[0.03] px-2 py-0.5 text-[11px] leading-tight text-teyvat-text-2"
+                            className="rounded-full border border-teyvat-line bg-teyvat-fill px-2 py-0.5 text-[11px] leading-tight text-teyvat-text-2 tabular-nums"
                           >
                             {x.name} {x.count}
                           </span>
@@ -337,9 +356,11 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
           )}
         </div>
       ) : (
-        <Card className="p-8 text-center text-sm text-teyvat-text-3">
-          {t('account.emptyShowcase')}
-        </Card>
+        <EmptyState
+          icon={UserRound}
+          title={t('account.emptyShowcase')}
+          className="rounded-2xl border border-teyvat-line bg-teyvat-panel shadow-panel"
+        />
       )}
     </div>
   )

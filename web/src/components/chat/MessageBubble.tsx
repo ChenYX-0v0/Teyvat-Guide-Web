@@ -29,14 +29,14 @@ export default function MessageBubble({ message, caret }: Props) {
         className={clsx(
           'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words',
           isUser
-            ? 'border border-teyvat-line-strong bg-teyvat-gold/12 text-teyvat-text'
+            ? 'border border-teyvat-line-strong bg-teyvat-gold/12 text-teyvat-text shadow-panel'
             : // 助手：面板材质 + 左侧金色细条（材质与"派蒙在说话"的视觉锚点）
               'relative border border-teyvat-line bg-teyvat-panel text-teyvat-text shadow-panel before:absolute before:top-3.5 before:bottom-3.5 before:left-[7px] before:w-[2px] before:rounded-full before:bg-gradient-to-b before:from-teyvat-gold-hi before:to-teyvat-gold/15',
         )}
         style={!isUser ? { paddingLeft: '20px' } : undefined}
       >
         {message.pending ? (
-          <span className="flex gap-1 py-1">
+          <span className="flex items-center gap-1 py-1">
             {[0, 150, 300].map((delay) => (
               <span
                 key={delay}

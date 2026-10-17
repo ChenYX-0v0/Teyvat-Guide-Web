@@ -5,6 +5,8 @@ import MessageBubble from '@/components/chat/MessageBubble'
 import ChatInput from '@/components/chat/ChatInput'
 import PresetQaPanel from '@/components/chat/PresetQaPanel'
 import SessionList from '@/components/chat/SessionList'
+import Alert from '@/components/common/Alert'
+import EmptyState from '@/components/common/EmptyState'
 import { useChatStore } from '@/store/useChatStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { genshinApi, type PlayerContextStatus } from '@/api/genshin'
@@ -86,8 +88,10 @@ export default function ChatPage() {
     return (
       <div className="flex h-full min-w-0 flex-1 flex-col">
         <div className="px-4 py-3 sm:px-6">
-          <h2 className="truncate text-base font-medium text-teyvat-text">{t('chat.title')}</h2>
-          <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('chat.subtitle')}</p>
+          <h2 className="truncate text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-text">
+            {t('chat.title')}
+          </h2>
+          <p className="mt-1 hidden truncate text-xs text-teyvat-text-3 sm:block">{t('chat.subtitle')}</p>
         </div>
         <PresetQaPanel />
       </div>
@@ -99,9 +103,11 @@ export default function ChatPage() {
       <SessionList />
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-teyvat-line px-4 py-3 sm:px-6">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-teyvat-line px-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-medium text-teyvat-text">{t('chat.title')}</h2>
+            <h2 className="truncate text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-text">
+              {t('chat.title')}
+            </h2>
             <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">
               {t('chat.subtitle')}
             </p>
@@ -151,27 +157,31 @@ export default function ChatPage() {
           )}
 
           {messages.length === 0 && (
-            <div className="mt-16 text-center">
-              <p className="text-sm text-teyvat-text-3">{t('chat.emptyHint')}</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {samplers.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => void sendMessage(t(key))}
-                    disabled={loading}
-                    className="rounded-full border border-teyvat-line bg-white/[0.03] px-3 py-1.5 text-xs text-teyvat-text-2 transition duration-150 hover:border-teyvat-line-strong hover:bg-teyvat-gold/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {t(key)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <EmptyState
+              icon={MessagesSquare}
+              title={t('chat.emptyHint')}
+              className="tx-enter pt-10"
+              action={samplers.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => void sendMessage(t(key))}
+                  disabled={loading}
+                  className="rounded-full border border-teyvat-line bg-teyvat-fill px-3.5 py-1.5 text-xs text-teyvat-text-2 transition tx-ease tx-fast hover:border-teyvat-line-strong hover:bg-teyvat-gold/5 hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t(key)}
+                </button>
+              ))}
+            />
           )}
           {messages.map((m, i) => (
             <MessageBubble key={m.id} message={m} caret={loading && i === lastAssistantIdx} />
           ))}
-          {error && !hasBubbleError && <p className="text-center text-xs text-warn/90">{error}</p>}
+          {error && !hasBubbleError && (
+            <Alert tone="error" className="mx-auto max-w-md">
+              {error}
+            </Alert>
+          )}
           <div ref={bottomRef} />
         </div>
 
@@ -182,7 +192,7 @@ export default function ChatPage() {
       {/* 移动端历史会话抽屉（复用同一个 SessionList，选中后自动关闭） */}
       {sessionsOpen && (
         <div className="fixed inset-0 z-40 touch-none md:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSessionsOpen(false)} />
+          <div className="absolute inset-0 bg-teyvat-scrim backdrop-blur-sm" onClick={() => setSessionsOpen(false)} />
           <div className="absolute inset-y-0 left-0">
             <SessionList variant="drawer" onNavigate={() => setSessionsOpen(false)} />
           </div>

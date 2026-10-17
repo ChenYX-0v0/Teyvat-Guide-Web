@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, Lock } from 'lucide-react'
 import clsx from 'clsx'
+import EmptyState from '@/components/common/EmptyState'
+import Skeleton from '@/components/common/Skeleton'
 import { useChatStore } from '@/store/useChatStore'
 import { buttonClass } from '@/utils/buttonStyles'
 import { EVENTS, track } from '@/lib/track'
@@ -25,14 +27,24 @@ export default function PresetQaPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
-        <p className="text-xs leading-relaxed text-teyvat-text-3">{t('chat.presetHint')}</p>
+        <p className="pt-1 text-xs leading-relaxed text-teyvat-text-4">{t('chat.presetHint')}</p>
 
+        {/* 加载中：3 张骨架卡（形状先到位，避免"空一片再跳出内容"） */}
         {presetsLoading && presets.length === 0 && (
-          <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetTitle')}…</p>
+          <div className="space-y-3" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-teyvat-line bg-teyvat-panel p-4 shadow-panel"
+              >
+                <Skeleton className="h-4" style={{ width: `${72 - i * 12}%` }} />
+              </div>
+            ))}
+          </div>
         )}
 
         {!presetsLoading && presets.length === 0 && (
-          <p className="py-8 text-center text-sm text-teyvat-text-3">{t('chat.presetEmpty')}</p>
+          <EmptyState title={t('chat.presetEmpty')} className="py-10" />
         )}
 
         {presets.map((item, index) => {
@@ -40,7 +52,7 @@ export default function PresetQaPanel() {
           return (
             <div
               key={item.id}
-              className="overflow-hidden rounded-2xl border border-teyvat-line bg-teyvat-panel shadow-panel"
+              className="tx-enter overflow-hidden rounded-2xl border border-teyvat-line bg-teyvat-panel shadow-panel"
             >
               <button
                 type="button"
@@ -49,12 +61,12 @@ export default function PresetQaPanel() {
                   if (!open) track(EVENTS.chatPresetExpanded, { index })
                   setOpenId(open ? null : item.id)
                 }}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-teyvat-text transition duration-150 hover:bg-white/[0.04] focus-visible:shadow-glow focus-visible:outline-none"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-teyvat-text transition tx-ease tx-fast hover:bg-teyvat-fill focus-visible:shadow-glow focus-visible:outline-none"
               >
                 <span className="min-w-0 truncate">{item.question}</span>
                 <ChevronDown
                   className={clsx(
-                    'h-4 w-4 shrink-0 text-teyvat-text-3 transition',
+                    'h-4 w-4 shrink-0 text-teyvat-text-3 transition tx-ease tx-fast',
                     open && 'rotate-180',
                   )}
                 />
@@ -70,9 +82,9 @@ export default function PresetQaPanel() {
       </div>
 
       {/* 底部输入区：匿名不可用，只做登录引导（不让用户打完字才吃 401） */}
-      <div className="border-t border-teyvat-line bg-black/25 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="border-t border-teyvat-line bg-teyvat-sunken p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-3">
-          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-teyvat-line bg-white/[0.04] px-4 text-base text-teyvat-text-4 sm:text-sm">
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-teyvat-line bg-teyvat-fill px-4 text-base text-teyvat-text-4 sm:text-sm">
             <Lock className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t('chat.loginRequired')}</span>
           </div>
