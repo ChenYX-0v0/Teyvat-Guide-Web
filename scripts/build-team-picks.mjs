@@ -160,7 +160,24 @@ const membersOf = (team) => parseMembers(team).map((m) => m.main)
 //   实测 2026-10-15：一图流的"矩阵型"表格被读成「烈绽放+卡绽」**15 人** ✗（卡维＋夜兰＋行秋＋托马＋香菱＋…）
 //   ⇒ 那种一律**丢掉** ✗（宁可少 ✗，不能把矩阵当配队喂给模型 ✓）
 const MAX_MEM = Number(arg('max-members', 5))
-const dropped = { tooMany: 0 }
+const dropped = { tooMany: 0, capped: [] }
+
+// ⚠️ 2026-10-17 **四人口径**（用户报障 ✓）：「玛薇卡 ＋ 希诺宁 ＋ 班尼特 ＋ 茜特菈莉 ＋ 芙宁娜」**五个人** ✗
+//   根因 = 识图把"第 4 位"的并列人选读成了第 5 个成员 ✗（`MAX_MEM=5` 又刚好放行 ✓）；
+//   全库实测 17 行 / 14 张卡中招 ✓（砂糖超激化、钟离自由位、早柚前置挂草位…✓）
+//   ⇒ 渲染层**硬性截到 4 人** ✓：多出来的人只进报告（数据留在 cache 供判定 ✓，不进正文 ✗）；
+//   若被截掉的正好是本角色（回填时常见 ✗），用本角色顶掉第 4 位 ✓ ——
+//   别搞出「早柚的配队里没有早柚」✗
+const MEM_CAP = 4
+function capMembers(viewer, mem) {
+  if (mem.length <= MEM_CAP) return { mem, dropped: [] }
+  const keep = mem.slice(0, MEM_CAP)
+  if (!keep.some((m) => m.main === viewer)) {
+    const v = mem.find((m) => m.main === viewer)
+    if (v) keep[MEM_CAP - 1] = v
+  }
+  return { mem: keep, dropped: mem.filter((m) => !keep.includes(m)).map((m) => m.main) }
+}
 
 function teamLine(viewer, team) {
   const raw = String(team.name ?? '').trim()
@@ -168,8 +185,11 @@ function teamLine(viewer, team) {
   const label = un ? '未标名队伍 ' + un[1] : raw
   const star = (team.seen || 0) >= 2 ? '★' : ''      // ⚠️ 实测 seen 几乎全是 1 ✗ ⇒ 实际很少打星 ✓
 
-  const mem = parseMembers(team)
-  const unknown = mem.filter((m) => !roster.has(m.main)).map((m) => m.main)
+  const parsed = parseMembers(team)
+  const unknown = parsed.filter((m) => !roster.has(m.main)).map((m) => m.main)
+  const capped = capMembers(viewer, parsed)
+  const mem = capped.mem
+  if (capped.dropped.length) dropped.capped.push(viewer + '「' + label + '」丢 ' + capped.dropped.join('、'))
   const warn = []
   // ⚠️ 机制卡冲突判定：**必须跳过角色自己** ✗ —— 踩过的坑 ✓：班尼特的 conflicts 文本里
   //   本来就写着"班尼特"三个字（"而班尼特的治疗条件与频率不匹配"✗）⇒ 不排除自己就**全队误报** ✗
@@ -185,8 +205,11 @@ function teamLine(viewer, team) {
     return m.main + (role ? '（' + role + '）' : '')
   }).join(' ＋ ')
 
+  // ⚠️ 2026-10-17 **口径反转** ✓：机制卡冲突**只进日志与报告** ✓，**不写进正文** ✗ ——
+  //   旧版把「⚠️ 与机制卡冲突：XXX」拼进 team 文本 ✗，模型照读 ⇒ 回答里反复强调"这样配不合适"✗
+  //   （用户要求：不适合的组合**不提就好** ✓；数据保留用于判定 ✓，只是不在输出里念 ✗）。
   return {
-    text: '· ' + label + (star ? ' ' + star : '') + '：' + body + (warn.length ? '　⚠️ 与机制卡冲突：' + warn.join('、') : ''),
+    text: '· ' + label + (star ? ' ' + star : '') + '：' + body,
     star: !!star, warn, unknown,
   }
 }
@@ -275,11 +298,13 @@ if (CHECK) {
     for (const line of seg.split('\n')) {
       if (!line.startsWith('·')) continue
       if (line.split('＋').length < 2) errs.push('成员数 < 2 的行 ✗：' + line.slice(0, 30))
+      // ⚠️ 2026-10-17 加 ✓：一支队只有 4 个位置 ✓ ⇒ 第 5 个人一律算硬伤 ✗（实测曾出现 17 行 ✓）
+      if (line.split('＋').length > 4) errs.push('超过 4 人 ✗：' + line.slice(0, 40))
     }
     if (errs.length) { bad++; console.log('   ✗ ' + c.name + '：' + errs.join('；')) }
   }
   console.log('   带我们段落（含回填 ✓）的卡 = ' + checked + ' / ' + cards.length)
-  console.log(bad ? '   ✗ ' + bad + ' 张卡有硬伤' : '   ✓ 全部通过（无署名 / 无占位符 / 无未拆备选 / 每行 ≥2 人）')
+  console.log(bad ? '   ✗ ' + bad + ' 张卡有硬伤' : '   ✓ 全部通过（无署名 / 无占位符 / 无未拆备选 / 每行 2~4 人）')
   process.exit(bad ? 1 : 0)
 }
 
@@ -288,7 +313,8 @@ console.log('  本地已抽 ' + cacheByName.size + ' 份；本次看 ' + targets
 console.log('  全量队伍池 = ' + allTeams.length + ' 支 ✓')
 if (report.empty.length) console.log('  ⚠️ 自有与回填都没分到队（' + report.empty.length + ' 位 ⇒ 不写 ✓，wiki 原文保持原样 ✓）：' + report.empty.join('、'))
 if (report.capped.length) console.log('  截断：' + report.capped.join('、'))
-if (report.conflicts) console.log('  ⚠️ ' + report.conflicts + ' 支被机制卡标冲突 ✓（照旧入库 ✓，文本带 ⚠️ ✓）')
+if (report.conflicts) console.log('  ⚠️ ' + report.conflicts + ' 支被机制卡标冲突 ✓（只进本报告 ✓，不进正文 ✗）')
+if (dropped.capped.length) console.log('  ⚠️ ' + dropped.capped.length + ' 支超过 4 人 ⇒ 已截到 4 人 ✓（多出来的人只进本报告 ✓）：' + dropped.capped.join('；'))
 if (report.unknownNames.size) console.log('  ❓ 不在名单里的成员名（请人眼过 ✗）：' + [...report.unknownNames.entries()].sort((a, b) => b[1] - a[1]).map(([n, c2]) => n + '×' + c2).join('、'))
 
 console.log('\n  ==== 预览（' + Math.min(6, report.built.length) + ' 位 ✓；wiki 原文省略 ✓）====')
