@@ -36,17 +36,17 @@ export default function Modal({ open, blocking = false, title, onClose, footer, 
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-3 py-6 backdrop-blur-sm sm:px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-teyvat-scrim px-3 py-6 backdrop-blur-sm sm:px-4"
       onClick={() => {
         if (!blocking) onClose?.()
       }}
     >
       <div
-        className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-teyvat-line-strong bg-teyvat-panel shadow-panel"
+        className="tx-enter flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-teyvat-line-strong bg-teyvat-panel shadow-panel"
         onClick={(e) => e.stopPropagation()}
       >
         {title ? (
-          <div className="shrink-0 border-b border-teyvat-line px-5 py-3 text-sm font-semibold tracking-wide text-teyvat-gold">
+          <div className="shrink-0 border-b border-teyvat-line px-5 py-3.5 text-[13px] font-semibold tracking-[0.04em] text-teyvat-gold">
             {title}
           </div>
         ) : null}

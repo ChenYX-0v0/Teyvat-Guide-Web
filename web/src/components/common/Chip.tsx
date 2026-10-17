@@ -10,7 +10,7 @@ type Props = HTMLAttributes<HTMLSpanElement> & {
 }
 
 const tones: Record<Tone, string> = {
-  neutral: 'border-teyvat-line bg-white/[0.03] text-teyvat-text-2',
+  neutral: 'border-teyvat-line bg-teyvat-fill text-teyvat-text-2',
   gold: 'border-teyvat-line-strong bg-teyvat-gold/10 text-teyvat-gold-hi',
   // 稀有度沿用原神约定：5★ 金 / 4★ 紫 / 3★ 蓝
   r5: 'border-rarity-5/55 bg-rarity-5/10 text-teyvat-gold-hi',

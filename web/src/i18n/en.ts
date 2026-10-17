@@ -10,6 +10,7 @@ const en: Partial<Dict> = {
   'common.expand': 'Expand',
   'common.collapse': 'Collapse',
   'common.loading': 'Loading…',
+  'common.skipToContent': 'Skip to main content',
   'common.query': 'Search',
   'common.querying': 'Querying…',
 

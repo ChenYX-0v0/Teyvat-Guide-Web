@@ -9,6 +9,8 @@ const zhCN = {
   'common.expand': '展开',
   'common.collapse': '收起',
   'common.loading': '加载中…',
+  // 无障碍：跳转链接（Tab 第一下出现，直接到正文）
+  'common.skipToContent': '跳到主要内容',
   'common.query': '查询',
   'common.querying': '查询中…',
 
