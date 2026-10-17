@@ -84,6 +84,8 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
             <img
               src={profile.avatarUrl}
               alt={profile.nickname}
+              width={40}
+              height={40}
               className="h-10 w-10 shrink-0 rounded-xl border border-teyvat-line-strong object-cover"
             />
           ) : (
@@ -180,6 +182,8 @@ export default function PlayerProfileView({ profile, collected, selectedId, onSe
                       <img
                         src={c.iconUrl}
                         alt={c.name}
+                        width={48}
+                        height={48}
                         loading="lazy"
                         className="h-12 w-12 rounded-lg object-cover"
                       />

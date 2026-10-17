@@ -45,12 +45,14 @@ export default function RelicDetailCard({ relic }: { relic: RelicInfo }) {
     <img
       src={relic.iconUrl}
       alt={relicPosNames[relic.pos] ?? relic.pos}
+      width={32}
+      height={32}
       loading="lazy"
-      className="h-6 w-6 shrink-0 rounded-md border border-teyvat-line bg-teyvat-raised object-cover sm:h-8 sm:w-8"
+      className="h-6 w-6 shrink-0 rounded-lg border border-teyvat-line bg-teyvat-raised object-cover sm:h-8 sm:w-8"
     />
   ) : null
   const posEl = (
-    <span className="shrink-0 rounded-md border border-teyvat-line bg-teyvat-fill px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
+    <span className="shrink-0 rounded-lg border border-teyvat-line bg-teyvat-fill px-1.5 py-0.5 text-[11px] leading-tight whitespace-nowrap text-teyvat-text-2 sm:px-2 sm:text-xs">
       {relicPosNames[relic.pos] ?? relic.pos}
     </span>
   )

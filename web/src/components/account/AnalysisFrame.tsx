@@ -101,6 +101,8 @@ export default function AnalysisFrame({
             <img
               src={character.iconUrl}
               alt={character.name}
+              width={36}
+              height={36}
               className="h-9 w-9 shrink-0 rounded-lg border border-teyvat-line-strong object-cover"
             />
           ) : (
@@ -137,7 +139,10 @@ export default function AnalysisFrame({
               aria-label={t('analysis.rerun')}
               className="tap-44 rounded-lg p-1.5 text-teyvat-text-3 transition tx-ease tx-fast hover:text-teyvat-gold focus-visible:shadow-glow focus-visible:outline-none disabled:opacity-40"
             >
-              <RotateCcw className={clsx('h-3.5 w-3.5', rerunning && 'animate-spin')} />
+              {/* 旋转加在 wrapper 上：直接转 <svg> 会带来 transform-origin / 重绘问题 */}
+              <span className={clsx('inline-flex', rerunning && 'animate-spin')}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </span>
             </button>
           )}
           <button
@@ -152,7 +157,11 @@ export default function AnalysisFrame({
         </header>
 
         {/* 消息区 */}
-        <div ref={listRef} aria-live="polite" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div
+          ref={listRef}
+          aria-live="polite"
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+        >
           {children}
         </div>
 

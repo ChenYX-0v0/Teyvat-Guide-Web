@@ -77,6 +77,18 @@ body,
   height: 100%;
 }
 
+/* 安卓点按高亮：我们已自带按下反馈，不要系统那块灰方块 */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 桌面端禁掉橡皮筋与滚动链；**触屏保留默认**（否则会连下拉刷新一起干掉） */
+@media (pointer: fine) {
+  html {
+    overscroll-behavior: none;
+  }
+}
+
 body {
   margin: 0;
   background:
@@ -129,6 +141,8 @@ body::after {
   transition-property: color, background-color, border-color, box-shadow, opacity, transform;
   transition-duration: var(--tx-dur-1);
   transition-timing-function: var(--ease-teyvat);
+  /* 去掉移动端双击缩放带来的 300ms 点击延迟 */
+  touch-action: manipulation;
 }
 
 :where(button:not(:disabled), a):active {
