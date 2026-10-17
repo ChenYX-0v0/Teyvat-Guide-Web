@@ -90,6 +90,8 @@ go mod tidy             # 依赖变更后执行
 
 ## 3. 目录结构与分层
 
+> `web/` 根目录下还有两份**非代码**的真源：`web/DESIGN.md`（设计规范，见 §5.3）与 `web/design/`（对外设计交付物，如给 Pixso / 设计师的简报）。
+
 ```
 web/src/
 ├─ api/            # 请求层：client.ts(axios实例+拦截器) + 各领域文件
@@ -223,6 +225,9 @@ logger.L().Errorw("chat failed", "err", err)
 
 ### 5.3 样式
 
+> **设计真源：`web/DESIGN.md`**（2026-10-18 建立）。**改任何视觉之前先读它** —— 色板 / 字阶 / 圆角 3 档 / 两档动效 / 组件规格 / 反模式（含"我们已经踩过的坑"）都在里面。
+> 它与 `web/src/index.css` 的 `@theme` **必须一致**；要偏离规范，先改 `DESIGN.md` 并在其「变更记录」留一行 —— **禁止只改代码不改文档**（此前"字体 / 装饰"反复讨论两次，就是因为没有单一真源）。
+
 - Tailwind 4 原子类；主题色定义在 `index.css` 的 `@theme`（如 `--color-teyvat-gold` → `text-teyvat-gold`），禁止硬编码颜色值。
 - 条件类名用 `clsx`。
 - 路径别名：`@/*` → `src/*`，import 一律用 `@/`。
@@ -273,6 +278,7 @@ logger.L().Errorw("chat failed", "err", err)
 ## 8. 变更后的自检清单
 
 - [ ] `web/`：`npm run lint` + `npm run build` 通过
+- [ ] 视觉改动已对照 `web/DESIGN.md`（偏离规范时已先改文档，并在其「变更记录」留日期）
 - [ ] `server/`：`go build ./...` + `go vet ./...` 通过
 - [ ] 新接口已在 `docs/04-API接口文档.md` 登记
 - [ ] 新配置项已同步 `config.yaml` / `.env.example` / `config.go`
