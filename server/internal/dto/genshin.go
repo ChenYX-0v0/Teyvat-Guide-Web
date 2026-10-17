@@ -65,6 +65,14 @@ type CharacterCollection struct {
 	ShowcaseCount int `json:"showcaseCount"`
 	// Characters 展柜中的在前 ✓，同组内按最近见到倒序 ✓
 	Characters []CollectedCharacter `json:"characters"`
+	// Profile 最近一次**落库**的玩家档案（取自本地快照 ✓，**绝不调用 Enka** ✗）。
+	//
+	// 2026-10-18 新增：账号页改成「默认只读库」口径 —— 页面打开时只请求 `/characters` ✓，
+	// 不再自动打 `/player`（那会顺带打上游 Enka ✗）。但昵称 / 等级 / 头像 / UID 仍要有来源 ⇒
+	// 从快照表里带一份出来 ✓。快照不存在时为 nil（前端据此显示"还没同步过"✓）。
+	Profile *PlayerProfile `json:"profile,omitempty"`
+	// SyncedAt 上面这份快照的落库时间（前端可显示"数据截至 …" ✓）
+	SyncedAt *time.Time `json:"syncedAt,omitempty"`
 }
 
 // CollectedCharacter 已收录角色 = 角色卡 + 收录元信息 ✓

@@ -215,7 +215,69 @@ func (s *PlayerService) Characters(uid string) (*dto.CharacterCollection, error)
 		}
 	}
 	out.Total = len(out.Characters)
+
+	// 附带本地快照里的玩家档案（2026-10-18）：
+	// 账号页默认只读库 ⇒ 昵称 / 等级 / 头像必须有来源，且**不能**为此去调 Enka ✗。
+	// 读快照失败只记日志：角色列表是主数据，档案只是头部装饰 ✓（与 CollectCharacters 同口径 ✓）。
+	if snap, err := s.repo.GetSnapshot(uid); err != nil {
+		logger.L().Warnw("read player snapshot for collection failed", "uid", uid, "err", err)
+	} else if snap != nil && snap.Profile != "" {
+		var p dto.PlayerProfile
+		if err := json.Unmarshal([]byte(snap.Profile), &p); err != nil {
+			logger.L().Warnw("unmarshal player snapshot failed", "uid", uid, "err", err)
+		} else {
+			out.Profile = &p
+			out.SyncedAt = &snap.UpdatedAt
+		}
+	}
 	return out, nil
+}
+
+// CharactersWithFallback 读库；**库里没数据（或显式 refresh）时自动回源**并入库（cache-aside ✓，2026-10-18）。
+//
+// 为什么要有它：账号页改成"每次只打一个接口"后，`/characters` 成了唯一入口 ✓。如果它严格只读库，
+// 那么新绑定 / 换过库 / 快照被 purge 的用户第一次进页面就是一片空白 ✗，只能靠界面提示让他手动点同步 ✗
+// —— 这是把系统该做的事推给了用户 ✗。正确姿势是 cache-aside：**有就返回、没有就回源并落库** ✓。
+//
+// 三层回源，尽量不打上游：
+//  1. 库里有角色且有档案 ⇒ 直接返回，**零上游请求** ✓（这是常态路径）；
+//  2. 库空但快照还在 TTL 内 ⇒ `Query` 走快照恢复 ✓，仍然**不碰 Enka** ✓；
+//  3. 快照缺失 / 过期 / forceRefresh ⇒ 才真的打 Enka ✓（和 `/player` 完全同一条路径 ✓）。
+//
+// `allowCollect` 只对**本人绑定的 UID** 为 true ✓ —— 与 `/player` 的采集门槛一致：
+// 否则任何登录用户都能刷任意 UID 把表撑大 ✗。为 false 时只读库、不回源、不写库 ✓。
+//
+// 回源失败**不报错** ✓：把库里已有的（可能是空集合）返回去，前端照常渲染并给"重试"入口 ✓
+// —— 采集/回源是增强，不该让角色页整页 500 ✗。
+func (s *PlayerService) CharactersWithFallback(
+	ctx context.Context, uid string, forceRefresh, allowCollect bool,
+) (*dto.CharacterCollection, error) {
+	col, err := s.Characters(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	// 常态路径：有角色、有档案，且没要求强制刷新 ⇒ 到此为止，不碰上游 ✓
+	if !forceRefresh && len(col.Characters) > 0 && col.Profile != nil {
+		return col, nil
+	}
+	if !allowCollect {
+		return col, nil
+	}
+
+	profile, err := s.Query(ctx, uid, forceRefresh)
+	if err != nil {
+		logger.L().Warnw("fallback fetch player failed, serving local collection", "uid", uid, "err", err)
+		return col, nil
+	}
+	s.CollectCharacters(uid, profile.Characters)
+
+	// 重新读一次：让列表顺序 / 档案 / syncedAt 都来自同一份落库结果 ✓（避免响应内部自相矛盾）
+	if fresh, err := s.Characters(uid); err == nil {
+		return fresh, nil
+	}
+	col.Profile = profile
+	return col, nil
 }
 
 // Snapshot 读取已落库的档案快照（不发起上游查询）

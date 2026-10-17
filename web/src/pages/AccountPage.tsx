@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { Link2Off, Search, UserRound } from 'lucide-react'
+import { Link2Off, RefreshCw, Search, UserRound } from 'lucide-react'
 import { genshinApi, type CollectedCharacter, type UIDBinding } from '@/api/genshin'
 import PlayerProfileView from '@/components/account/PlayerProfileView'
 import AnalysisFab from '@/components/account/AnalysisFab'
@@ -24,6 +24,10 @@ export default function AccountPage() {
    * 与 `profile.characters`（当前展柜 ✓）是两个口径 —— 用户轮换展柜就能把角色逐步全部导入 ✓。
    */
   const [collected, setCollected] = useState<CollectedCharacter[]>([])
+  /** 本地快照的落库时间（服务端随 `/characters` 带回 ✓；空串 = 还没同步过） */
+  const [syncedAt, setSyncedAt] = useState('')
+  /** 「已绑定但库里一条数据都没有」时，引导用户做那一次手动同步（见 loadFromDb） */
+  const [loadedFromDb, setLoadedFromDb] = useState(false)
   // 选中角色由本页持有：悬浮体检面板要知道"用户当前在看谁"（设计 §7.5）
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [binding, setBinding] = useState<UIDBinding | null>(null)
@@ -35,10 +39,16 @@ export default function AccountPage() {
   // 解绑是破坏性操作（换号 = 档案/绑定全丢），2026-10-18 起加**行内二次确认**，不再一点就解
   const [confirmUnbind, setConfirmUnbind] = useState(false)
 
-  // 2026-09-28：**去掉「强制刷新（绕过本地缓存）」入口** ✓ ——
-  // 档案一律走服务端快照（TTL 10 分钟 / 资产 reload 时清），用户侧不需要绕过缓存的开关；
-  // 该能力只留给运维排障：`GET /api/genshin/player?uid=…&refresh=true`（见 web/14 的资产核对配方）。
-  const doQuery = useCallback(async (targetUid: string) => {
+  /**
+   * 手动同步（2026-10-18 口径）：**这是全站唯一会打 Enka 上游的入口** ✓。
+   *
+   * 触发点只有两个：① 已绑定用户点「同步展柜」；② 用户输入 UID 点「查询」。
+   * 页面打开时**不**走这里（走 `loadFromDb` 只读库 ✓）—— 此前进页面就自动打一次上游，
+   * 还会因为"先渲染展柜、再被累积池覆盖"导致列表看起来重排了一次 ✗。
+   *
+   * `refresh=true`：手动同步必须跳过快照缓存，否则用户点了"同步"却拿到 10 分钟内的旧数据 ✗。
+   */
+  const doQuery = useCallback(async (targetUid: string, opts: { refresh?: boolean } = {}) => {
     if (!targetUid.trim()) return
     setLoading(true)
     setError('')
@@ -46,7 +56,7 @@ export default function AccountPage() {
     setProfile(null)
     setCollected([])
     try {
-      const p = await genshinApi.player(targetUid.trim())
+      const p = await genshinApi.player(targetUid.trim(), opts)
       setProfile(p)
       // 埋点：只记结果，**不记 UID 原值**（合规 §8）
       // （原 force_refresh 字段随本功能一起去掉 ✓）
@@ -70,12 +80,13 @@ export default function AccountPage() {
         // 同步失败不影响档案展示 ✓（服务端已绑 ✓；下次进页面以 /binding 为准 ✓）
       }
 
-      // 顺带拉"已收录角色池"（2026-10-11）：
+      // 同步完之后拉一次"已收录角色池"（采集已在服务端 `/player` 里做完 ✓）：
       // ⚠️ **失败不打扰用户** ✓ —— 这只是增强（拿到就多显示历史角色）✓，
       // 拿不到就退回"只显示当前展柜" ✓，不能让主流程（档案展示）跟着失败 ✗。
       try {
         const col = await genshinApi.characters(p.uid)
         setCollected(col.characters)
+        setSyncedAt(col.syncedAt ?? '')
       } catch {
         setCollected([])
       }
@@ -87,21 +98,52 @@ export default function AccountPage() {
     }
   }, [])
 
-  // 已绑定用户：进入页面自动加载档案，无需再输 UID
+  /**
+   * 账号页的**唯一数据入口**（2026-10-18 口径）：进页面 / 已绑定用户默认走这条。
+   *
+   * 此前进页面直接 `doQuery()` ⇒ 打 `/player`（可能打到上游 Enka）+ 再打 `/characters`，
+   * 两个响应先后到达 ⇒ 列表先按展柜顺序出现、几百毫秒后又被累积池覆盖成另一个顺序，
+   * 看起来像"自己又排了一次" ✗。现在只有这一个请求 ✓，一次绘制 ✓。
+   *
+   * 服务端对这个接口是 cache-aside：库里有就返回、库空自动回源 Enka 并入库 ✓
+   * ⇒ 前端不需要判断"要不要提示用户先同步" ✗（那是把系统的事推给用户 ✗）。
+   * 昵称 / 等级 / 头像来自响应里的 `profile`（服务端从落库快照带出 ✓）。
+   */
+  const loadFromDb = useCallback(async (targetUid: string, opts: { refresh?: boolean } = {}) => {
+    if (!targetUid) return
+    setLoading(true)
+    try {
+      // 服务端是 cache-aside：库里有就返回、库空会自动回源 Enka 并入库 ✓
+      // ⇒ 前端只管调这一个接口，**不需要**再判断"有没有、要不要提示用户同步" ✗
+      const col = await genshinApi.characters(targetUid, opts)
+      setCollected(col.characters)
+      if (col.profile) setProfile(col.profile)
+      setSyncedAt(col.syncedAt ?? '')
+    } catch {
+      // 拉取失败（上游超时 / 无公开展柜）不弹错：页面给"重试"入口，别整页报错 ✗
+      setCollected([])
+    } finally {
+      setLoading(false)
+      setLoadedFromDb(true)
+    }
+  }, [])
+
+  // 已绑定用户：进入页面**只读库**，不再自动打 Enka ✓（上游只由手动同步触发）
   useEffect(() => {
     genshinApi
       .binding()
       .then((b) => {
         setBinding(b)
         bindingRef.current = b
-        if (b.bound && b.uid) void doQuery(b.uid)
+        if (b.bound && b.uid) void loadFromDb(b.uid)
+        else setLoadedFromDb(true)
       })
       .catch(() => {
         setBinding(null)
         bindingRef.current = null
+        setLoadedFromDb(true)
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadFromDb])
 
   const query = useCallback(() => doQuery(uid), [doQuery, uid])
 
@@ -142,9 +184,17 @@ export default function AccountPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-teyvat-line-strong bg-teyvat-gold/10 text-teyvat-gold">
             <UserRound className="h-4 w-4" />
           </span>
-          <h2 className="text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-gold">
-            {t('account.title')}
-          </h2>
+          <div>
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-gold">
+              {t('account.title')}
+            </h2>
+            {/* 只读库口径下必须让用户知道"这是上次同步的结果"（2026-10-18） */}
+            {syncedAt ? (
+              <p className="mt-0.5 text-[11px] text-teyvat-text-4">
+                {t('account.syncedAt', { time: new Date(syncedAt).toLocaleString() })}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         {/* 已绑定：一行摘要（UID + 展开按钮）；解绑在展开后出现，隐藏查询卡 */}
@@ -154,6 +204,19 @@ export default function AccountPage() {
             <span className="text-sm font-semibold text-teyvat-gold tabular-nums">
               {binding.uid}
             </span>
+            {/* 手动同步（2026-10-18）：全站唯一会打 Enka 上游的入口，进页面不再自动查询 */}
+            {infoOpen && !confirmUnbind && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void loadFromDb(binding.uid ?? '', { refresh: true })}
+                disabled={loading}
+                title={t('account.syncHint')}
+              >
+                <RefreshCw className={clsx('h-3 w-3', loading && 'animate-spin')} />
+                {t('account.sync')}
+              </Button>
+            )}
             {infoOpen && !confirmUnbind && (
               <Button
                 variant="ghost"
@@ -196,6 +259,24 @@ export default function AccountPage() {
           </div>
         )}
       </div>
+
+      {/* 回源没成功（上游超时 / 该 UID 没有公开展柜 / 从没同步过）⇒ 给一个**重试**入口 ✓
+          ⚠️ 这里是"自动回源失败"的兜底，不是"请用户手动同步"的前置要求 —— 正常路径由服务端
+          cache-aside 自动完成 ✓。判据是「没有 profile」：档案头部来自快照，没它就渲染不出角色区 ✗ */}
+      {binding?.bound && loadedFromDb && !loading && !profile && (
+        <Card className="p-5">
+          <h3 className="text-sm font-medium text-teyvat-text">{t('account.syncEmptyTitle')}</h3>
+          <Button
+            variant="primary"
+            className="mt-3"
+            disabled={loading}
+            onClick={() => void loadFromDb(binding.uid ?? '', { refresh: true })}
+          >
+            <RefreshCw className="h-4 w-4" />
+            {loading ? t('common.querying') : t('account.resync')}
+          </Button>
+        </Card>
+      )}
 
       {/* 未绑定：显示查询卡（**查询成功即自动绑定** ✓，2026-10-12 口径 A） */}
       {!binding?.bound && (

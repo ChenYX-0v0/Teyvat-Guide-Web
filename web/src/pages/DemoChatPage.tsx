@@ -109,13 +109,12 @@ export default function DemoChatPage() {
       </aside>
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
-        {/* 标题栏：与真实页同构（标题 + 副标题 + 右侧动作） */}
+        {/* 标题栏：与真实页同构（标题 + 右侧动作） */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-teyvat-line px-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="truncate text-[22px] leading-tight font-semibold tracking-[0.01em] text-teyvat-text">
               {t('chat.title')}
             </h2>
-            <p className="hidden truncate text-xs text-teyvat-text-3 sm:block">{t('chat.subtitle')}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {messages.length > 0 && (

@@ -159,7 +159,8 @@ const zhCN = {
   // 用户看过觉得没必要 ⇒ 整块撤掉 ✓（组件里的 ROADMAP 数组也一并删了）。要恢复就翻这次提交的反向 diff ✓
   // 智能问答
   'chat.title': '智能问答',
-  'chat.subtitle': '由 Go 后端统一代理大模型能力',
+  // 'chat.subtitle'（"由 Go 后端统一代理大模型能力"）已于 2026-10-18 删除：
+  // 这是实现细节，用户看了既不懂也用不上（AGENTS §5.6）—— 标题只留一行「智能问答」。
   'chat.new': '新对话',
   'chat.emptyHint': '还没有对话，试着问一句「新手开局怎么玩？」',
   'chat.inputPlaceholder': '问问派蒙吧：比如「万叶值得抽吗？」',
@@ -216,6 +217,12 @@ const zhCN = {
   'account.unbindConfirmYes': '确认',
   'account.unbindSuccess': '已解除绑定。',
   'account.boundLabel': '已绑定 UID',
+  // 手动同步（2026-10-18）：账号页默认只读库，上游 Enka 只在用户点这里时才查
+  'account.sync': '同步展柜',
+  'account.syncedAt': '数据截至 {time}',
+  'account.syncHint': '从游戏拉取最新展柜',
+  'account.resync': '重试',
+  'account.syncEmptyTitle': '加载失败',
   'account.emptyShowcase': '该玩家未摆放角色展柜，或未公开详细信息',
 
   // 账号页悬浮 AI 体检（角色养成度，见 web/13）

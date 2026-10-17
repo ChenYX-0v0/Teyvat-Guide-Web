@@ -46,19 +46,34 @@ export interface CharacterCollection {
   showcaseCount: number
   /** 展柜中的在前 ✓，同组内按最近见到倒序 ✓ */
   characters: CollectedCharacter[]
+  /**
+   * 最近一次落库的玩家档案（服务端从**本地快照**带出来的 ✓，不调 Enka）。
+   *
+   * 2026-10-18 新增：账号页默认只读库（只调这个接口），页面头部的昵称 / 等级 / 头像
+   * 就只能来自这里 ✓。为 `undefined` 表示该 UID **还没同步过**（点「同步展柜」才有）。
+   */
+  profile?: PlayerProfile
+  /** 上面这份快照的落库时间（ISO 字符串），用于显示"数据截至 …" */
+  syncedAt?: string
 }
 
 export const genshinApi = {
   /**
    * 查询玩家档案（Enka 数据源；服务端优先返回本地快照 ✓）。
    *
-   * ⚠️ 2026-09-28：**前端不再传 `refresh`** —— 账号页去掉了「强制刷新（绕过本地缓存）」入口 ✓。
-   * 服务端参数**照旧保留** ✓，原因有二：① 运维核对资产时要用
-   * `GET /api/genshin/player?uid=…&refresh=true`（见 `web/14` 的配方）；
-   * ② 用户浏览器里可能缓存着**旧 bundle**，它仍在发这个参数 ⇒ 不能删后端支持 ✗。
+   * ⚠️ 2026-10-18 口径变更：**这个接口只允许被用户手动触发** ✓ ——
+   * 账号页打开 / 已绑定用户进页面**不再自动调用它** ✗（那会顺带打一次上游 Enka ✗），
+   * 改用 `characters()` 只读库 ✓。只有两种情况会调到这里：
+   *   ① 用户在账号页点「同步展柜」或「查询」（= 主动要求拉最新展柜 ✓）；
+   *   ② 首次输入一个 UID 查询 ✓。
+   *
+   * `refresh=true` ⇒ 服务端**跳过快照缓存直接打上游** ✓ —— 手动同步必须传它，
+   * 否则用户点了"同步"却拿到 10 分钟内的旧快照，观感就是"点了没反应" ✗。
    */
-  player(uid: string) {
-    return unwrap<PlayerProfile>(http.get('/genshin/player', { params: { uid } }))
+  player(uid: string, opts: { refresh?: boolean } = {}) {
+    return unwrap<PlayerProfile>(
+      http.get('/genshin/player', { params: opts.refresh ? { uid, refresh: 'true' } : { uid } }),
+    )
   },
 
   /**
@@ -72,9 +87,23 @@ export const genshinApi = {
    * 代价必须如实呈现：移出展柜的角色不再刷新 ⇒ 它的等级 / 圣遗物停在 `lastSeenAt` ✓（可能过时 ✗）。
    * `uid` 省略时服务端取当前登录用户绑定的 UID ✓。
    */
-  characters(uid?: string) {
+  /**
+   * 已收录角色（**账号页默认也是唯一自动调用的接口** ✓，2026-10-18）。
+   *
+   * 服务端是 **cache-aside** 语义 ✓：库里有就直接返回（零上游请求）；库是空的会**自动回源 Enka
+   * 并入库**后再返回 ✓ —— 所以前端不需要"先看看有没有、没有就提示用户点同步"这套 ✗。
+   *
+   * `refresh=true` 只用在用户**主动**点「重新同步」时 ✓：强制走一次上游，
+   * 否则会命中本地数据、看起来像"点了没反应" ✗。
+   */
+  characters(uid?: string, opts: { refresh?: boolean } = {}) {
     return unwrap<CharacterCollection>(
-      http.get('/genshin/characters', { params: uid ? { uid } : {} }),
+      http.get('/genshin/characters', {
+        params: {
+          ...(uid ? { uid } : {}),
+          ...(opts.refresh ? { refresh: 'true' } : {}),
+        },
+      }),
     )
   },
 

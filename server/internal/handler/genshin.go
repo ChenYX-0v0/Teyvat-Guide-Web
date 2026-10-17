@@ -85,10 +85,25 @@ func (h *PlayerHandler) Player(c *gin.Context) {
 // Characters GET /api/genshin/characters?uid=197794747 —— 已收录角色（2026-10-11 新增）
 //
 // uid 省略时取当前登录用户绑定的 UID ✓。
+//
+// ⚠️ 2026-10-18 起这是**账号页的默认（也是唯一自动）入口** ✓，且是 **cache-aside** 语义：
+//   - 库里有数据 ⇒ 直接返回，**零上游请求** ✓；
+//   - 库里没数据（新绑定 / 换过库 / 快照被 purge）⇒ **自动回源 Enka 并把展柜入库** ✓ 后再返回，
+//     不需要用户先点一次「同步」✗（把系统该做的事推给用户是错的 ✓）；
+//   - `?refresh=true` ⇒ 跳过"有数据就不用回源"的判断，强制走一次上游 ✓（手动刷新入口 ✓）。
+//
+// 只有**本人绑定的 UID** 允许回源写库 ✓（与 `/player` 的采集门槛一致 ✓）；
+// 其它 UID 只读库 ✓。回源失败不报错 ✓：返回库里已有的数据，前端给"重试"入口 ✓。
+//
+// `/player` 现在只剩一个用途：首次输入 UID 查询（要顺带完成自动绑定 ✓）。
+//
 // 与 `/player` 的区别（两个口径别混 ✗）：
 //   - `/player`  = **当前展柜**：快照缓存（TTL 10 分钟 ✓），会随用户换展柜而整体变化 ✓；
 //   - `/characters` = **历史累积的角色池**：换出展柜的角色**不会丢** ✓（只增不删 ✓），
 //     但不在展柜里的那几张卡**停在最后采集时刻** ✓（可能过时 ✗ ⇒ 前端展示 lastSeenAt ✓）。
+//
+// 响应里额外带 `profile` / `syncedAt`（取自本地快照 ✓）：页面头部要昵称 / 等级 / 头像，
+// 而这条链路不许调上游 ⇒ 从快照带一份 ✓；快照为空时前端显示"还没同步过，点同步" ✓。
 func (h *PlayerHandler) Characters(c *gin.Context) {
 	uid := c.Query("uid")
 	if uid == "" {
@@ -101,7 +116,12 @@ func (h *PlayerHandler) Characters(c *gin.Context) {
 		response.BadRequest(c, "UID 格式有误，应为 9 位数字（或先在账号信息页绑定 UID）")
 		return
 	}
-	col, err := h.svc.Characters(uid)
+	// cache-aside（2026-10-18）：有就返回；没有就回源 Enka 并入库 ✓ —— 用户不需要知道"要不要手动同步"。
+	// 采集门槛与 `/player` 一致：只对**本人绑定的 UID** 回源写库 ✓（防刷、防替别人存数据 ✓）。
+	boundUID, _, _ := h.svc.Binding(c.GetUint("uid"))
+	allowCollect := boundUID != "" && boundUID == uid
+
+	col, err := h.svc.CharactersWithFallback(c.Request.Context(), uid, c.Query("refresh") == "true", allowCollect)
 	if err != nil {
 		logger.L().Warnw("read collected characters failed", "uid", uid, "err", err)
 		response.Internal(c, "读取已收录角色失败")

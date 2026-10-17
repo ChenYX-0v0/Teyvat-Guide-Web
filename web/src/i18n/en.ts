@@ -162,7 +162,6 @@ const en: Partial<Dict> = {
   // was removed — the user judged it unnecessary; see web/06 for the plan itself.
   // Chat
   'chat.title': 'AI Chat',
-  'chat.subtitle': 'LLM capability proxied by the Go backend',
   'chat.new': 'New Chat',
   'chat.emptyHint': 'No messages yet. Try asking "How should a new player start?"',
   'chat.inputPlaceholder': 'Ask Paimon: e.g. "Is Kazuha worth pulling?"',
@@ -220,6 +219,11 @@ const en: Partial<Dict> = {
   'account.unbindConfirmYes': 'Confirm',
   'account.unbindSuccess': 'Unbound.',
   'account.boundLabel': 'Bound UID',
+  'account.sync': 'Sync showcase',
+  'account.syncedAt': 'Data as of {time}',
+  'account.syncHint': 'Pull the latest showcase from the game',
+  'account.resync': 'Retry',
+  'account.syncEmptyTitle': 'Failed to load',
   'account.emptyShowcase': 'This player has no characters on display, or their info is private',
 
   // Account-page floating AI build check (see web/13)
